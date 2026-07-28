@@ -1,0 +1,55 @@
+{
+  "app": {
+    "title": "Local Check",
+    "disclaimer": "Indicative only — not for in-flight use. Always rely on official navigation and safety procedures."
+  },
+  "upload": {
+    "cta": "Upload an IGC flight log",
+    "dragHint": "Drag and drop a .igc file here, or click to browse",
+    "howItWorks": "Load a glider flight recorded in IGC format to replay its track, altitude, and telemetry.",
+    "menuGroup": "Flight",
+    "menuItem": "Upload flight (.igc)",
+    "parsing": "Parsing…"
+  },
+  "errors": {
+    "title": "Error",
+    "invalidFormat": "This file doesn't look like a valid IGC flight log.",
+    "emptyFile": "This file contains no flight fixes.",
+    "unknown": "Something went wrong while reading this file."
+  },
+  "controls": {
+    "play": "Play",
+    "pause": "Pause",
+    "reset": "Reset",
+    "speed": "Speed",
+    "altitudeSource": "Altitude source",
+    "pressure": "Pressure",
+    "gnss": "GNSS"
+  },
+  "telemetry": {
+    "title": "Telemetry",
+    "time": "Time",
+    "position": "Position",
+    "pressureAltitude": "Pressure altitude",
+    "gnssAltitude": "GNSS altitude",
+    "groundSpeed": "Ground speed",
+    "vario": "Vario"
+  },
+  "summary": {
+    "title": "Flight summary",
+    "date": "Date",
+    "pilot": "Pilot",
+    "glider": "Glider",
+    "duration": "Duration",
+    "maxAltitude": "Max altitude",
+    "minAltitude": "Min altitude",
+    "maxSpeed": "Max ground speed",
+    "distance": "Total distance"
+  },
+  "legend": {
+    "shortcutsTitle": "Keyboard shortcuts",
+    "spaceKey": "Play / Pause",
+    "arrowKeys": "Step forward / backward",
+    "homeKey": "Reset to start"
+  }
+}
