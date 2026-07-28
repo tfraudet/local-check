@@ -8,7 +8,7 @@
     "dragHint": "Drag and drop a .igc file here, or click to browse",
     "howItWorks": "Load a glider flight recorded in IGC format to replay its track, altitude, and telemetry.",
     "menuGroup": "Flight",
-    "menuItem": "Upload flight (.igc)",
+    "menuItem": "Upload flight",
     "parsing": "Parsing…"
   },
   "errors": {
@@ -51,5 +51,9 @@
     "spaceKey": "Play / Pause",
     "arrowKeys": "Step forward / backward",
     "homeKey": "Reset to start"
+  },
+  "theme": {
+    "switchToLight": "Switch to light theme",
+    "switchToDark": "Switch to dark theme"
   }
 }

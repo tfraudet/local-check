@@ -5,6 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>local-check-scaffold</title>
+    <script>
+      // Apply the persisted/preferred theme before React mounts, to avoid
+      // a flash of the wrong theme on load. Kept in sync with the logic
+      // in src/hooks/useTheme.tsx.
+      (function () {
+        var stored = localStorage.getItem('local-check-theme');
+        var prefersDark = window.matchMedia(
+          '(prefers-color-scheme: dark)',
+        ).matches;
+        var isDark = stored === 'dark' || (stored !== 'light' && prefersDark);
+        document.documentElement.classList.toggle('dark', isDark);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

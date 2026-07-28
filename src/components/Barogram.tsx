@@ -2,8 +2,21 @@ import { useEffect, useRef } from 'react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { useFlightStore } from '../state/useFlightStore';
+import { useTheme } from '../hooks/useTheme';
 
 const DOWNSAMPLE_THRESHOLD = 5000;
+
+/** uPlot draws on canvas, so it can't inherit CSS variables/colors — the
+ * axis/grid colors must be provided explicitly and kept in sync with the
+ * current light/dark theme (uPlot's defaults are black, invisible on a
+ * dark background). */
+function getChartColors(isDark: boolean) {
+  return {
+    axisStroke: isDark ? '#a1a1aa' : '#52525b',
+    gridStroke: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
+    seriesStroke: isDark ? '#60a5fa' : '#2563eb',
+  };
+}
 
 /**
  * Altitude-over-time chart rendered with uPlot: a single series for the
@@ -19,6 +32,7 @@ export function Barogram() {
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
   const seek = useFlightStore((s) => s.seek);
+  const { theme } = useTheme();
 
   // Keep a ref of the latest currentTimeMs so the setCursor hook (created
   // once per data change) can read it without stale closures.
@@ -64,6 +78,10 @@ export function Barogram() {
       uplotRef.current = null;
     }
 
+    const { axisStroke, gridStroke, seriesStroke } = getChartColors(
+      theme === 'dark',
+    );
+
     const opts: uPlot.Options = {
       width: container.clientWidth || 600,
       height: container.clientHeight || 200,
@@ -72,7 +90,7 @@ export function Barogram() {
         {},
         {
           label: 'Altitude (m)',
-          stroke: '#2563eb',
+          stroke: seriesStroke,
           width: 2,
           points: { show: false },
         },
@@ -94,27 +112,53 @@ export function Barogram() {
           },
         ],
       },
-      axes: [{}, { label: 'Altitude (m)' }],
+      axes: [
+        {
+          stroke: axisStroke,
+          grid: { stroke: gridStroke },
+          ticks: { stroke: gridStroke },
+          // Time-only labels: uPlot's default time axis also inserts a
+          // secondary date row whenever splits cross a day boundary. This
+          // overrides that with a single-row, time-only label.
+          values: (_u, splits) =>
+            splits.map((v) =>
+              new Date(v * 1000).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+            ),
+        },
+        {
+          label: 'Altitude (m)',
+          stroke: axisStroke,
+          grid: { stroke: gridStroke },
+          ticks: { stroke: gridStroke },
+        },
+      ],
     };
 
     const plot = new uPlot(opts, data, container);
     uplotRef.current = plot;
 
-    const handleResize = () => {
+    // Use a ResizeObserver (not just the window `resize` event) so the
+    // chart also re-flows when its container changes size without the
+    // viewport changing — e.g. toggling the sidebar, which animates via
+    // CSS width transitions rather than firing a window resize event.
+    const resizeObserver = new ResizeObserver(() => {
       plot.setSize({
         width: container.clientWidth,
         height: container.clientHeight,
       });
-    };
-    window.addEventListener('resize', handleResize);
+    });
+    resizeObserver.observe(container);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       plot.destroy();
       uplotRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flight, altitudeSource]);
+  }, [flight, altitudeSource, theme]);
 
   // Programmatically move the cursor to reflect currentTimeMs, so the
   // barogram cursor stays synchronized during replay, not only on hover.

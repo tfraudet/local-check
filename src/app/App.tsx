@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import '../i18n';
 import { useTranslation } from 'react-i18next';
+import { Moon, Sun } from 'lucide-react';
 import { useFlightStore } from '../state/useFlightStore';
+import { useTheme } from '../hooks/useTheme';
 import {
   useReplayEngine,
   useReplayKeyboardShortcuts,
@@ -18,6 +20,7 @@ import {
 } from '../components/ui/sidebar';
 import { TooltipProvider } from '../components/ui/tooltip';
 import { Separator } from '../components/ui/separator';
+import { Button } from '../components/ui/button';
 
 /**
  * AppShell composition root. A left sidebar hosts the upload menu; the map
@@ -28,6 +31,7 @@ import { Separator } from '../components/ui/separator';
 function App() {
   const { t } = useTranslation();
   const flight = useFlightStore((s) => s.flight);
+  const { theme, toggleTheme } = useTheme();
 
   useReplayEngine();
   useReplayKeyboardShortcuts();
@@ -43,6 +47,28 @@ function App() {
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-5" />
           <h1 className="text-lg font-semibold">{t('app.title')}</h1>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="ml-auto"
+            onClick={toggleTheme}
+            aria-label={
+              theme === 'dark'
+                ? t('theme.switchToLight')
+                : t('theme.switchToDark')
+            }
+            title={
+              theme === 'dark'
+                ? t('theme.switchToLight')
+                : t('theme.switchToDark')
+            }
+          >
+            {theme === 'dark' ? (
+              <Sun className="size-4" />
+            ) : (
+              <Moon className="size-4" />
+            )}
+          </Button>
         </header>
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
