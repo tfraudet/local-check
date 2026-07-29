@@ -1,16 +1,22 @@
 import { haversineDistanceKm } from './units';
 import type { DerivedPoint, Fix } from './flight';
+import type { ElevationGrid } from './elevation';
+import { sampleElevation } from './elevation';
 
 /**
  * Compute per-fix derived metrics (ground speed, vertical speed/vario,
- * cumulative distance) from a chronologically ordered list of fixes.
+ * cumulative distance, terrain elevation, AGL) from an ordered list of fixes.
  *
  * All values are computed once at load time and stored alongside `fixes`
  * for O(1) lookup during replay — never recomputed per animation frame.
+ *
+ * `elevationGrid` is optional: when provided, terrainElevationM and aglM are
+ * populated; when absent they remain null (Phase 1 behavior preserved).
  */
 export function computeDerivedMetrics(
   fixes: Fix[],
   altitudeSource: 'pressure' | 'gnss',
+  elevationGrid?: ElevationGrid | null,
 ): DerivedPoint[] {
   const derived: DerivedPoint[] = [];
   let cumulativeDistanceKm = 0;
@@ -52,10 +58,24 @@ export function computeDerivedMetrics(
       }
     }
 
+    // Terrain elevation and AGL (populated when an elevation grid is available)
+    let terrainElevationM: number | null = null;
+    let aglM: number | null = null;
+    if (elevationGrid) {
+      const terrain = sampleElevation(elevationGrid, current.latitude, current.longitude);
+      if (!isNaN(terrain)) {
+        terrainElevationM = terrain;
+        const alt = pickAltitude(current, altitudeSource);
+        if (alt !== null) aglM = alt - terrain;
+      }
+    }
+
     derived.push({
       groundSpeedKmh,
       verticalSpeedMs,
       cumulativeDistanceKm,
+      terrainElevationM,
+      aglM,
     });
   }
 

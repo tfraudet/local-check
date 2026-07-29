@@ -10,6 +10,9 @@ import {
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useFlightStore, findCurrentFixIndex } from '../state/useFlightStore';
+import type { NormalizedFlight } from '../domain/flight';
+import type { SampledPoint } from '../domain/localCheck';
+import type { LandingZone } from '../domain/landingZone';
 
 const DEFAULT_MAP_STYLE_URL =
   (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) ??
@@ -17,25 +20,141 @@ const DEFAULT_MAP_STYLE_URL =
 
 const TRACK_SOURCE_ID = 'flight-track';
 const TRACK_LAYER_ID = 'flight-track-line';
+const LZ_SOURCE_ID = 'landing-zones';
+const LZ_LAYER_CIRCLE = 'lz-circles';
+const LZ_LAYER_LABEL = 'lz-labels';
 
-/** Default map center shown before any flight is loaded: Issoire, France
- * (a well-known soaring hub near the Massif Central / Puy-de-Dôme). */
 const DEFAULT_CENTER: [number, number] = [3.2489, 45.5401];
 const DEFAULT_ZOOM = 11;
 
+// Phase/status → hex color (matches ColorLegend)
+const STATUS_COLORS: Record<string, string> = {
+  'initial-climb': '#22d3ee', // cyan-400
+  motor: '#0891b2', // cyan-600
+  'in-local': '#22c55e', // green-500
+  'in-local-marginal': '#eab308', // yellow-400
+  'out-of-local': '#ef4444', // red-500
+  'landing-circuit': '#3b82f6', // blue-500
+  default: '#2563eb', // blue-600 (no local check result)
+};
+
+function getSegmentColor(phase: string, status: string): string {
+  if (phase === 'initial-climb') return STATUS_COLORS['initial-climb'];
+  if (phase === 'motor') return STATUS_COLORS['motor'];
+  if (phase === 'landing-circuit') return STATUS_COLORS['landing-circuit'];
+  if (status === 'out-of-local') return STATUS_COLORS['out-of-local'];
+  if (status === 'in-local-marginal') return STATUS_COLORS['in-local-marginal'];
+  if (status === 'in-local') return STATUS_COLORS['in-local'];
+  return STATUS_COLORS['default'];
+}
+
 /**
- * Renders the flight track on a MapLibre GL map: a GeoJSON LineString layer
- * fit to bounds on load, a glider marker interpolated between the two
- * nearest fixes on every `currentTimeMs` change, and hover/click-to-seek
- * on the track (FR-M-7, FR-M-8, FR-M-9, FR-M-10).
+ * Build a GeoJSON FeatureCollection of colored line segments from the fixes
+ * and local-check samples. Consecutive fixes with the same color are merged
+ * into a single LineString feature.
  */
+function buildColoredTrackGeoJSON(
+  flight: NormalizedFlight,
+  samples: SampledPoint[] | null,
+): GeoJSON.FeatureCollection {
+  const fixes = flight.fixes;
+  if (!samples || samples.length === 0) {
+    return {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { color: STATUS_COLORS['default'] },
+          geometry: {
+            type: 'LineString',
+            coordinates: fixes.map((f) => [f.longitude, f.latitude]),
+          },
+        },
+      ],
+    };
+  }
+
+  // Build a per-fix color array by assigning each fix the color of the
+  // nearest sample (by time, using a sliding pointer for efficiency).
+  const colors: string[] = new Array(fixes.length).fill(STATUS_COLORS['default']);
+  let sampleIdx = 0;
+  for (let i = 0; i < fixes.length; i++) {
+    while (
+      sampleIdx < samples.length - 1 &&
+      Math.abs(samples[sampleIdx + 1].timeMs - fixes[i].timeMs) <
+        Math.abs(samples[sampleIdx].timeMs - fixes[i].timeMs)
+    ) {
+      sampleIdx++;
+    }
+    const s = samples[sampleIdx];
+    colors[i] = getSegmentColor(s.phase, s.status);
+  }
+
+  // Group consecutive fixes with the same color into segments.
+  const features: GeoJSON.Feature<GeoJSON.LineString>[] = [];
+  let segStart = 0;
+  let segColor = colors[0];
+
+  for (let i = 1; i <= fixes.length; i++) {
+    const color = i < fixes.length ? colors[i] : null;
+    if (color !== segColor || i === fixes.length) {
+      if (i - segStart >= 2) {
+        features.push({
+          type: 'Feature',
+          properties: { color: segColor },
+          geometry: {
+            type: 'LineString',
+            coordinates: fixes.slice(segStart, i).map((f) => [f.longitude, f.latitude]),
+          },
+        });
+      }
+      segStart = i - 1; // overlap by 1 to avoid gaps
+      segColor = color ?? segColor;
+    }
+  }
+
+  return { type: 'FeatureCollection', features };
+}
+
+function buildLzGeoJSON(
+  zones: LandingZone[],
+  visibleIds: Set<string>,
+): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: zones
+      .filter((z) => visibleIds.has(z.id))
+      .map((z) => ({
+        type: 'Feature' as const,
+        properties: {
+          id: z.id,
+          name: z.name,
+          code: z.code ?? '',
+          isAirfield: z.isAirfield,
+          difficulty: z.difficulty ?? '',
+          elevationM: z.elevationM ?? '',
+          color: z.isAirfield ? '#3b82f6' : '#22c55e',
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [z.longitude, z.latitude],
+        },
+      })),
+  };
+}
+
 export function MapView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const mapReadyRef = useRef(false);
+
   const flight = useFlightStore((s) => s.flight);
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
   const seek = useFlightStore((s) => s.seek);
+  const localCheckResult = useFlightStore((s) => s.localCheckResult);
+  const landingZones = useFlightStore((s) => s.landingZones);
+  const visibleLandingZoneIds = useFlightStore((s) => s.visibleLandingZoneIds);
 
   // Initialize the map once.
   useEffect(() => {
@@ -51,29 +170,34 @@ export function MapView() {
     map.addControl(new NavigationControl(), 'top-right');
     mapRef.current = map;
 
+    map.once('load', () => {
+      mapReadyRef.current = true;
+    });
+
     return () => {
       map.remove();
       mapRef.current = null;
+      mapReadyRef.current = false;
     };
   }, []);
 
-  // Load/replace the track whenever the flight changes.
+  // Load/replace the track whenever the flight or local-check result changes.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !flight) return;
 
-    const coordinates = flight.fixes.map((f) => [f.longitude, f.latitude]);
-    const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'LineString', coordinates },
-    };
+    const samples = localCheckResult?.samples ?? null;
+    const geojson = buildColoredTrackGeoJSON(flight, samples);
 
     const applyTrack = () => {
-      const source = map.getSource(TRACK_SOURCE_ID) as
-        GeoJSONSource | undefined;
+      const source = map.getSource(TRACK_SOURCE_ID) as GeoJSONSource | undefined;
       if (source) {
         source.setData(geojson);
+        // Update line-color expression after data change
+        map.setPaintProperty(TRACK_LAYER_ID, 'line-color', [
+          'get',
+          'color',
+        ]);
       } else {
         map.addSource(TRACK_SOURCE_ID, { type: 'geojson', data: geojson });
         map.addLayer({
@@ -81,7 +205,7 @@ export function MapView() {
           type: 'line',
           source: TRACK_SOURCE_ID,
           paint: {
-            'line-color': '#2563eb',
+            'line-color': ['get', 'color'],
             'line-width': 3,
           },
         });
@@ -99,22 +223,28 @@ export function MapView() {
         });
       }
 
-      const bounds = coordinates.reduce(
-        (b, coord) => b.extend(coord as [number, number]),
-        new LngLatBounds(
-          coordinates[0] as [number, number],
-          coordinates[0] as [number, number],
-        ),
-      );
-      map.fitBounds(bounds, { padding: 40, duration: 0 });
+      // Only fit bounds when the track is first added (no localCheckResult yet),
+      // not on every recolor — that would reset the user's map position.
+      if (!localCheckResult) {
+        const coordinates = flight.fixes.map((f) => [f.longitude, f.latitude]);
+        const bounds = coordinates.reduce(
+          (b, coord) => b.extend(coord as [number, number]),
+          new LngLatBounds(
+            coordinates[0] as [number, number],
+            coordinates[0] as [number, number],
+          ),
+        );
+        map.fitBounds(bounds, { padding: 40, duration: 0 });
+      }
 
       if (!markerRef.current) {
         const el = document.createElement('div');
         el.className =
           'h-4 w-4 rounded-full border-2 border-white bg-blue-600 shadow';
-        markerRef.current = new Marker({ element: el }).setLngLat(
-          coordinates[0] as [number, number],
-        );
+        markerRef.current = new Marker({ element: el }).setLngLat([
+          flight.fixes[0].longitude,
+          flight.fixes[0].latitude,
+        ]);
         markerRef.current.addTo(map);
       }
     };
@@ -124,10 +254,66 @@ export function MapView() {
     } else {
       map.once('load', applyTrack);
     }
-  }, [flight, seek]);
+  }, [flight, seek, localCheckResult]);
 
-  // Move the marker on every currentTimeMs change, interpolating between
-  // the two nearest fixes for smooth motion during playback.
+  // LZ symbol layer — rebuild whenever the zones or visibility changes.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const lzGeoJSON = buildLzGeoJSON(landingZones, visibleLandingZoneIds);
+
+    const applyLzLayer = () => {
+      const source = map.getSource(LZ_SOURCE_ID) as GeoJSONSource | undefined;
+      if (source) {
+        source.setData(lzGeoJSON);
+      } else {
+        map.addSource(LZ_SOURCE_ID, { type: 'geojson', data: lzGeoJSON });
+        map.addLayer({
+          id: LZ_LAYER_CIRCLE,
+          type: 'circle',
+          source: LZ_SOURCE_ID,
+          paint: {
+            'circle-radius': ['case', ['get', 'isAirfield'], 8, 6],
+            'circle-color': ['get', 'color'],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+            'circle-opacity': 0.85,
+          },
+        });
+        map.addLayer({
+          id: LZ_LAYER_LABEL,
+          type: 'symbol',
+          source: LZ_SOURCE_ID,
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-size': 10,
+            'text-offset': [0, 1.2],
+            'text-anchor': 'top',
+          },
+          paint: {
+            'text-color': '#1e293b',
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 1,
+          },
+        });
+        map.on('mouseenter', LZ_LAYER_CIRCLE, () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', LZ_LAYER_CIRCLE, () => {
+          map.getCanvas().style.cursor = '';
+        });
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      applyLzLayer();
+    } else {
+      map.once('load', applyLzLayer);
+    }
+  }, [landingZones, visibleLandingZoneIds]);
+
+  // Move the glider marker on every currentTimeMs change.
   useEffect(() => {
     if (!flight || !markerRef.current) return;
     const position = interpolatePosition(flight, currentTimeMs);
@@ -138,7 +324,7 @@ export function MapView() {
 }
 
 function interpolatePosition(
-  flight: NonNullable<ReturnType<typeof useFlightStore.getState>['flight']>,
+  flight: NormalizedFlight,
   timeMs: number,
 ): [number, number] | null {
   const index = findCurrentFixIndex(flight, timeMs);
@@ -155,7 +341,7 @@ function interpolatePosition(
 }
 
 function seekToNearestFix(
-  flight: NonNullable<ReturnType<typeof useFlightStore.getState>['flight']>,
+  flight: NormalizedFlight,
   lngLat: LngLat,
   seek: (timeMs: number) => void,
 ): void {

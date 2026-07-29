@@ -15,7 +15,11 @@
     "title": "Error",
     "invalidFormat": "This file doesn't look like a valid IGC flight log.",
     "emptyFile": "This file contains no flight fixes.",
-    "unknown": "Something went wrong while reading this file."
+    "unknown": "Something went wrong while reading this file.",
+    "elevation": {
+      "fetchFailed": "Could not load terrain data. Local check is unavailable.",
+      "retry": "Retry"
+    }
   },
   "controls": {
     "play": "Play",
@@ -33,7 +37,17 @@
     "pressureAltitude": "Pressure altitude",
     "gnssAltitude": "GNSS altitude",
     "groundSpeed": "Ground speed",
-    "vario": "Vario"
+    "vario": "Vario",
+    "agl": "Height AGL",
+    "status": {
+      "inLocal": "In local",
+      "inLocalMarginal": "Marginal",
+      "outOfLocal": "Out of local",
+      "initialClimb": "Initial climb",
+      "motor": "Motor",
+      "landingCircuit": "Landing circuit",
+      "cruise": "Cruise"
+    }
   },
   "summary": {
     "title": "Flight summary",
@@ -45,6 +59,56 @@
     "minAltitude": "Min altitude",
     "maxSpeed": "Max ground speed",
     "distance": "Total distance"
+  },
+  "landingZones": {
+    "menuGroup": "Landing Zones",
+    "menuItem": "Import .cup file",
+    "dragHint": "Drag and drop a .cup file here, or click to browse",
+    "parsing": "Parsing…",
+    "empty": "No landing zones imported yet",
+    "count_one": "{{count}} landing zone",
+    "count_other": "{{count}} landing zones",
+    "airfield": "Airfield",
+    "outlanding": "Outlanding",
+    "clear": "Clear all",
+    "errorTitle": "Import error",
+    "errorLines": "{{count}} row(s) could not be parsed"
+  },
+  "localCheck": {
+    "computing": "Computing…",
+    "settings": {
+      "title": "Parameters",
+      "workingLD": "Working L/D",
+      "workingLDHint": "Glide ratio used for local computation (default 20)",
+      "arrivalHeight": "Arrival height (m)",
+      "arrivalHeightHint": "Minimum height above LZ on arrival (default 300 m)",
+      "groundClearance": "Ground clearance (m)",
+      "groundClearanceHint": "Minimum height above terrain along glide path (default 150 m)",
+      "timeStep": "Time step (s)",
+      "timeStepHint": "Sampling interval for local check (min 10 s, default 20 s)",
+      "enlThreshold": "ENL threshold",
+      "enlThresholdHint": "Engine noise level above which motor is considered running (default 500)"
+    },
+    "stats": {
+      "title": "Local check results",
+      "outOfLocalTime": "Out of local",
+      "outOfLocalPercent": "% of flight",
+      "meanMissingHeight": "Mean missing height",
+      "maxMissingHeight": "Max missing height",
+      "firstOutOfLocal": "First out-of-local",
+      "seekTo": "Seek to",
+      "noResult": "Import a .cup file to run the local check",
+      "allGood": "Always in local"
+    },
+    "legend": {
+      "title": "Track colors",
+      "initialClimb": "Initial climb (tow/winch)",
+      "motor": "Motor running",
+      "inLocal": "In local",
+      "marginal": "Marginal (< 100 m margin)",
+      "outOfLocal": "Out of local",
+      "landingCircuit": "Landing circuit"
+    }
   },
   "legend": {
     "shortcutsTitle": "Keyboard shortcuts",

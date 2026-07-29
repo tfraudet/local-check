@@ -1,0 +1,9 @@
+name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc
+"Vinon Sur Verdon","VINON","FR",4344.150N,00604.020E,270m,2,,,,"Airfield - {A}"
+"Riez","RIEZ","FR",4349.500N,00607.170E,520m,5,,,,"Glider site - {F} Easy"
+"Saint Auban","STAUBAN","FR",4402.220N,00602.250E,454m,2,,,,"Airfield concrete - {A}"
+"Les Rasses","RASSES","FR",4338.900N,00615.830E,680m,4,,,,"Outlanding - {M} Medium"
+"Banon","BANON","FR",4403.700N,00538.100E,870m,4,,,,"Outlanding - {D} Difficult"
+"Manosque","MNQE","FR",4349.880N,00548.770E,338m,4,,,,"Outlanding - {F}"
+"Bad format row"
+"Near Vinon","NV","FR",4344.200N,00604.050E,275m,4,,,,"Very close to Vinon - should be deduped"

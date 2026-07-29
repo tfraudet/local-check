@@ -14,6 +14,15 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  server: {
+    proxy: {
+      '/ot-proxy': {
+        target: 'https://portal.opentopography.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ot-proxy/, ''),
+      },
+    },
+  },
   optimizeDeps: {
     // maplibre-gl's worker is loaded via a relative `new URL(...)` from its
     // own module; pre-bundling it into node_modules/.vite/deps/ breaks that

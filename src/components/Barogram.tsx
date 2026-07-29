@@ -3,8 +3,46 @@ import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { useFlightStore } from '../state/useFlightStore';
 import { useTheme } from '../hooks/useTheme';
+import type { SampledPoint } from '../domain/localCheck';
+import { sampleElevation } from '../domain/elevation';
 
 const DOWNSAMPLE_THRESHOLD = 5000;
+
+const STATUS_COLORS: Record<string, string> = {
+  'initial-climb': '#22d3ee',
+  motor: '#0891b2',
+  'in-local': '#22c55e',
+  'in-local-marginal': '#eab308',
+  'out-of-local': '#ef4444',
+  'landing-circuit': '#3b82f6',
+  default: '#2563eb',
+};
+
+function getSegmentColor(phase: string, status: string): string {
+  if (phase === 'initial-climb') return STATUS_COLORS['initial-climb'];
+  if (phase === 'motor') return STATUS_COLORS['motor'];
+  if (phase === 'landing-circuit') return STATUS_COLORS['landing-circuit'];
+  if (status === 'out-of-local') return STATUS_COLORS['out-of-local'];
+  if (status === 'in-local-marginal') return STATUS_COLORS['in-local-marginal'];
+  if (status === 'in-local') return STATUS_COLORS['in-local'];
+  return STATUS_COLORS['default'];
+}
+
+function buildBarogramColors(times: number[], samples: SampledPoint[]): string[] {
+  const colors: string[] = new Array(times.length).fill(STATUS_COLORS['default']);
+  let sIdx = 0;
+  for (let i = 0; i < times.length; i++) {
+    const tMs = times[i] * 1000;
+    while (
+      sIdx < samples.length - 1 &&
+      Math.abs(samples[sIdx + 1].timeMs - tMs) < Math.abs(samples[sIdx].timeMs - tMs)
+    ) {
+      sIdx++;
+    }
+    colors[i] = getSegmentColor(samples[sIdx].phase, samples[sIdx].status);
+  }
+  return colors;
+}
 
 /** uPlot draws on canvas, so it can't inherit CSS variables/colors — the
  * axis/grid colors must be provided explicitly and kept in sync with the
@@ -32,6 +70,8 @@ export function Barogram() {
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
   const seek = useFlightStore((s) => s.seek);
+  const localCheckResult = useFlightStore((s) => s.localCheckResult);
+  const elevationGrid = useFlightStore((s) => s.elevationGrid);
   const { theme } = useTheme();
 
   // Keep a ref of the latest currentTimeMs so the setCursor hook (created
@@ -55,23 +95,43 @@ export function Barogram() {
       altitudeSource === 'pressure' ? f.pressureAltitudeM : f.gnssAltitudeM,
     );
 
+    const fullTerrain = elevationGrid
+      ? flight.fixes.map((f) => {
+          const v = sampleElevation(elevationGrid, f.latitude, f.longitude);
+          return isNaN(v) ? null : v;
+        })
+      : flight.fixes.map(() => null as number | null);
+
     const stride = Math.max(
       1,
       Math.floor(fullTimes.length / DOWNSAMPLE_THRESHOLD),
     );
     const times: number[] = [];
     const altitudes: (number | null)[] = [];
+    const terrain: (number | null)[] = [];
     for (let i = 0; i < fullTimes.length; i += stride) {
       times.push(fullTimes[i]);
       altitudes.push(fullAltitudes[i]);
+      terrain.push(fullTerrain[i]);
     }
     // Always include the last point.
     if (times[times.length - 1] !== fullTimes[fullTimes.length - 1]) {
       times.push(fullTimes[fullTimes.length - 1]);
       altitudes.push(fullAltitudes[fullAltitudes.length - 1]);
+      terrain.push(fullTerrain[fullTerrain.length - 1]);
     }
 
-    const data: uPlot.AlignedData = [times, altitudes];
+    const hasTerrain = terrain.some((v) => v !== null);
+
+    // Series order: terrain first (renders behind), altitude on top.
+    // data[1] = terrain, data[2] = altitude (when terrain available)
+    // data[1] = altitude only (when no terrain)
+    const data: uPlot.AlignedData = hasTerrain
+      ? [times, terrain, altitudes]
+      : [times, altitudes];
+
+    const samples = localCheckResult?.samples ?? null;
+    const colors = samples && samples.length > 0 ? buildBarogramColors(times, samples) : null;
 
     if (uplotRef.current) {
       uplotRef.current.destroy();
@@ -88,9 +148,20 @@ export function Barogram() {
       scales: { x: { time: true } },
       series: [
         {},
+        ...(hasTerrain
+          ? [
+              {
+                label: 'Terrain (m)',
+                stroke: 'rgba(160, 100, 40, 0.7)',
+                fill: 'rgba(160, 100, 40, 0.3)',
+                width: 1,
+                points: { show: false },
+              },
+            ]
+          : []),
         {
           label: 'Altitude (m)',
-          stroke: seriesStroke,
+          stroke: colors ? 'transparent' : seriesStroke,
           width: 2,
           points: { show: false },
         },
@@ -111,6 +182,34 @@ export function Barogram() {
             }
           },
         ],
+        ...(colors ? { draw: [
+              (u: uPlot) => {
+                const ctx = u.ctx;
+                const { left, top, width: bw, height: bh } = u.bbox;
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(left, top, bw, bh);
+                ctx.clip();
+                ctx.lineWidth = 2 * u.pxRatio;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                for (let i = 0; i < times.length - 1; i++) {
+                  const a0 = altitudes[i];
+                  const a1 = altitudes[i + 1];
+                  if (a0 == null || a1 == null) continue;
+                  const x0 = u.valToPos(times[i], 'x', true);
+                  const y0 = u.valToPos(a0, 'y', true);
+                  const x1 = u.valToPos(times[i + 1], 'x', true);
+                  const y1 = u.valToPos(a1, 'y', true);
+                  ctx.beginPath();
+                  ctx.strokeStyle = colors[i];
+                  ctx.moveTo(x0, y0);
+                  ctx.lineTo(x1, y1);
+                  ctx.stroke();
+                }
+                ctx.restore();
+              },
+            ] } : {}),
       },
       axes: [
         {
@@ -158,7 +257,7 @@ export function Barogram() {
       uplotRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flight, altitudeSource, theme]);
+  }, [flight, altitudeSource, theme, localCheckResult, elevationGrid]);
 
   // Programmatically move the cursor to reflect currentTimeMs, so the
   // barogram cursor stays synchronized during replay, not only on hover.

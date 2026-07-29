@@ -28,6 +28,8 @@ export interface DerivedPoint {
   groundSpeedKmh: number | null; // null for the first fix (no prior point)
   verticalSpeedMs: number | null; // vario, null for the first fix
   cumulativeDistanceKm: number;
+  terrainElevationM: number | null; // null until elevation grid is loaded
+  aglM: number | null; // fix altitude − terrainElevationM; null when terrain is unavailable
 }
 
 export interface FlightSummary {

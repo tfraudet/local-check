@@ -5,6 +5,10 @@ import { cn } from '../lib/utils';
 import { useIgcFileLoader } from '../hooks/useIgcFileLoader';
 import { useFlightStore } from '../state/useFlightStore';
 import { FlightSummaryPanel } from './FlightSummaryPanel';
+import { LandingZonesPanel } from './LandingZonesPanel';
+import { LocalCheckSettings } from './LocalCheckSettings';
+import { LocalStatsPanel } from './LocalStatsPanel';
+import { ColorLegend } from './ColorLegend';
 import {
   Sidebar,
   SidebarContent,
@@ -20,15 +24,13 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Skeleton } from './ui/skeleton';
+import { Separator } from './ui/separator';
 
-/**
- * Left navigation sidebar. Currently hosts a single menu action to upload
- * an IGC flight log (FR-M-1); the flight name is shown once loaded.
- */
 export function AppSidebar() {
   const { t } = useTranslation();
   const { loadFile, isParsing, loadError } = useIgcFileLoader();
   const flight = useFlightStore((s) => s.flight);
+  const elevationLoadError = useFlightStore((s) => s.elevationLoadError);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const dragCounterRef = useRef(0);
@@ -71,6 +73,7 @@ export function AppSidebar() {
         <h1 className="text-lg font-semibold">{t('app.title')}</h1>
       </SidebarHeader>
       <SidebarContent>
+        {/* ── Flight upload ─────────────────────────────────────────────── */}
         <SidebarGroup>
           <SidebarGroupLabel>{t('upload.menuGroup')}</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -154,6 +157,52 @@ export function AppSidebar() {
             )}
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* ── Landing Zones (Phase 2) ───────────────────────────────────── */}
+        {flight && (
+          <>
+            <Separator />
+            <SidebarGroup>
+              <SidebarGroupLabel>{t('landingZones.menuGroup')}</SidebarGroupLabel>
+              <SidebarGroupContent className="px-2">
+                {elevationLoadError && (
+                  <Alert variant="destructive" className="mb-2">
+                    <AlertCircle className="size-4" />
+                    <AlertTitle>{t('errors.title')}</AlertTitle>
+                    <AlertDescription>{t('errors.elevation.fetchFailed')}</AlertDescription>
+                  </Alert>
+                )}
+                <LandingZonesPanel />
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* ── Local Check Settings ─────────────────────────────────── */}
+            <Separator />
+            <SidebarGroup>
+              <SidebarGroupLabel>{t('localCheck.settings.title')}</SidebarGroupLabel>
+              <SidebarGroupContent className="px-2">
+                <LocalCheckSettings />
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* ── Results ──────────────────────────────────────────────── */}
+            <Separator />
+            <SidebarGroup>
+              <SidebarGroupLabel>{t('localCheck.stats.title')}</SidebarGroupLabel>
+              <SidebarGroupContent className="px-2">
+                <LocalStatsPanel />
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* ── Color Legend ─────────────────────────────────────────── */}
+            <Separator />
+            <SidebarGroup>
+              <SidebarGroupContent className="px-2">
+                <ColorLegend />
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
       </SidebarContent>
     </Sidebar>
   );

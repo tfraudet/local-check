@@ -1,12 +1,12 @@
 # Local Check — Phase 1 Technical Specification
 
-|                  |                                               |
-| ---------------- | --------------------------------------------- |
-| **Product**      | Local Check                                   |
-| **Document**     | Phase 1 (MVP) Technical Specification         |
-| **Version**      | 0.1 (Draft)                                   |
-| **Status**       | Draft — for review                            |
-| **Related docs** | `docs/PRD.md` (Product Requirements Document) |
+|                  |                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| **Product**      | Local Check                                                                           |
+| **Document**     | Phase 1 (MVP) Technical Specification                                                 |
+| **Version**      | 1.0                                                                                   |
+| **Status**       | **Implemented** — Phase 1 shipped                                                     |
+| **Related docs** | `docs/PRD.md` (Product Requirements Document); `docs/phase-2-technical-spec.md` (next) |
 
 ---
 
