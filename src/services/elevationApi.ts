@@ -11,9 +11,28 @@
  */
 
 import { fromArrayBuffer } from 'geotiff';
-import type { ElevationGrid } from '../domain/elevation';
+import type { ElevationGrid, ElevationCrs } from '../domain/elevation';
 
 const OT_API_KEY = import.meta.env.VITE_OPENTOPOGRAPHY_API_KEY as string | undefined;
+
+// Selected via VITE_ELEVATION_DEMTYPE. EU_DTM (Copernicus EU-DEM v1.1) has
+// higher resolution (~25 m) but is served in EPSG:3035 (LAEA meters), so it
+// requires a WGS84 → EPSG:3035 projection at sample time. SRTMGL1 is 30 m
+// and native WGS84 — a good globally-available fallback outside Europe.
+const SUPPORTED_DEMTYPES = ['EU_DTM', 'SRTMGL1', 'SRTMGL3', 'COP30', 'COP90'] as const;
+type Demtype = (typeof SUPPORTED_DEMTYPES)[number];
+
+const DEMTYPE: Demtype = (() => {
+  const raw = import.meta.env.VITE_ELEVATION_DEMTYPE as string | undefined;
+  if (raw && (SUPPORTED_DEMTYPES as readonly string[]).includes(raw)) {
+    return raw as Demtype;
+  }
+  return 'EU_DTM';
+})();
+
+function crsFor(demtype: Demtype): ElevationCrs {
+  return demtype === 'EU_DTM' ? 'EPSG:3035' : 'EPSG:4326';
+}
 
 const OT_BASE = import.meta.env.DEV
   ? '/ot-proxy/API/globaldem'
@@ -44,12 +63,8 @@ export async function fetchElevationGrid(
 
   const [minLon, minLat, maxLon, maxLat] = bufferBbox(bbox, 0.1);
 
-  // NOTE: only WGS84-native DEMs work here — sampleElevation() treats grid
-  // coordinates as decimal degrees. EU_DTM is served in EPSG:3035 (LAEA
-  // meters), which produced grid bboxes like [3782370, 2497660, …] that
-  // silently excluded every fix from the terrain series.
   const params = new URLSearchParams({
-    demtype: 'SRTMGL1',
+    demtype: DEMTYPE,
     south: String(minLat),
     north: String(maxLat),
     west: String(minLon),
@@ -86,8 +101,9 @@ export async function fetchElevationGrid(
   const cols = image.getWidth();
   const rows = image.getHeight();
 
-  // getBoundingBox() returns [west, south, east, north] for geographic CRS.
-  const [west, south, east, north] = image.getBoundingBox();
+  // getBoundingBox() returns [minX, minY, maxX, maxY] in the file's native
+  // CRS — degrees for WGS84 rasters, meters for EPSG:3035 (EU_DTM).
+  const [minX, minY, maxX, maxY] = image.getBoundingBox();
 
   const rasters = await image.readRasters();
   const band = rasters[0] as Float32Array | Int16Array;
@@ -103,12 +119,25 @@ export async function fetchElevationGrid(
     }
   }
 
-  const latSpanM = ((north - south) * Math.PI) / 180 * 6_371_000;
-  const resolutionM = Math.round(latSpanM / Math.max(rows - 1, 1));
+  const crs = crsFor(DEMTYPE);
+  // In EPSG:3035 the raster units are already meters. In WGS84 we convert
+  // the latitude span to meters via a spherical approximation.
+  const ySpanM =
+    crs === 'EPSG:3035'
+      ? maxY - minY
+      : ((maxY - minY) * Math.PI) / 180 * 6_371_000;
+  const resolutionM = Math.round(ySpanM / Math.max(rows - 1, 1));
 
   onProgress?.({ loaded: 1, total: 1 });
 
-  return { bbox: [west, south, east, north], cols, rows, resolutionM, data };
+  return {
+    bbox: [minX, minY, maxX, maxY],
+    cols,
+    rows,
+    resolutionM,
+    data,
+    crs,
+  };
 }
 
 function bufferBbox(

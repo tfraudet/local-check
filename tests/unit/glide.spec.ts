@@ -9,6 +9,7 @@ const FLAT_GRID: ElevationGrid = {
   rows: 3,
   resolutionM: 100000,
   data: new Float32Array(9).fill(0), // sea level everywhere
+  crs: 'EPSG:4326',
 };
 
 function lz(lat: number, lon: number, elevM = 0): LandingZone {
@@ -75,6 +76,7 @@ describe('checkGlideToLz', () => {
       rows: 3,
       resolutionM: 10000,
       data,
+      crs: 'EPSG:4326',
     };
 
     const nearLz = lz(43.0, 6.08, 0);

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildGridPoints, sampleElevation } from '../../src/domain/elevation';
+import {
+  buildGridPoints,
+  projectWgs84ToEpsg3035,
+  sampleElevation,
+} from '../../src/domain/elevation';
 import type { ElevationGrid } from '../../src/domain/elevation';
 
 function makeGrid(
@@ -17,7 +21,14 @@ function makeGrid(
       data[r * cols + c] = fillFn(r, c);
     }
   }
-  return { bbox: [minLon, minLat, maxLon, maxLat], cols, rows, resolutionM: 90, data };
+  return {
+    bbox: [minLon, minLat, maxLon, maxLat],
+    cols,
+    rows,
+    resolutionM: 90,
+    data,
+    crs: 'EPSG:4326',
+  };
 }
 
 describe('sampleElevation', () => {
@@ -54,6 +65,52 @@ describe('sampleElevation', () => {
     expect(sampleElevation(grid, -0.1, 0.5)).toBeNaN();
     expect(sampleElevation(grid, 0.5, 1.1)).toBeNaN();
     expect(sampleElevation(grid, 2, 0.5)).toBeNaN();
+  });
+});
+
+describe('projectWgs84ToEpsg3035', () => {
+  it('maps the projection origin (52°N, 10°E) to (FE, FN)', () => {
+    const { x, y } = projectWgs84ToEpsg3035(52, 10);
+    expect(x).toBeCloseTo(4321000, 0);
+    expect(y).toBeCloseTo(3210000, 0);
+  });
+
+  it('maps a Massif Central point into the expected EU_DTM tile range', () => {
+    // From a real EU_DTM request centered near (45.5°N, 3.3°E), the returned
+    // raster bbox was around [3782370, 2497660, 3809760, 2532100].
+    const { x, y } = projectWgs84ToEpsg3035(45.5, 3.3);
+    expect(x).toBeGreaterThan(3_780_000);
+    expect(x).toBeLessThan(3_810_000);
+    expect(y).toBeGreaterThan(2_490_000);
+    expect(y).toBeLessThan(2_540_000);
+  });
+});
+
+describe('sampleElevation on an EPSG:3035 grid', () => {
+  it('projects WGS84 input and returns the interpolated value', () => {
+    // 2×2 grid covering the EU_DTM extent around Massif Central, uniform 900 m.
+    const grid: ElevationGrid = {
+      bbox: [3_780_000, 2_490_000, 3_810_000, 2_540_000],
+      cols: 2,
+      rows: 2,
+      resolutionM: 25,
+      data: new Float32Array([900, 900, 900, 900]),
+      crs: 'EPSG:3035',
+    };
+    expect(sampleElevation(grid, 45.5, 3.3)).toBeCloseTo(900, 3);
+  });
+
+  it('returns NaN for a point whose projection falls outside the bbox', () => {
+    const grid: ElevationGrid = {
+      bbox: [3_780_000, 2_490_000, 3_810_000, 2_540_000],
+      cols: 2,
+      rows: 2,
+      resolutionM: 25,
+      data: new Float32Array([900, 900, 900, 900]),
+      crs: 'EPSG:3035',
+    };
+    // A point well outside Europe projects far from this tile.
+    expect(sampleElevation(grid, 0, 0)).toBeNaN();
   });
 });
 

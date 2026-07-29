@@ -15,6 +15,7 @@ const FLAT_GRID: ElevationGrid = {
   rows: 4,
   resolutionM: 90,
   data: new Float32Array(16).fill(0), // sea level everywhere
+  crs: 'EPSG:4326',
 };
 
 function fix(timeMs: number, lat: number, lon: number, pressureAltitudeM: number): Fix {
