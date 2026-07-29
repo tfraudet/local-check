@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import '../i18n';
 import { useTranslation } from 'react-i18next';
 import { Moon, Sun } from 'lucide-react';
@@ -34,6 +34,8 @@ function App() {
   const flight = useFlightStore((s) => s.flight);
   const { theme, toggleTheme } = useTheme();
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   useReplayEngine();
   useReplayKeyboardShortcuts();
   useElevationLoader();
@@ -44,7 +46,14 @@ function App() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider className="h-screen flex-col overflow-hidden">
+      <SidebarProvider
+        className="h-screen flex-col overflow-hidden"
+        style={
+          {
+            '--sidebar-width': settingsOpen ? '36rem' : '16rem',
+          } as React.CSSProperties
+        }
+      >
         <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-5" />
@@ -74,7 +83,10 @@ function App() {
         </header>
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <AppSidebar />
+          <AppSidebar
+            settingsOpen={settingsOpen}
+            onSettingsToggle={() => setSettingsOpen((o) => !o)}
+          />
           <SidebarInset className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
             <main className="flex flex-1 overflow-hidden">
               <div className="flex flex-1 flex-col overflow-hidden">
