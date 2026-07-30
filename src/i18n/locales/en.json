@@ -89,8 +89,10 @@
       "timeStepHint": "Sampling interval for local check (min 10 s, default 20 s)",
       "enlThreshold": "ENL threshold",
       "enlThresholdHint": "Engine noise level above which motor is considered running (default 500)",
-      "showOutlandingFields": "Show Alpes outlanding fields",
+      "showOutlandingFields": "Alpes outlanding fields",
       "showOutlandingFieldsHint": "Include the shared alpine outlanding-fields database on the map and in local-check computation",
+      "showAuvergneFields": "Auvergne outlanding fields",
+      "showAuvergneFieldsHint": "Include the ACHh Auvergne outlanding-fields database on the map and in local-check computation",
       "dataGroup": "Landing zones data"
     },
     "stats": {

@@ -32,7 +32,10 @@ export type AlpesDifficultyTag =
 export type DifficultyLevel = 'green' | 'orange' | 'red' | 'black';
 
 /** Provenance of a landing zone entry. */
-export type LandingZoneSource = 'user' | 'outlanding-alps';
+export type LandingZoneSource =
+  | 'user'
+  | 'outlanding-alps'
+  | 'outlanding-auvergne';
 
 export interface LandingZone {
   /** Stable ID: lowercase hex of fnv32a(name + lat.toFixed(5) + lon.toFixed(5)). */

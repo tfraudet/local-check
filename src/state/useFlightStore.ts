@@ -33,6 +33,7 @@ export interface FlightStoreState {
   landingZones: LandingZone[];
   visibleLandingZoneIds: Set<string>;
   showOutlandingFields: boolean;
+  showAuvergneFields: boolean;
   localCheckParams: LocalCheckParams;
   localCheckResult: LocalCheckResult | null;
   isComputingLocalCheck: boolean;
@@ -59,6 +60,7 @@ export interface FlightStoreState {
   clearLandingZones: () => void;
   toggleLandingZoneVisibility: (id: string) => void;
   setShowOutlandingFields: (show: boolean) => void;
+  setShowAuvergneFields: (show: boolean) => void;
   setLocalCheckParams: (patch: Partial<LocalCheckParams>) => void;
   runLocalCheck: () => Promise<void>;
 }
@@ -128,6 +130,7 @@ export const useFlightStore = create<FlightStoreState>()(
       landingZones: [],
       visibleLandingZoneIds: new Set<string>(),
       showOutlandingFields: true,
+      showAuvergneFields: true,
       localCheckParams: DEFAULT_LOCAL_CHECK_PARAMS,
       localCheckResult: null,
       isComputingLocalCheck: false,
@@ -253,6 +256,11 @@ export const useFlightStore = create<FlightStoreState>()(
         void get().runLocalCheck();
       },
 
+      setShowAuvergneFields: (show) => {
+        set({ showAuvergneFields: show });
+        void get().runLocalCheck();
+      },
+
       setLocalCheckParams: (patch) => {
         const { localCheckParams } = get();
         set({ localCheckParams: { ...localCheckParams, ...patch } });
@@ -266,11 +274,14 @@ export const useFlightStore = create<FlightStoreState>()(
           localCheckParams,
           altitudeSource,
           showOutlandingFields,
+          showAuvergneFields,
         } = get();
 
-        const effectiveZones = showOutlandingFields
-          ? landingZones
-          : landingZones.filter((z) => z.source !== 'outlanding-alps');
+        const effectiveZones = landingZones.filter((z) => {
+          if (z.source === 'outlanding-alps') return showOutlandingFields;
+          if (z.source === 'outlanding-auvergne') return showAuvergneFields;
+          return true;
+        });
 
         if (!flight || !elevationGrid || effectiveZones.length === 0) return;
 
@@ -322,6 +333,7 @@ export const useFlightStore = create<FlightStoreState>()(
       partialize: (state) => ({
         localCheckParams: state.localCheckParams,
         showOutlandingFields: state.showOutlandingFields,
+        showAuvergneFields: state.showAuvergneFields,
       }),
     },
   ),

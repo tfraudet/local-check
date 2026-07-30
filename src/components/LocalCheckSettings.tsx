@@ -58,6 +58,8 @@ export function LocalCheckSettings() {
   const isComputing = useFlightStore((s) => s.isComputingLocalCheck);
   const showOutlandingFields = useFlightStore((s) => s.showOutlandingFields);
   const setShowOutlandingFields = useFlightStore((s) => s.setShowOutlandingFields);
+  const showAuvergneFields = useFlightStore((s) => s.showAuvergneFields);
+  const setShowAuvergneFields = useFlightStore((s) => s.setShowAuvergneFields);
 
   const update = (patch: Parameters<typeof setLocalCheckParams>[0]) => {
     setLocalCheckParams(patch);
@@ -155,6 +157,21 @@ export function LocalCheckSettings() {
             checked={showOutlandingFields}
             onCheckedChange={setShowOutlandingFields}
             aria-label={t('localCheck.settings.showOutlandingFields')}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <label
+            htmlFor="show-auvergne-fields"
+            className="text-xs font-medium"
+            title={t('localCheck.settings.showAuvergneFieldsHint')}
+          >
+            {t('localCheck.settings.showAuvergneFields')}
+          </label>
+          <Switch
+            id="show-auvergne-fields"
+            checked={showAuvergneFields}
+            onCheckedChange={setShowAuvergneFields}
+            aria-label={t('localCheck.settings.showAuvergneFields')}
           />
         </div>
       </div>

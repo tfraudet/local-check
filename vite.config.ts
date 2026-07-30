@@ -21,6 +21,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/ot-proxy/, ''),
       },
+      // ACPh Auvergne serves the outlanding JSON without CORS headers.
+      '/acph-proxy': {
+        target: 'https://aeroclub-issoire.fr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/acph-proxy/, ''),
+      },
     },
   },
   optimizeDeps: {
