@@ -82,7 +82,7 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter className="px-1.5 md:px-0">
+        <SidebarFooter>
           <SidebarMenu>
             {footerNavItems.map((item) => (
               <SidebarMenuItem key={item.key}>
