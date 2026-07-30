@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import '../i18n';
 import { useTranslation } from 'react-i18next';
 import { Moon, Sun } from 'lucide-react';
@@ -34,8 +34,6 @@ function App() {
   const flight = useFlightStore((s) => s.flight);
   const { theme, toggleTheme } = useTheme();
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
   useReplayEngine();
   useReplayKeyboardShortcuts();
   useElevationLoader();
@@ -50,7 +48,7 @@ function App() {
         className="h-screen flex-col overflow-hidden"
         style={
           {
-            '--sidebar-width': settingsOpen ? '36rem' : '16rem',
+            '--sidebar-width': 'calc(var(--sidebar-width-icon) + 1px + 16rem)',
           } as React.CSSProperties
         }
       >
@@ -83,10 +81,7 @@ function App() {
         </header>
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <AppSidebar
-            settingsOpen={settingsOpen}
-            onSettingsToggle={() => setSettingsOpen((o) => !o)}
-          />
+          <AppSidebar />
           <SidebarInset className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
             <main className="flex flex-1 overflow-hidden">
               <div className="flex flex-1 flex-col overflow-hidden">

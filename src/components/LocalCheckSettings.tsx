@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useFlightStore } from '../state/useFlightStore';
 import { DEFAULT_LOCAL_CHECK_PARAMS } from '../domain/localCheck';
+import { Button } from './ui/button';
 
 interface ParamRowProps {
   label: string;
@@ -119,15 +120,17 @@ export function LocalCheckSettings() {
         onChange={(v) => update({ enlThreshold: v })}
       />
 
-      <button
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
         onClick={() => {
           setLocalCheckParams(DEFAULT_LOCAL_CHECK_PARAMS);
           void runLocalCheck();
         }}
-        className="w-full rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
       >
         Reset to defaults
-      </button>
+      </Button>
     </div>
   );
 }
