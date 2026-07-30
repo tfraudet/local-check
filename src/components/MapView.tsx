@@ -41,13 +41,13 @@ const LZ_ICON_RECT: Record<string, string> = {
 // don't currently track runway heading on the LandingZone shape.
 
 const SOLID_AIRFIELD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <circle cx="16" cy="16" r="8.5" fill="#3E6FC4"/>
+  <circle cx="16" cy="16" r="11" fill="#3E6FC4"/>
   <line x1="16" y1="1" x2="16" y2="31" stroke="#fff" stroke-width="8" transform="rotate(0 16 16)"/>
   <line x1="16" y1="1" x2="16" y2="31" stroke="#3E6FC4" stroke-width="5" transform="rotate(0 16 16)"/>
 </svg>`;
 
 const GRASS_AIRFIELD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <circle cx="16" cy="16" r="7.2" fill="#fff" stroke="#5B6470" stroke-width="3.6"/>
+  <circle cx="16" cy="16" r="9" fill="#fff" stroke="#5B6470" stroke-width="3.6"/>
   <line x1="16" y1="1" x2="16" y2="31" stroke="#fff" stroke-width="6" transform="rotate(0 16 16)"/>
   <line x1="16" y1="1" x2="16" y2="31" stroke="#5B6470" stroke-width="4" transform="rotate(0 16 16)"/>
 </svg>`;
