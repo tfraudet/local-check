@@ -12,19 +12,10 @@ export function useAutoLocalCheck() {
   const flight = useFlightStore((s) => s.flight);
   const elevationGrid = useFlightStore((s) => s.elevationGrid);
   const landingZones = useFlightStore((s) => s.landingZones);
-  const showOutlandingFields = useFlightStore((s) => s.showOutlandingFields);
-  const showAuvergneFields = useFlightStore((s) => s.showAuvergneFields);
   const runLocalCheck = useFlightStore((s) => s.runLocalCheck);
 
   useEffect(() => {
     if (!flight || !elevationGrid || landingZones.length === 0) return;
     void runLocalCheck();
-  }, [
-    flight,
-    elevationGrid,
-    landingZones,
-    showOutlandingFields,
-    showAuvergneFields,
-    runLocalCheck,
-  ]);
+  }, [flight, elevationGrid, landingZones, runLocalCheck]);
 }

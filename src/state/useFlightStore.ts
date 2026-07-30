@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { IgcParseError, NormalizedFlight } from '../domain/flight';
 import type { ElevationGrid } from '../domain/elevation';
-import type { LandingZone } from '../domain/landingZone';
+import type { LandingZone, LandingZoneSource } from '../domain/landingZone';
 import {
   DEFAULT_LOCAL_CHECK_PARAMS,
   type LocalCheckParams,
@@ -30,7 +30,15 @@ export interface FlightStoreState {
   // Phase 2
   elevationGrid: ElevationGrid | null;
   elevationLoadError: string | null;
+  /**
+   * Effective landing zones — the union of the per-source cache, filtered
+   * by `showOutlandingFields` / `showAuvergneFields`. Rebuilt whenever a
+   * toggle flips or new zones are added.
+   */
   landingZones: LandingZone[];
+  /** Full per-source catalog kept so we can restore zones when a toggle
+   * flips back on without re-fetching. */
+  landingZonesBySource: Partial<Record<LandingZoneSource, LandingZone[]>>;
   visibleLandingZoneIds: Set<string>;
   showOutlandingFields: boolean;
   showAuvergneFields: boolean;
@@ -71,6 +79,30 @@ export interface FlightStoreState {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+/** Return true if the given source is currently enabled by its toggle. */
+function isSourceEnabled(
+  source: LandingZoneSource,
+  toggles: { showOutlandingFields: boolean; showAuvergneFields: boolean },
+): boolean {
+  if (source === 'outlanding-alps') return toggles.showOutlandingFields;
+  if (source === 'outlanding-auvergne') return toggles.showAuvergneFields;
+  return true; // 'user' imports are always on
+}
+
+/** Concatenate the per-source cache into a single active list. */
+function computeActiveZones(
+  bySource: Partial<Record<LandingZoneSource, LandingZone[]>>,
+  toggles: { showOutlandingFields: boolean; showAuvergneFields: boolean },
+): LandingZone[] {
+  const out: LandingZone[] = [];
+  for (const [src, arr] of Object.entries(bySource)) {
+    if (!arr) continue;
+    if (!isSourceEnabled(src as LandingZoneSource, toggles)) continue;
+    out.push(...arr);
+  }
+  return out;
 }
 
 /** Binary search for the index of the fix at/just-before `timeMs`. */
@@ -128,6 +160,7 @@ export const useFlightStore = create<FlightStoreState>()(
       elevationGrid: null,
       elevationLoadError: null,
       landingZones: [],
+      landingZonesBySource: {},
       visibleLandingZoneIds: new Set<string>(),
       showOutlandingFields: true,
       showAuvergneFields: true,
@@ -229,19 +262,47 @@ export const useFlightStore = create<FlightStoreState>()(
         set({ elevationLoadError: message, elevationGrid: null }),
 
       addLandingZones: (zones) => {
-        const { landingZones, visibleLandingZoneIds } = get();
-        const existing = new Map(landingZones.map((z) => [z.id, z]));
-        for (const z of zones) {
-          existing.set(z.id, z);
+        const {
+          landingZonesBySource,
+          visibleLandingZoneIds,
+          showOutlandingFields,
+          showAuvergneFields,
+        } = get();
+
+        // Merge new zones into the per-source cache, deduped by id.
+        const nextBySource: Partial<Record<LandingZoneSource, LandingZone[]>> = {
+          ...landingZonesBySource,
+        };
+        for (const [src, arr] of Object.entries(nextBySource)) {
+          if (arr) nextBySource[src as LandingZoneSource] = [...arr];
         }
-        const merged = Array.from(existing.values());
+        for (const z of zones) {
+          const bucket = nextBySource[z.source] ?? (nextBySource[z.source] = []);
+          const idx = bucket.findIndex((b) => b.id === z.id);
+          if (idx >= 0) bucket[idx] = z;
+          else bucket.push(z);
+        }
+
         const newVisible = new Set(visibleLandingZoneIds);
         for (const z of zones) newVisible.add(z.id);
-        set({ landingZones: merged, visibleLandingZoneIds: newVisible });
+
+        set({
+          landingZonesBySource: nextBySource,
+          landingZones: computeActiveZones(nextBySource, {
+            showOutlandingFields,
+            showAuvergneFields,
+          }),
+          visibleLandingZoneIds: newVisible,
+        });
       },
 
       clearLandingZones: () =>
-        set({ landingZones: [], visibleLandingZoneIds: new Set(), localCheckResult: null }),
+        set({
+          landingZones: [],
+          landingZonesBySource: {},
+          visibleLandingZoneIds: new Set(),
+          localCheckResult: null,
+        }),
 
       toggleLandingZoneVisibility: (id) => {
         const { visibleLandingZoneIds } = get();
@@ -252,12 +313,26 @@ export const useFlightStore = create<FlightStoreState>()(
       },
 
       setShowOutlandingFields: (show) => {
-        set({ showOutlandingFields: show });
+        const { landingZonesBySource, showAuvergneFields } = get();
+        set({
+          showOutlandingFields: show,
+          landingZones: computeActiveZones(landingZonesBySource, {
+            showOutlandingFields: show,
+            showAuvergneFields,
+          }),
+        });
         void get().runLocalCheck();
       },
 
       setShowAuvergneFields: (show) => {
-        set({ showAuvergneFields: show });
+        const { landingZonesBySource, showOutlandingFields } = get();
+        set({
+          showAuvergneFields: show,
+          landingZones: computeActiveZones(landingZonesBySource, {
+            showOutlandingFields,
+            showAuvergneFields: show,
+          }),
+        });
         void get().runLocalCheck();
       },
 
@@ -273,17 +348,9 @@ export const useFlightStore = create<FlightStoreState>()(
           landingZones,
           localCheckParams,
           altitudeSource,
-          showOutlandingFields,
-          showAuvergneFields,
         } = get();
 
-        const effectiveZones = landingZones.filter((z) => {
-          if (z.source === 'outlanding-alps') return showOutlandingFields;
-          if (z.source === 'outlanding-auvergne') return showAuvergneFields;
-          return true;
-        });
-
-        if (!flight || !elevationGrid || effectiveZones.length === 0) return;
+        if (!flight || !elevationGrid || landingZones.length === 0) return;
 
         set({ isComputingLocalCheck: true });
 
@@ -299,7 +366,7 @@ export const useFlightStore = create<FlightStoreState>()(
           fixes: flight.fixes,
           altitudeSource,
           elevationGrid,
-          landingZones: effectiveZones,
+          landingZones,
           phases,
           params: localCheckParams,
         };
@@ -338,3 +405,19 @@ export const useFlightStore = create<FlightStoreState>()(
     },
   ),
 );
+
+// ---------------------------------------------------------------------------
+// Debug: log the landingZones slice whenever its reference changes.
+// Gated by DEV so production users don't get a console spammed with zones.
+// ---------------------------------------------------------------------------
+if (import.meta.env.DEV) {
+  let prevLandingZones: LandingZone[] | undefined;
+  useFlightStore.subscribe((state) => {
+    if (state.landingZones === prevLandingZones) return;
+    prevLandingZones = state.landingZones;
+    console.log(
+      `[flightStore] landingZones updated (${state.landingZones.length}):`,
+      state.landingZones,
+    );
+  });
+}

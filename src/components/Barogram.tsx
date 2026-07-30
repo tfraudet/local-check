@@ -190,7 +190,7 @@ export function Barogram() {
                 ctx.beginPath();
                 ctx.rect(left, top, bw, bh);
                 ctx.clip();
-                ctx.lineWidth = 2 * u.pxRatio;
+                ctx.lineWidth = 2 * uPlot.pxRatio;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 for (let i = 0; i < times.length - 1; i++) {

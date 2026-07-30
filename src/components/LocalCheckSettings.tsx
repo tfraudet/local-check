@@ -1,6 +1,9 @@
 import { useTranslation } from 'react-i18next';
+import { AlertCircle } from 'lucide-react';
 import { useFlightStore } from '../state/useFlightStore';
 import { DEFAULT_LOCAL_CHECK_PARAMS } from '../domain/localCheck';
+import { LandingZonesPanel } from './LandingZonesPanel';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Button } from './ui/button';
 import { Separator } from './ui/separator';
 import { Switch } from './ui/switch';
@@ -60,6 +63,8 @@ export function LocalCheckSettings() {
   const setShowOutlandingFields = useFlightStore((s) => s.setShowOutlandingFields);
   const showAuvergneFields = useFlightStore((s) => s.showAuvergneFields);
   const setShowAuvergneFields = useFlightStore((s) => s.setShowAuvergneFields);
+  const flight = useFlightStore((s) => s.flight);
+  const elevationLoadError = useFlightStore((s) => s.elevationLoadError);
 
   const update = (patch: Parameters<typeof setLocalCheckParams>[0]) => {
     setLocalCheckParams(patch);
@@ -174,6 +179,16 @@ export function LocalCheckSettings() {
             aria-label={t('localCheck.settings.showAuvergneFields')}
           />
         </div>
+
+        {flight && elevationLoadError && (
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertTitle>{t('errors.title')}</AlertTitle>
+            <AlertDescription>{t('errors.elevation.fetchFailed')}</AlertDescription>
+          </Alert>
+        )}
+
+        <LandingZonesPanel />
       </div>
     </div>
   );

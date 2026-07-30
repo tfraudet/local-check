@@ -5,7 +5,6 @@ import { cn } from '../lib/utils';
 import { useIgcFileLoader } from '../hooks/useIgcFileLoader';
 import { useFlightStore } from '../state/useFlightStore';
 import { FlightSummaryPanel } from './FlightSummaryPanel';
-import { LandingZonesPanel } from './LandingZonesPanel';
 import { LocalCheckSettings } from './LocalCheckSettings';
 import { LocalStatsPanel } from './LocalStatsPanel';
 import { ColorLegend } from './ColorLegend';
@@ -125,7 +124,6 @@ function FlightPanel() {
   const { t } = useTranslation();
   const { loadFile, isParsing, loadError } = useIgcFileLoader();
   const flight = useFlightStore((s) => s.flight);
-  const elevationLoadError = useFlightStore((s) => s.elevationLoadError);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const dragCounterRef = useRef(0);
@@ -251,23 +249,6 @@ function FlightPanel() {
 
       {flight && (
         <>
-          <Separator />
-          <SidebarGroup>
-            <SidebarGroupLabel>{t('landingZones.menuGroup')}</SidebarGroupLabel>
-            <SidebarGroupContent className="px-2">
-              {elevationLoadError && (
-                <Alert variant="destructive" className="mb-2">
-                  <AlertCircle className="size-4" />
-                  <AlertTitle>{t('errors.title')}</AlertTitle>
-                  <AlertDescription>
-                    {t('errors.elevation.fetchFailed')}
-                  </AlertDescription>
-                </Alert>
-              )}
-              <LandingZonesPanel />
-            </SidebarGroupContent>
-          </SidebarGroup>
-
           <Separator />
           <SidebarGroup>
             <SidebarGroupLabel>{t('localCheck.stats.title')}</SidebarGroupLabel>

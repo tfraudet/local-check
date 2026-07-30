@@ -86,7 +86,10 @@ export function parseAuvergneOutlandings(
       latitude: lat,
       longitude: lon,
       elevationM: parseAltitudeMeters(r.Altitude),
-      style: 4, // outlanding
+      // SeeYou style code for an outlanding field in the ACPh convention.
+      // The source JSON does not carry a style attribute, so we default to
+      // 3 whenever nothing is provided.
+      style: 3,
       difficulty_level: level,
       description: buildDescription(r),
       isAirfield: false,
