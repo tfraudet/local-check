@@ -382,11 +382,20 @@ export function MapView() {
           id: LZ_LAYER_LABEL,
           type: 'symbol',
           source: LZ_SOURCE_ID,
+          // Only show labels once zoomed in enough — with 100+ LZs, drawing
+          // every name at low zoom is unreadable and 404s glyph ranges.
+          minzoom: 10,
           layout: {
             'text-field': ['get', 'name'],
+            // Pin the font stack to one the OpenFreeMap tile server actually
+            // ships (otherwise MapLibre falls back to
+            // "Open Sans Regular,Arial Unicode MS Regular" and 404s).
+            'text-font': ['Noto Sans Regular'],
             'text-size': 10,
             'text-offset': [0, 1.2],
             'text-anchor': 'top',
+            'text-optional': true,
+            'text-allow-overlap': false,
           },
           paint: {
             'text-color': '#1e293b',
