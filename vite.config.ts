@@ -27,6 +27,14 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/acph-proxy/, ''),
       },
+      // OpenAIP returns CORS headers on 2xx but strips them on 429 (rate
+      // limit) — proxying in dev keeps the response same-origin so the
+      // error is visible instead of masked as a CORS failure.
+      '/openaip-proxy': {
+        target: 'https://api.core.openaip.net',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/openaip-proxy/, ''),
+      },
     },
   },
   optimizeDeps: {

@@ -10,6 +10,7 @@ import {
 } from '../replay/replayEngine';
 import { useElevationLoader } from '../hooks/useElevationLoader';
 import { useOutlandingDatabase } from '../hooks/useOutlandingDatabase';
+import { useOpenaipAirports } from '../hooks/useOpenaipAirports';
 import { useAutoLocalCheck } from '../hooks/useAutoLocalCheck';
 import { AppSidebar } from '../components/AppSidebar';
 import { MapView } from '../components/MapView';
@@ -40,6 +41,7 @@ function App() {
   useReplayKeyboardShortcuts();
   useElevationLoader();
   useOutlandingDatabase();
+  useOpenaipAirports();
   useAutoLocalCheck();
 
   useEffect(() => {

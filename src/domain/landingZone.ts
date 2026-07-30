@@ -35,7 +35,8 @@ export type DifficultyLevel = 'green' | 'orange' | 'red' | 'black';
 export type LandingZoneSource =
   | 'user'
   | 'outlanding-alps'
-  | 'outlanding-auvergne';
+  | 'outlanding-auvergne'
+  | 'openaip';
 
 export interface LandingZone {
   /** Stable ID: lowercase hex of fnv32a(name + lat.toFixed(5) + lon.toFixed(5)). */

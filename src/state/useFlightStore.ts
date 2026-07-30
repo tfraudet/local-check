@@ -42,6 +42,9 @@ export interface FlightStoreState {
   visibleLandingZoneIds: Set<string>;
   showOutlandingFields: boolean;
   showAuvergneFields: boolean;
+  /** [minLon, minLat, maxLon, maxLat] of the current map viewport, or null
+   * before the map has emitted its first `moveend`. */
+  visibleBounds: [number, number, number, number] | null;
   localCheckParams: LocalCheckParams;
   localCheckResult: LocalCheckResult | null;
   isComputingLocalCheck: boolean;
@@ -69,6 +72,7 @@ export interface FlightStoreState {
   toggleLandingZoneVisibility: (id: string) => void;
   setShowOutlandingFields: (show: boolean) => void;
   setShowAuvergneFields: (show: boolean) => void;
+  setVisibleBounds: (bbox: [number, number, number, number] | null) => void;
   setLocalCheckParams: (patch: Partial<LocalCheckParams>) => void;
   runLocalCheck: () => Promise<void>;
 }
@@ -91,16 +95,54 @@ function isSourceEnabled(
   return true; // 'user' imports are always on
 }
 
-/** Concatenate the per-source cache into a single active list. */
+/** Merge threshold: two zones from different sources within this distance
+ * are treated as the same real-world site. 400 m comfortably covers airfield
+ * center-vs-runway-threshold offsets between OpenAIP and .cup imports. */
+const DEDUP_THRESHOLD_M = 400;
+
+/**
+ * Great-circle distance in meters between two lat/lon points.
+ * Spherical Earth approximation — sufficient at the scale of a runway.
+ */
+function haversineM(
+  aLat: number,
+  aLon: number,
+  bLat: number,
+  bLon: number,
+): number {
+  const R = 6_371_000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLon = toRad(bLon - aLon);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+/**
+ * Concatenate the per-source cache into a single active list.
+ *
+ * OpenAIP entries are authoritative: any zone from another source that lies
+ * within `DEDUP_THRESHOLD_M` of an OpenAIP zone is dropped, so imported .cup
+ * airfields don't shadow the canonical OpenAIP record.
+ */
 function computeActiveZones(
   bySource: Partial<Record<LandingZoneSource, LandingZone[]>>,
   toggles: { showOutlandingFields: boolean; showAuvergneFields: boolean },
 ): LandingZone[] {
-  const out: LandingZone[] = [];
+  const openaipZones = bySource['openaip'] ?? [];
+  const out: LandingZone[] = [...openaipZones];
+
   for (const [src, arr] of Object.entries(bySource)) {
-    if (!arr) continue;
+    if (!arr || src === 'openaip') continue;
     if (!isSourceEnabled(src as LandingZoneSource, toggles)) continue;
-    out.push(...arr);
+    for (const z of arr) {
+      const duplicate = openaipZones.some(
+        (o) => haversineM(z.latitude, z.longitude, o.latitude, o.longitude) < DEDUP_THRESHOLD_M,
+      );
+      if (!duplicate) out.push(z);
+    }
   }
   return out;
 }
@@ -164,6 +206,7 @@ export const useFlightStore = create<FlightStoreState>()(
       visibleLandingZoneIds: new Set<string>(),
       showOutlandingFields: true,
       showAuvergneFields: true,
+      visibleBounds: null,
       localCheckParams: DEFAULT_LOCAL_CHECK_PARAMS,
       localCheckResult: null,
       isComputingLocalCheck: false,
@@ -323,6 +366,8 @@ export const useFlightStore = create<FlightStoreState>()(
         });
         void get().runLocalCheck();
       },
+
+      setVisibleBounds: (bbox) => set({ visibleBounds: bbox }),
 
       setShowAuvergneFields: (show) => {
         const { landingZonesBySource, showOutlandingFields } = get();

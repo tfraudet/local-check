@@ -143,6 +143,7 @@ const LZ_SOURCE_LABEL: Record<string, string> = {
   user: 'User import',
   'outlanding-alps': 'Alpes outlanding DB',
   'outlanding-auvergne': 'Auvergne outlanding DB',
+  openaip: 'OpenAIP',
 };
 
 /** Escape a value for safe inclusion in an HTML string. */
@@ -181,6 +182,7 @@ function buildLzPopupHtml(
   const chips: string[] = [];
   chips.push(chip(color, level.toUpperCase()));
   if (isAirfield) chips.push(chip('#3b82f6', 'AIRFIELD'));
+  else chips.push(chip('#64748b', 'OUTLANDING FIELD'));
 
   const row = (label: string, value: string) =>
     `<b style="color:#64748b;font-weight:500;">${label}</b><span>${value}</span>`;
@@ -248,6 +250,7 @@ export function MapView() {
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
   const landingZones = useFlightStore((s) => s.landingZones);
   const visibleLandingZoneIds = useFlightStore((s) => s.visibleLandingZoneIds);
+  const setVisibleBounds = useFlightStore((s) => s.setVisibleBounds);
 
   // Initialize the map once.
   useEffect(() => {
@@ -263,16 +266,26 @@ export function MapView() {
     map.addControl(new NavigationControl(), 'top-right');
     mapRef.current = map;
 
+    const publishBounds = () => {
+      const b = map.getBounds();
+      const sw = b.getSouthWest();
+      const ne = b.getNorthEast();
+      setVisibleBounds([sw.lng, sw.lat, ne.lng, ne.lat]);
+    };
+
     map.once('load', () => {
       mapReadyRef.current = true;
+      publishBounds();
     });
+    map.on('moveend', publishBounds);
 
     return () => {
+      map.off('moveend', publishBounds);
       map.remove();
       mapRef.current = null;
       mapReadyRef.current = false;
     };
-  }, []);
+  }, [setVisibleBounds]);
 
   // Load/replace the track whenever the flight or local-check result changes.
   useEffect(() => {
