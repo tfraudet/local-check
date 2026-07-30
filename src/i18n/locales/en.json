@@ -7,7 +7,7 @@
     "cta": "Upload an IGC flight log",
     "dragHint": "Drag and drop a .igc file here, or click to browse",
     "howItWorks": "Load a glider flight recorded in IGC format to replay its track, altitude, and telemetry.",
-    "menuGroup": "Flight",
+    "menuGroup": "Flight Replay",
     "menuItem": "Upload flight",
     "parsing": "Parsing…"
   },
@@ -76,6 +76,7 @@
   },
   "localCheck": {
     "computing": "Computing…",
+    "title": "Settings",
     "settings": {
       "title": "Parameters",
       "workingLD": "Working L/D",

@@ -34,13 +34,12 @@ export function AppSidebar() {
   const { t } = useTranslation();
   const [activeNav, setActiveNav] = useState<NavKey>('flight');
   const { setOpen } = useSidebar();
-  const flight = useFlightStore((s) => s.flight);
 
   const primaryNavItems: { key: NavKey; label: string; icon: typeof Plane }[] = [
     { key: 'flight', label: t('upload.menuGroup'), icon: Plane },
   ];
   const footerNavItems: { key: NavKey; label: string; icon: typeof Plane }[] = [
-    { key: 'settings', label: t('localCheck.settings.title'), icon: Settings },
+    { key: 'settings', label: t('localCheck.title'), icon: Settings },
   ];
 
   const handleNavClick = (key: NavKey) => {
@@ -92,7 +91,6 @@ export function AppSidebar() {
                   onClick={() => handleNavClick(item.key)}
                   isActive={activeNav === item.key}
                   className="px-2.5 md:px-2"
-                  disabled={item.key === 'settings' && !flight}
                 >
                   <item.icon />
                   <span className="sr-only">{item.label}</span>
@@ -113,13 +111,7 @@ export function AppSidebar() {
           {activeNav === 'settings' && (
             <SidebarGroup>
               <SidebarGroupContent className="px-2">
-                {flight ? (
-                  <LocalCheckSettings />
-                ) : (
-                  <p className="px-2 text-xs text-muted-foreground">
-                    Load a flight to configure local check parameters.
-                  </p>
-                )}
+                <LocalCheckSettings />
               </SidebarGroupContent>
             </SidebarGroup>
           )}
