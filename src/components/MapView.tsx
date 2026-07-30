@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Map as MaplibreMap,
   Marker,
@@ -23,8 +23,69 @@ const DEFAULT_MAP_STYLE_URL =
 const TRACK_SOURCE_ID = 'flight-track';
 const TRACK_LAYER_ID = 'flight-track-line';
 const LZ_SOURCE_ID = 'landing-zones';
-const LZ_LAYER_CIRCLE = 'lz-circles';
+const LZ_LAYER_ICON = 'lz-icons';
 const LZ_LAYER_LABEL = 'lz-labels';
+
+// Icon image IDs registered via map.addImage; referenced by icon-image on the
+// LZ symbol layer.
+const LZ_ICON_SOLID = 'lz-icon-solid'; // SeeYou style 5 — solid airfield
+const LZ_ICON_GRASS = 'lz-icon-grass'; // SeeYou style 2 — grass airfield
+const LZ_ICON_RECT: Record<string, string> = {
+  green: 'lz-icon-rect-green',
+  orange: 'lz-icon-rect-orange',
+  red: 'lz-icon-rect-red',
+  black: 'lz-icon-rect-black',
+};
+
+// The bar-heading placeholder (`H` in the request) is baked to 0° — we
+// don't currently track runway heading on the LandingZone shape.
+
+const SOLID_AIRFIELD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <circle cx="16" cy="16" r="8.5" fill="#3E6FC4"/>
+  <line x1="16" y1="1" x2="16" y2="31" stroke="#fff" stroke-width="8" transform="rotate(0 16 16)"/>
+  <line x1="16" y1="1" x2="16" y2="31" stroke="#3E6FC4" stroke-width="5" transform="rotate(0 16 16)"/>
+</svg>`;
+
+const GRASS_AIRFIELD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <circle cx="16" cy="16" r="7.2" fill="#fff" stroke="#5B6470" stroke-width="3.6"/>
+  <line x1="16" y1="1" x2="16" y2="31" stroke="#fff" stroke-width="6" transform="rotate(0 16 16)"/>
+  <line x1="16" y1="1" x2="16" y2="31" stroke="#5B6470" stroke-width="4" transform="rotate(0 16 16)"/>
+</svg>`;
+
+function squareSvg(fill: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="20">
+    <rect x="2" y="2" width="28" height="28" rx="2.5" ry="2.5" fill="${fill}" stroke="#ffffff" stroke-width="2.5"/>
+  </svg>`;
+}
+
+async function svgToImage(svg: string): Promise<HTMLImageElement> {
+  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  return img;
+}
+
+/** Register all LZ icons on the map. Idempotent — safe to call multiple times. */
+async function preloadLzIcons(map: MaplibreMap): Promise<void> {
+  const entries: Array<[string, string]> = [
+    [LZ_ICON_SOLID, SOLID_AIRFIELD_SVG],
+    [LZ_ICON_GRASS, GRASS_AIRFIELD_SVG],
+    [LZ_ICON_RECT.green, squareSvg(DIFFICULTY_LEVEL_COLOR.green)],
+    [LZ_ICON_RECT.orange, squareSvg(DIFFICULTY_LEVEL_COLOR.orange)],
+    [LZ_ICON_RECT.red, squareSvg(DIFFICULTY_LEVEL_COLOR.red)],
+    [LZ_ICON_RECT.black, squareSvg(DIFFICULTY_LEVEL_COLOR.black)],
+  ];
+  await Promise.all(
+    entries.map(async ([id, svg]) => {
+      if (map.hasImage(id)) return;
+      const img = await svgToImage(svg);
+      // pixelRatio 2 → the 32-unit SVG lands at ~16 CSS pixels on screen and
+      // stays crisp on hi-DPI displays.
+      if (!map.hasImage(id)) map.addImage(id, img, { pixelRatio: 2 });
+    }),
+  );
+}
 
 const DEFAULT_CENTER: [number, number] = [3.2489, 45.5401];
 const DEFAULT_ZOOM = 11;
@@ -244,6 +305,8 @@ export function MapView() {
   const lzPopupRef = useRef<Popup | null>(null);
   const mapReadyRef = useRef(false);
 
+  const [iconsReady, setIconsReady] = useState(false);
+
   const flight = useFlightStore((s) => s.flight);
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
   const seek = useFlightStore((s) => s.seek);
@@ -276,6 +339,9 @@ export function MapView() {
     map.once('load', () => {
       mapReadyRef.current = true;
       publishBounds();
+      void preloadLzIcons(map)
+        .then(() => setIconsReady(true))
+        .catch((err) => console.warn('[map] LZ icon preload failed:', err));
     });
     map.on('moveend', publishBounds);
 
@@ -284,6 +350,7 @@ export function MapView() {
       map.remove();
       mapRef.current = null;
       mapReadyRef.current = false;
+      setIconsReady(false);
     };
   }, [setVisibleBounds]);
 
@@ -365,7 +432,7 @@ export function MapView() {
   // LZ symbol layer — rebuild whenever the zones or visibility changes.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !iconsReady) return;
 
     const lzGeoJSON = buildLzGeoJSON(landingZones, visibleLandingZoneIds);
 
@@ -376,15 +443,47 @@ export function MapView() {
       } else {
         map.addSource(LZ_SOURCE_ID, { type: 'geojson', data: lzGeoJSON });
         map.addLayer({
-          id: LZ_LAYER_CIRCLE,
-          type: 'circle',
+          id: LZ_LAYER_ICON,
+          type: 'symbol',
           source: LZ_SOURCE_ID,
-          paint: {
-            'circle-radius': ['case', ['get', 'isAirfield'], 8, 6],
-            'circle-color': ['get', 'color'],
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff',
-            'circle-opacity': 0.85,
+          layout: {
+            // style 5 → solid disc-and-bar; style 2 → grass ring-and-bar;
+            // everything else → a colored rectangle per difficulty.
+            'icon-image': [
+              'case',
+              ['==', ['get', 'style'], 5],
+              LZ_ICON_SOLID,
+              ['==', ['get', 'style'], 2],
+              LZ_ICON_GRASS,
+              [
+                'match',
+                ['get', 'difficulty_level'],
+                'green',
+                LZ_ICON_RECT.green,
+                'orange',
+                LZ_ICON_RECT.orange,
+                'red',
+                LZ_ICON_RECT.red,
+                'black',
+                LZ_ICON_RECT.black,
+                LZ_ICON_RECT.green,
+              ],
+            ],
+            'icon-anchor': 'center',
+            // Type 5 and 2 airfields render bigger than the other icons
+            // so they read as the primary landing options at a glance.
+            'icon-size': [
+              'case',
+              [
+                'any',
+                ['==', ['get', 'style'], 5],
+                ['==', ['get', 'style'], 2],
+              ],
+              2,
+              1.6,
+            ],
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
           },
         });
         map.addLayer({
@@ -401,7 +500,7 @@ export function MapView() {
             // "Open Sans Regular,Arial Unicode MS Regular" and 404s).
             'text-font': ['Noto Sans Regular'],
             'text-size': 10,
-            'text-offset': [0, 1.2],
+            'text-offset': [0, 1.8],
             'text-anchor': 'top',
             'text-optional': true,
             'text-allow-overlap': false,
@@ -422,7 +521,7 @@ export function MapView() {
           });
         }
         const popup = lzPopupRef.current;
-        map.on('mouseenter', LZ_LAYER_CIRCLE, (e) => {
+        map.on('mouseenter', LZ_LAYER_ICON, (e) => {
           map.getCanvas().style.cursor = 'pointer';
           const feature = e.features?.[0];
           if (!feature) return;
@@ -432,7 +531,7 @@ export function MapView() {
           ];
           popup.setLngLat(coords).setHTML(buildLzPopupHtml(feature.properties)).addTo(map);
         });
-        map.on('mousemove', LZ_LAYER_CIRCLE, (e) => {
+        map.on('mousemove', LZ_LAYER_ICON, (e) => {
           const feature = e.features?.[0];
           if (!feature) return;
           const coords = (feature.geometry as GeoJSON.Point).coordinates.slice() as [
@@ -441,7 +540,7 @@ export function MapView() {
           ];
           popup.setLngLat(coords).setHTML(buildLzPopupHtml(feature.properties));
         });
-        map.on('mouseleave', LZ_LAYER_CIRCLE, () => {
+        map.on('mouseleave', LZ_LAYER_ICON, () => {
           map.getCanvas().style.cursor = '';
           popup.remove();
         });
@@ -453,7 +552,7 @@ export function MapView() {
     } else {
       map.once('load', applyLzLayer);
     }
-  }, [landingZones, visibleLandingZoneIds]);
+  }, [landingZones, visibleLandingZoneIds, iconsReady]);
 
   // Move the glider marker on every currentTimeMs change.
   useEffect(() => {
