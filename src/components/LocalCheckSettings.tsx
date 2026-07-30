@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useFlightStore } from '../state/useFlightStore';
 import { DEFAULT_LOCAL_CHECK_PARAMS } from '../domain/localCheck';
 import { Button } from './ui/button';
+import { Separator } from './ui/separator';
 import { Switch } from './ui/switch';
 
 interface ParamRowProps {
@@ -123,22 +124,6 @@ export function LocalCheckSettings() {
         onChange={(v) => update({ enlThreshold: v })}
       />
 
-      <div className="flex items-center justify-between gap-2 pt-1">
-        <label
-          htmlFor="show-outlanding-fields"
-          className="text-xs font-medium"
-          title={t('localCheck.settings.showOutlandingFieldsHint')}
-        >
-          {t('localCheck.settings.showOutlandingFields')}
-        </label>
-        <Switch
-          id="show-outlanding-fields"
-          checked={showOutlandingFields}
-          onCheckedChange={setShowOutlandingFields}
-          aria-label={t('localCheck.settings.showOutlandingFields')}
-        />
-      </div>
-
       <Button
         variant="outline"
         size="sm"
@@ -150,6 +135,29 @@ export function LocalCheckSettings() {
       >
         Reset to defaults
       </Button>
+
+      <Separator />
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">
+          {t('localCheck.settings.dataGroup')}
+        </p>
+        <div className="flex items-center justify-between gap-2">
+          <label
+            htmlFor="show-outlanding-fields"
+            className="text-xs font-medium"
+            title={t('localCheck.settings.showOutlandingFieldsHint')}
+          >
+            {t('localCheck.settings.showOutlandingFields')}
+          </label>
+          <Switch
+            id="show-outlanding-fields"
+            checked={showOutlandingFields}
+            onCheckedChange={setShowOutlandingFields}
+            aria-label={t('localCheck.settings.showOutlandingFields')}
+          />
+        </div>
+      </div>
     </div>
   );
 }

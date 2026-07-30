@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { parseCup } from '../domain/parseCup';
 import { useFlightStore } from '../state/useFlightStore';
 
-const OUTLANDING_URL =
+const ALPES_OUTLANDING_URL =
   'https://planeur-net.github.io/outlanding/champs_des_alpes.cup';
 
 // Module-scoped so React 19 StrictMode's double-mount doesn't refire the
@@ -22,7 +22,7 @@ export function useOutlandingDatabase() {
     if (loadedOnce) return;
     loadedOnce = true;
 
-    fetch(OUTLANDING_URL)
+    fetch(ALPES_OUTLANDING_URL)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.text();
