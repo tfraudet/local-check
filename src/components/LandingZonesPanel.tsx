@@ -71,9 +71,9 @@ export function LandingZonesPanel() {
   const outlandingCount = landingZones.length - airfieldCount;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 max-w-56">
       {/* Drop zone */}
-      <div
+      {/* <div
         role="button"
         tabIndex={0}
         aria-label={t('landingZones.dragHint')}
@@ -97,14 +97,14 @@ export function LandingZonesPanel() {
       >
         <Upload className="size-3.5 text-muted-foreground" />
         <p className="text-xs text-muted-foreground">{t('landingZones.dragHint')}</p>
-      </div>
-      <input
+      </div> */}
+      {/* <input
         ref={inputRef}
         type="file"
         accept=".cup"
         className="hidden"
         onChange={onFileChange}
-      />
+      /> */}
 
       {/* Error */}
       {parseErrors && (
@@ -120,41 +120,37 @@ export function LandingZonesPanel() {
         <p className="text-xs text-muted-foreground">{t('landingZones.empty')}</p>
       ) : (
         <>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              {t('landingZones.count_other', { count: landingZones.length })}
-            </span>
-            <div className="flex gap-1">
-              {airfieldCount > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {airfieldCount} {t('landingZones.airfield')}
-                </Badge>
-              )}
-              {outlandingCount > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  {outlandingCount} {t('landingZones.outlanding')}
-                </Badge>
-              )}
-            </div>
+          <span className="mr-auto text-xs text-muted-foreground">
+            {t('landingZones.count_other', { count: landingZones.length })}
+          </span>
+          <div className="flex shrink-0 gap-1">
+            {airfieldCount > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {airfieldCount} {t('landingZones.airfield')}
+              </Badge>
+            )}
+            {outlandingCount > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {outlandingCount} {t('landingZones.outlanding')}
+              </Badge>
+            )}
           </div>
-
-          <ul className="max-h-40 space-y-0.5 overflow-y-auto">
+          
+          <ul className="max-h-64 overflow-y-scroll w-[calc(100%-10px)]">
             {landingZones.map((lz) => {
               const visible = visibleIds.has(lz.id);
               return (
                 <li
                   key={lz.id}
-                  className="flex items-center justify-between gap-1 rounded px-1 py-0.5 hover:bg-accent/30"
+                  className="flex min-w-0 items-center gap-1.5 rounded py-0.5 hover:bg-accent/30"
                 >
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <MapPin
-                      className={cn(
-                        'size-3 shrink-0',
-                        LEVEL_TEXT_CLASS[lz.difficulty_level],
-                      )}
-                    />
-                    <span className="truncate text-xs">{lz.name}</span>
-                  </div>
+                  <MapPin
+                    className={cn(
+                      'size-3 shrink-0',
+                      LEVEL_TEXT_CLASS[lz.difficulty_level],
+                    )}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-xs">{lz.name}</span>
                   <button
                     onClick={() => toggleVisibility(lz.id)}
                     className="shrink-0 text-muted-foreground hover:text-foreground"
@@ -167,13 +163,13 @@ export function LandingZonesPanel() {
             })}
           </ul>
 
-          <button
+          {/* <button
             onClick={() => clearLandingZones()}
             className="flex w-full items-center justify-center gap-1 rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
           >
             <X className="size-3" />
             {t('landingZones.clear')}
-          </button>
+          </button> */}
         </>
       )}
     </div>
