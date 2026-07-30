@@ -50,6 +50,10 @@ export interface LandingZone {
   difficulty_level: DifficultyLevel;
   description: string | null;
   isAirfield: boolean; // style ∈ {2,3,4,5} OR tag === 'A'
+  /** Primary runway heading in degrees (0–359, true north). If the source
+   * provides multiple runways, take the last. Sources without runway
+   * information default to 0. */
+  runwayHeading: number;
   source: LandingZoneSource;
 }
 

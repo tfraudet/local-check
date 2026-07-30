@@ -288,6 +288,7 @@ function buildLzGeoJSON(
           source: z.source,
           latitude: z.latitude,
           longitude: z.longitude,
+          runwayHeading: z.runwayHeading,
           color: DIFFICULTY_LEVEL_COLOR[z.difficulty_level],
         },
         geometry: {
@@ -482,6 +483,19 @@ export function MapView() {
               2,
               1.6,
             ],
+            // Rotate only the airfield icons (solid/grass) so the bar
+            // aligns with the runway. Rectangles stay upright.
+            'icon-rotate': [
+              'case',
+              [
+                'any',
+                ['==', ['get', 'style'], 5],
+                ['==', ['get', 'style'], 2],
+              ],
+              ['get', 'runwayHeading'],
+              0,
+            ],
+            'icon-rotation-alignment': 'map',
             'icon-allow-overlap': true,
             'icon-ignore-placement': true,
           },

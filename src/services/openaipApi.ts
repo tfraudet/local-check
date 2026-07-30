@@ -33,6 +33,10 @@ interface OpenAipElevation {
   referenceDatum?: number;
 }
 
+interface OpenAipRunway {
+  trueHeading?: number;
+}
+
 interface OpenAipAirport {
   _id: string;
   name: string;
@@ -42,6 +46,7 @@ interface OpenAipAirport {
   country?: string;
   geometry: { type: 'Point'; coordinates: [number, number] };
   elevation?: OpenAipElevation;
+  runways?: OpenAipRunway[];
 }
 
 interface OpenAipListResponse {
@@ -132,8 +137,17 @@ function airportToLandingZone(a: OpenAipAirport): LandingZone | null {
     difficulty_level: 'green',
     description: null,
     isAirfield: true,
+    runwayHeading: lastRunwayHeading(a.runways),
     source: 'openaip',
   };
+}
+
+/** Last runway's true heading in degrees; 0 when absent or invalid. */
+function lastRunwayHeading(runways: OpenAipRunway[] | undefined): number {
+  if (!runways || runways.length === 0) return 0;
+  const h = runways[runways.length - 1].trueHeading;
+  if (typeof h !== 'number' || !isFinite(h)) return 0;
+  return ((h % 360) + 360) % 360;
 }
 
 function elevationToMeters(e: OpenAipElevation | undefined): number | null {

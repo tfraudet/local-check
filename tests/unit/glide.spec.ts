@@ -24,6 +24,7 @@ function lz(lat: number, lon: number, elevM = 0): LandingZone {
     difficulty_level: 'green',
     description: null,
     isAirfield: false,
+    runwayHeading: 0,
     source: 'user',
   };
 }

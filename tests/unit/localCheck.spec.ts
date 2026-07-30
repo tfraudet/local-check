@@ -39,6 +39,7 @@ const NEARBY_LZ: LandingZone = {
   difficulty_level: 'green',
   description: null,
   isAirfield: true,
+  runwayHeading: 0,
   source: 'user',
 };
 

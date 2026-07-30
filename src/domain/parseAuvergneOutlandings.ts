@@ -93,11 +93,25 @@ export function parseAuvergneOutlandings(
       difficulty_level: level,
       description: buildDescription(r),
       isAirfield: false,
+      runwayHeading: parseAxesHeading(r.Axes),
       source,
     });
   });
 
   return { ok: errors.length === 0, zones, errors };
+}
+
+/**
+ * Parse the ACPh `Axes` field to a runway heading in degrees.
+ * Format is like `"360° / 180°"` — the first three characters give the
+ * primary heading. Returns 0 when the field is missing or unparseable.
+ */
+function parseAxesHeading(v: string | undefined): number {
+  if (!v) return 0;
+  const head = v.trim().slice(0, 3);
+  const n = parseInt(head, 10);
+  if (!isFinite(n)) return 0;
+  return ((n % 360) + 360) % 360;
 }
 
 /** Parse "907m" / "907 m" / "1030 m" → 907. */

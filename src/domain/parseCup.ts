@@ -61,7 +61,7 @@ export function parseCup(text: string, source: LandingZoneSource = 'user'): CupP
     }
 
     // Columns: name, code, country, lat, lon, elev, style, rwdir, rwlen, freq, desc
-    const [nameRaw, codeRaw, countryRaw, latRaw, lonRaw, elevRaw, styleRaw, , , , descRaw] = cols;
+    const [nameRaw, codeRaw, countryRaw, latRaw, lonRaw, elevRaw, styleRaw, rwdirRaw, , , descRaw] = cols;
 
     const name = nameRaw?.trim() || '?';
     const code = codeRaw?.trim() || null;
@@ -75,6 +75,7 @@ export function parseCup(text: string, source: LandingZoneSource = 'user'): CupP
 
     const elevationM = parseElevation(elevRaw?.trim() ?? '');
     const style = parseStyle(styleRaw?.trim() ?? '');
+    const runwayHeading = parseRunwayHeading(rwdirRaw?.trim() ?? '');
     const description = descRaw?.trim() || null;
     const tag = extractDifficulty(description);
     const isAirfield = (style !== null && [2, 3, 5].includes(style)) || tag === 'A';
@@ -95,6 +96,7 @@ export function parseCup(text: string, source: LandingZoneSource = 'user'): CupP
       difficulty_level: difficultyLevelFromTag(tag),
       description,
       isAirfield,
+      runwayHeading,
       source,
     });
   }
@@ -144,6 +146,18 @@ function parseElevation(s: string): number | null {
   const value = parseFloat(m[1]);
   const unit = (m[2] ?? 'm').toLowerCase();
   return unit === 'ft' ? value * 0.3048 : value;
+}
+
+/**
+ * Parse a SeeYou `rwdir` field (runway direction in degrees, 0–360).
+ * Returns 0 for empty or unparseable input — the icon layer treats 0 as
+ * "no known heading" (bar stays north-aligned).
+ */
+function parseRunwayHeading(s: string): number {
+  if (!s) return 0;
+  const n = parseFloat(s);
+  if (!isFinite(n)) return 0;
+  return ((n % 360) + 360) % 360;
 }
 
 function parseStyle(s: string): number | null {
