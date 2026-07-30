@@ -170,6 +170,7 @@ function FlightPanel() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
+                variant="outline"
                 onClick={() => inputRef.current?.click()}
                 disabled={isParsing}
                 tooltip={t('upload.menuItem')}
