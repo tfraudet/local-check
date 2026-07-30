@@ -54,7 +54,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      collapsible="icon"
+      collapsible="offcanvas"
       className="top-12 h-[calc(100svh-3rem)] overflow-hidden *:data-[sidebar=sidebar]:flex-row"
     >
       {/* ── Panel 1: icon-only navigation ─────────────────────────────── */}
