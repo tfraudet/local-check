@@ -3,6 +3,7 @@ import {
   Map as MaplibreMap,
   Marker,
   NavigationControl,
+  Popup,
   LngLatBounds,
   type GeoJSONSource,
   type LngLat,
@@ -117,6 +118,80 @@ function buildColoredTrackGeoJSON(
   return { type: 'FeatureCollection', features };
 }
 
+const LZ_STYLE_LABEL: Record<number, string> = {
+  0: 'Unknown',
+  1: 'Waypoint',
+  2: 'Grass airfield',
+  3: 'Airfield',
+  4: 'Outlanding',
+  5: 'Glider site',
+  7: 'Mountain',
+  9: 'Ultralight',
+};
+
+const LZ_SOURCE_LABEL: Record<string, string> = {
+  user: 'User import',
+  'outlanding-alps': 'Alpes outlanding DB',
+};
+
+/** Escape a value for safe inclusion in an HTML string. */
+function escHtml(v: unknown): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function buildLzPopupHtml(
+  props: GeoJSON.GeoJsonProperties | null | undefined,
+): string {
+  if (!props) return '';
+  const p = props as Record<string, unknown>;
+  const name = escHtml(p.name);
+  const code = p.code ? escHtml(p.code) : '';
+  const level = String(p.difficulty_level ?? 'green');
+  const color =
+    DIFFICULTY_LEVEL_COLOR[level as keyof typeof DIFFICULTY_LEVEL_COLOR] ??
+    DIFFICULTY_LEVEL_COLOR.green;
+  const isAirfield = p.isAirfield === true || p.isAirfield === 'true';
+  const styleN = typeof p.style === 'number' ? p.style : null;
+  const styleLabel = styleN !== null ? (LZ_STYLE_LABEL[styleN] ?? `Style ${styleN}`) : '';
+  const sourceLabel = LZ_SOURCE_LABEL[String(p.source)] ?? String(p.source);
+  const elev =
+    typeof p.elevationM === 'number' ? `${Math.round(p.elevationM)} m` : '';
+  const lat = typeof p.latitude === 'number' ? p.latitude.toFixed(4) : '';
+  const lon = typeof p.longitude === 'number' ? p.longitude.toFixed(4) : '';
+  const desc = p.description ? escHtml(p.description) : '';
+
+  const chip = (bg: string, text: string, fg = '#ffffff') =>
+    `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:${bg};color:${fg};font-size:10px;font-weight:600;">${text}</span>`;
+
+  const chips: string[] = [];
+  chips.push(chip(color, level.toUpperCase()));
+  if (isAirfield) chips.push(chip('#3b82f6', 'AIRFIELD'));
+
+  const row = (label: string, value: string) =>
+    `<b style="color:#64748b;font-weight:500;">${label}</b><span>${value}</span>`;
+  const rows: string[] = [];
+  if (code) rows.push(row('Code', code));
+  if (styleLabel) rows.push(row('Type', escHtml(styleLabel)));
+  if (elev) rows.push(row('Elevation', elev));
+  if (lat && lon) rows.push(row('Position', `${lat}°, ${lon}°`));
+  rows.push(row('Source', escHtml(sourceLabel)));
+
+  return `
+    <div style="font-family:inherit;color:#1e293b;font-size:12px;line-height:1.35;">
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${name}</div>
+      <div style="display:flex;gap:4px;margin-bottom:6px;">${chips.join('')}</div>
+      <div style="display:grid;grid-template-columns:auto 1fr;column-gap:8px;row-gap:2px;">
+        ${rows.join('')}
+      </div>
+      ${desc ? `<div style="margin-top:6px;color:#475569;">${desc}</div>` : ''}
+    </div>
+  `;
+}
+
 function buildLzGeoJSON(
   zones: LandingZone[],
   visibleIds: Set<string>,
@@ -136,6 +211,11 @@ function buildLzGeoJSON(
           isAirfield: z.isAirfield,
           difficulty_level: z.difficulty_level,
           elevationM: z.elevationM ?? '',
+          style: z.style ?? '',
+          description: z.description ?? '',
+          source: z.source,
+          latitude: z.latitude,
+          longitude: z.longitude,
           color: DIFFICULTY_LEVEL_COLOR[z.difficulty_level],
         },
         geometry: {
@@ -150,6 +230,7 @@ export function MapView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const lzPopupRef = useRef<Popup | null>(null);
   const mapReadyRef = useRef(false);
 
   const flight = useFlightStore((s) => s.flight);
@@ -305,11 +386,38 @@ export function MapView() {
             'text-halo-width': 1,
           },
         });
-        map.on('mouseenter', LZ_LAYER_CIRCLE, () => {
+        if (!lzPopupRef.current) {
+          lzPopupRef.current = new Popup({
+            closeButton: false,
+            closeOnClick: false,
+            offset: 12,
+            className: 'lz-popup',
+            maxWidth: '280px',
+          });
+        }
+        const popup = lzPopupRef.current;
+        map.on('mouseenter', LZ_LAYER_CIRCLE, (e) => {
           map.getCanvas().style.cursor = 'pointer';
+          const feature = e.features?.[0];
+          if (!feature) return;
+          const coords = (feature.geometry as GeoJSON.Point).coordinates.slice() as [
+            number,
+            number,
+          ];
+          popup.setLngLat(coords).setHTML(buildLzPopupHtml(feature.properties)).addTo(map);
+        });
+        map.on('mousemove', LZ_LAYER_CIRCLE, (e) => {
+          const feature = e.features?.[0];
+          if (!feature) return;
+          const coords = (feature.geometry as GeoJSON.Point).coordinates.slice() as [
+            number,
+            number,
+          ];
+          popup.setLngLat(coords).setHTML(buildLzPopupHtml(feature.properties));
         });
         map.on('mouseleave', LZ_LAYER_CIRCLE, () => {
           map.getCanvas().style.cursor = '';
+          popup.remove();
         });
       }
     };

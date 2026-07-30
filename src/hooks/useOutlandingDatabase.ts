@@ -3,7 +3,10 @@ import { parseCup } from '../domain/parseCup';
 import { useFlightStore } from '../state/useFlightStore';
 
 const ALPES_OUTLANDING_URL =
-  'https://planeur-net.github.io/outlanding/champs_des_alpes.cup';
+  'https://planeur-net.github.io/outlanding/guide_aires_securite.cup';
+  // 'https://planeur-net.github.io/outlanding/champs_des_alpes.cup';
+
+const AUVERGNE_OUTLANDING_URL = 'https://aeroclub-issoire.fr/wp-content/uploads/acph/outlanding-fields/outlanding-fields-db.json';
 
 // Module-scoped so React 19 StrictMode's double-mount doesn't refire the
 // fetch — and, more importantly, so the effect's cleanup does NOT abort a
