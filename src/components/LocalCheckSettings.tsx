@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useFlightStore } from '../state/useFlightStore';
 import { DEFAULT_LOCAL_CHECK_PARAMS } from '../domain/localCheck';
 import { Button } from './ui/button';
+import { Switch } from './ui/switch';
 
 interface ParamRowProps {
   label: string;
@@ -54,6 +55,8 @@ export function LocalCheckSettings() {
   const setLocalCheckParams = useFlightStore((s) => s.setLocalCheckParams);
   const runLocalCheck = useFlightStore((s) => s.runLocalCheck);
   const isComputing = useFlightStore((s) => s.isComputingLocalCheck);
+  const showOutlandingFields = useFlightStore((s) => s.showOutlandingFields);
+  const setShowOutlandingFields = useFlightStore((s) => s.setShowOutlandingFields);
 
   const update = (patch: Parameters<typeof setLocalCheckParams>[0]) => {
     setLocalCheckParams(patch);
@@ -119,6 +122,22 @@ export function LocalCheckSettings() {
         step={50}
         onChange={(v) => update({ enlThreshold: v })}
       />
+
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <label
+          htmlFor="show-outlanding-fields"
+          className="text-xs font-medium"
+          title={t('localCheck.settings.showOutlandingFieldsHint')}
+        >
+          {t('localCheck.settings.showOutlandingFields')}
+        </label>
+        <Switch
+          id="show-outlanding-fields"
+          checked={showOutlandingFields}
+          onCheckedChange={setShowOutlandingFields}
+          aria-label={t('localCheck.settings.showOutlandingFields')}
+        />
+      </div>
 
       <Button
         variant="outline"

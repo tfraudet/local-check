@@ -24,6 +24,7 @@ function lz(lat: number, lon: number, elevM = 0): LandingZone {
     difficulty: null,
     description: null,
     isAirfield: false,
+    source: 'user',
   };
 }
 

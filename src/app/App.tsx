@@ -9,6 +9,7 @@ import {
   useReplayKeyboardShortcuts,
 } from '../replay/replayEngine';
 import { useElevationLoader } from '../hooks/useElevationLoader';
+import { useOutlandingDatabase } from '../hooks/useOutlandingDatabase';
 import { AppSidebar } from '../components/AppSidebar';
 import { MapView } from '../components/MapView';
 import { Barogram } from '../components/Barogram';
@@ -37,6 +38,7 @@ function App() {
   useReplayEngine();
   useReplayKeyboardShortcuts();
   useElevationLoader();
+  useOutlandingDatabase();
 
   useEffect(() => {
     document.title = t('app.title');

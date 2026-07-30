@@ -119,11 +119,13 @@ function buildColoredTrackGeoJSON(
 function buildLzGeoJSON(
   zones: LandingZone[],
   visibleIds: Set<string>,
+  showOutlandingFields: boolean,
 ): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: zones
       .filter((z) => visibleIds.has(z.id))
+      .filter((z) => showOutlandingFields || z.source !== 'outlanding-alps')
       .map((z) => ({
         type: 'Feature' as const,
         properties: {
@@ -155,6 +157,7 @@ export function MapView() {
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
   const landingZones = useFlightStore((s) => s.landingZones);
   const visibleLandingZoneIds = useFlightStore((s) => s.visibleLandingZoneIds);
+  const showOutlandingFields = useFlightStore((s) => s.showOutlandingFields);
 
   // Initialize the map once.
   useEffect(() => {
@@ -261,7 +264,11 @@ export function MapView() {
     const map = mapRef.current;
     if (!map) return;
 
-    const lzGeoJSON = buildLzGeoJSON(landingZones, visibleLandingZoneIds);
+    const lzGeoJSON = buildLzGeoJSON(
+      landingZones,
+      visibleLandingZoneIds,
+      showOutlandingFields,
+    );
 
     const applyLzLayer = () => {
       const source = map.getSource(LZ_SOURCE_ID) as GeoJSONSource | undefined;
@@ -311,7 +318,7 @@ export function MapView() {
     } else {
       map.once('load', applyLzLayer);
     }
-  }, [landingZones, visibleLandingZoneIds]);
+  }, [landingZones, visibleLandingZoneIds, showOutlandingFields]);
 
   // Move the glider marker on every currentTimeMs change.
   useEffect(() => {

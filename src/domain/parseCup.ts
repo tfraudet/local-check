@@ -12,7 +12,7 @@
  * Only styles ≥ 2 (minus 1) are treated as usable LZs.
  */
 
-import type { DifficultyTag, LandingZone } from './landingZone';
+import type { DifficultyTag, LandingZone, LandingZoneSource } from './landingZone';
 import { lzId } from './landingZone';
 
 export interface CupParseSuccess {
@@ -31,7 +31,7 @@ export type CupParseResult = CupParseSuccess | CupParseError;
 const LANDABLE_STYLES = new Set([2, 3, 4, 5]);
 const DIFFICULTY_REGEX = /\{(A|F|E|ZA|LA|M|D|TD|VD)\}/i;
 
-export function parseCup(text: string): CupParseResult {
+export function parseCup(text: string, source: LandingZoneSource = 'user'): CupParseResult {
   const lines = text.split(/\r?\n/);
   const zones: LandingZone[] = [];
   const errors: Array<{ line: number; message: string }> = [];
@@ -91,6 +91,7 @@ export function parseCup(text: string): CupParseResult {
       difficulty,
       description,
       isAirfield,
+      source,
     });
   }
 

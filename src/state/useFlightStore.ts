@@ -32,6 +32,7 @@ export interface FlightStoreState {
   elevationLoadError: string | null;
   landingZones: LandingZone[];
   visibleLandingZoneIds: Set<string>;
+  showOutlandingFields: boolean;
   localCheckParams: LocalCheckParams;
   localCheckResult: LocalCheckResult | null;
   isComputingLocalCheck: boolean;
@@ -57,6 +58,7 @@ export interface FlightStoreState {
   addLandingZones: (zones: LandingZone[]) => void;
   clearLandingZones: () => void;
   toggleLandingZoneVisibility: (id: string) => void;
+  setShowOutlandingFields: (show: boolean) => void;
   setLocalCheckParams: (patch: Partial<LocalCheckParams>) => void;
   runLocalCheck: () => Promise<void>;
 }
@@ -125,6 +127,7 @@ export const useFlightStore = create<FlightStoreState>()(
       elevationLoadError: null,
       landingZones: [],
       visibleLandingZoneIds: new Set<string>(),
+      showOutlandingFields: true,
       localCheckParams: DEFAULT_LOCAL_CHECK_PARAMS,
       localCheckResult: null,
       isComputingLocalCheck: false,
@@ -245,15 +248,31 @@ export const useFlightStore = create<FlightStoreState>()(
         set({ visibleLandingZoneIds: next });
       },
 
+      setShowOutlandingFields: (show) => {
+        set({ showOutlandingFields: show });
+        void get().runLocalCheck();
+      },
+
       setLocalCheckParams: (patch) => {
         const { localCheckParams } = get();
         set({ localCheckParams: { ...localCheckParams, ...patch } });
       },
 
       runLocalCheck: async () => {
-        const { flight, elevationGrid, landingZones, localCheckParams, altitudeSource } = get();
+        const {
+          flight,
+          elevationGrid,
+          landingZones,
+          localCheckParams,
+          altitudeSource,
+          showOutlandingFields,
+        } = get();
 
-        if (!flight || !elevationGrid || landingZones.length === 0) return;
+        const effectiveZones = showOutlandingFields
+          ? landingZones
+          : landingZones.filter((z) => z.source !== 'outlanding-alps');
+
+        if (!flight || !elevationGrid || effectiveZones.length === 0) return;
 
         set({ isComputingLocalCheck: true });
 
@@ -269,7 +288,7 @@ export const useFlightStore = create<FlightStoreState>()(
           fixes: flight.fixes,
           altitudeSource,
           elevationGrid,
-          landingZones,
+          landingZones: effectiveZones,
           phases,
           params: localCheckParams,
         };
@@ -300,7 +319,10 @@ export const useFlightStore = create<FlightStoreState>()(
     {
       name: 'local-check.params.v1',
       // Only persist the computation parameters; everything else is transient.
-      partialize: (state) => ({ localCheckParams: state.localCheckParams }),
+      partialize: (state) => ({
+        localCheckParams: state.localCheckParams,
+        showOutlandingFields: state.showOutlandingFields,
+      }),
     },
   ),
 );

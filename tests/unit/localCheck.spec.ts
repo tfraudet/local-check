@@ -39,6 +39,7 @@ const NEARBY_LZ: LandingZone = {
   difficulty: 'A',
   description: null,
   isAirfield: true,
+  source: 'user',
 };
 
 const PARAMS = { ...DEFAULT_LOCAL_CHECK_PARAMS };

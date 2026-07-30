@@ -33,3 +33,6 @@ coverage
 playwright-report
 test-results
 fixtures/sample-flights/2026-07-19-XNA-200296-01.igc
+fixtures/landing-zones/o-aof-20190511.cup
+fixtures/landing-zones/r-aof-20190511.cup
+fixtures/landing-zones/v-aof-20190511.cup

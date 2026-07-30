@@ -88,7 +88,9 @@
       "timeStep": "Time step (s)",
       "timeStepHint": "Sampling interval for local check (min 10 s, default 20 s)",
       "enlThreshold": "ENL threshold",
-      "enlThresholdHint": "Engine noise level above which motor is considered running (default 500)"
+      "enlThresholdHint": "Engine noise level above which motor is considered running (default 500)",
+      "showOutlandingFields": "Show outlanding fields",
+      "showOutlandingFieldsHint": "Include the shared alpine outlanding-fields database on the map and in local-check computation"
     },
     "stats": {
       "title": "Local check results",

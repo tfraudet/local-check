@@ -15,6 +15,9 @@ export type DifficultyTag =
   | 'TD' // very difficult
   | 'VD'; // very difficult (alt)
 
+/** Provenance of a landing zone entry. */
+export type LandingZoneSource = 'user' | 'outlanding-alps';
+
 export interface LandingZone {
   /** Stable ID: lowercase hex of fnv32a(name + lat.toFixed(5) + lon.toFixed(5)). */
   id: string;
@@ -27,6 +30,7 @@ export interface LandingZone {
   difficulty: DifficultyTag | null;
   description: string | null;
   isAirfield: boolean; // style ∈ {2,3,4,5} OR difficulty === 'A'
+  source: LandingZoneSource;
 }
 
 /** FNV-1a 32-bit hash → lowercase hex string (8 chars). */

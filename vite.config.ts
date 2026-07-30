@@ -29,6 +29,10 @@ export default defineConfig({
     // resolution (the worker chunk 404s). Excluding it keeps the package
     // served directly from node_modules where the relative path is valid.
     exclude: ['maplibre-gl'],
+    // Pre-bundle the deps used exclusively inside Web Workers. Vite can't
+    // discover them from the main entry, so the first upload would otherwise
+    // trigger "optimized dependencies changed → reload", killing the parse.
+    include: ['igc-parser', 'geotiff'],
   },
   test: {
     environment: 'jsdom',
