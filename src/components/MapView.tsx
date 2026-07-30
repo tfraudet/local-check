@@ -13,6 +13,7 @@ import { useFlightStore, findCurrentFixIndex } from '../state/useFlightStore';
 import type { NormalizedFlight } from '../domain/flight';
 import type { SampledPoint } from '../domain/localCheck';
 import type { LandingZone } from '../domain/landingZone';
+import { DIFFICULTY_LEVEL_COLOR } from '../domain/landingZone';
 
 const DEFAULT_MAP_STYLE_URL =
   (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) ??
@@ -133,9 +134,9 @@ function buildLzGeoJSON(
           name: z.name,
           code: z.code ?? '',
           isAirfield: z.isAirfield,
-          difficulty: z.difficulty ?? '',
+          difficulty_level: z.difficulty_level,
           elevationM: z.elevationM ?? '',
-          color: z.isAirfield ? '#3b82f6' : '#22c55e',
+          color: DIFFICULTY_LEVEL_COLOR[z.difficulty_level],
         },
         geometry: {
           type: 'Point' as const,

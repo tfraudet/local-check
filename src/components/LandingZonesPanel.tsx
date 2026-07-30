@@ -3,9 +3,17 @@ import { useTranslation } from 'react-i18next';
 import { MapPin, Upload, X, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { parseCup } from '../domain/parseCup';
+import type { DifficultyLevel } from '../domain/landingZone';
 import { useFlightStore } from '../state/useFlightStore';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Badge } from './ui/badge';
+
+const LEVEL_TEXT_CLASS: Record<DifficultyLevel, string> = {
+  green: 'text-green-500',
+  orange: 'text-orange-500',
+  red: 'text-red-500',
+  black: 'text-slate-900 dark:text-slate-100',
+};
 
 export function LandingZonesPanel() {
   const { t } = useTranslation();
@@ -142,15 +150,10 @@ export function LandingZonesPanel() {
                     <MapPin
                       className={cn(
                         'size-3 shrink-0',
-                        lz.isAirfield ? 'text-blue-500' : 'text-green-500',
+                        LEVEL_TEXT_CLASS[lz.difficulty_level],
                       )}
                     />
                     <span className="truncate text-xs">{lz.name}</span>
-                    {lz.difficulty && (
-                      <Badge variant="outline" className="shrink-0 px-1 py-0 text-xs">
-                        {lz.difficulty}
-                      </Badge>
-                    )}
                   </div>
                   <button
                     onClick={() => toggleVisibility(lz.id)}

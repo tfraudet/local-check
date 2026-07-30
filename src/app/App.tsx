@@ -10,6 +10,7 @@ import {
 } from '../replay/replayEngine';
 import { useElevationLoader } from '../hooks/useElevationLoader';
 import { useOutlandingDatabase } from '../hooks/useOutlandingDatabase';
+import { useAutoLocalCheck } from '../hooks/useAutoLocalCheck';
 import { AppSidebar } from '../components/AppSidebar';
 import { MapView } from '../components/MapView';
 import { Barogram } from '../components/Barogram';
@@ -39,6 +40,7 @@ function App() {
   useReplayKeyboardShortcuts();
   useElevationLoader();
   useOutlandingDatabase();
+  useAutoLocalCheck();
 
   useEffect(() => {
     document.title = t('app.title');

@@ -12,8 +12,12 @@
  * Only styles ≥ 2 (minus 1) are treated as usable LZs.
  */
 
-import type { DifficultyTag, LandingZone, LandingZoneSource } from './landingZone';
-import { lzId } from './landingZone';
+import type {
+  AlpesDifficultyTag,
+  LandingZone,
+  LandingZoneSource,
+} from './landingZone';
+import { difficultyLevelFromTag, lzId } from './landingZone';
 
 export interface CupParseSuccess {
   ok: true;
@@ -72,8 +76,8 @@ export function parseCup(text: string, source: LandingZoneSource = 'user'): CupP
     const elevationM = parseElevation(elevRaw?.trim() ?? '');
     const style = parseStyle(styleRaw?.trim() ?? '');
     const description = descRaw?.trim() || null;
-    const difficulty = extractDifficulty(description);
-    const isAirfield = (style !== null && [2, 3, 5].includes(style)) || difficulty === 'A';
+    const tag = extractDifficulty(description);
+    const isAirfield = (style !== null && [2, 3, 5].includes(style)) || tag === 'A';
 
     // Only import usable LZs (drop pure waypoints / unknown)
     if (style !== null && !LANDABLE_STYLES.has(style) && style !== 0) continue;
@@ -88,7 +92,7 @@ export function parseCup(text: string, source: LandingZoneSource = 'user'): CupP
       longitude: lon,
       elevationM,
       style,
-      difficulty,
+      difficulty_level: difficultyLevelFromTag(tag),
       description,
       isAirfield,
       source,
@@ -147,16 +151,17 @@ function parseStyle(s: string): number | null {
   return isNaN(n) ? null : n;
 }
 
-function extractDifficulty(desc: string | null): DifficultyTag | null {
+function extractDifficulty(desc: string | null): AlpesDifficultyTag | null {
   if (!desc) return null;
   const m = desc.match(DIFFICULTY_REGEX);
   if (!m) return null;
-  return m[1].toUpperCase() as DifficultyTag;
+  return m[1].toUpperCase() as AlpesDifficultyTag;
 }
 
 /**
  * Merge LZs within 250 m of each other.
- * Preference: entry with a difficulty tag > without; airfields always kept.
+ * Preference: airfields always kept; otherwise prefer the entry with an
+ * explicit (non-default) difficulty level over one that defaulted to green.
  */
 function deduplicateZones(zones: LandingZone[]): LandingZone[] {
   const DEDUP_THRESHOLD_KM = 0.25;
@@ -170,10 +175,14 @@ function deduplicateZones(zones: LandingZone[]): LandingZone[] {
       kept.push(z);
     } else {
       const existing = kept[duplicate];
-      // Prefer: airfield > has difficulty tag > either (keep existing)
       if (!existing.isAirfield && z.isAirfield) {
         kept[duplicate] = z;
-      } else if (!existing.difficulty && z.difficulty && !z.isAirfield) {
+      } else if (
+        !existing.isAirfield &&
+        !z.isAirfield &&
+        existing.difficulty_level === 'green' &&
+        z.difficulty_level !== 'green'
+      ) {
         kept[duplicate] = z;
       }
     }

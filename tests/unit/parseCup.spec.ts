@@ -68,12 +68,12 @@ describe('parseCup', () => {
     expect(vinon!.isAirfield).toBe(true);
   });
 
-  it('extracts difficulty tags from description', () => {
+  it('maps difficulty tags to the simplified 4-level scale', () => {
     const result = parseCup(SAMPLE_CUP);
     const banon = result.zones.find((z) => z.code === 'BANON');
-    expect(banon!.difficulty).toBe('D');
+    expect(banon!.difficulty_level).toBe('red'); // {D}
     const riez = result.zones.find((z) => z.code === 'RIEZ');
-    expect(riez!.difficulty).toBe('F');
+    expect(riez!.difficulty_level).toBe('green'); // {F}
   });
 
   it('parses elevation with meters suffix', () => {
@@ -85,12 +85,12 @@ describe('parseCup', () => {
   it('deduplicates points within 250 m', () => {
     const cup = `name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc
 "Alpha","A","FR",4344.000N,00604.000E,200m,4,,,,""
-"AlphaDupe","AD","FR",4344.001N,00604.001E,200m,4,,,,"Dupe of Alpha {F}"
+"AlphaDupe","AD","FR",4344.001N,00604.001E,200m,4,,,,"Dupe of Alpha {M}"
 `;
     const result = parseCup(cup);
-    // Should keep the one with the difficulty tag
+    // Should keep the entry with an explicit (non-green) difficulty level
     expect(result.zones.length).toBe(1);
-    expect(result.zones[0].difficulty).toBe('F');
+    expect(result.zones[0].difficulty_level).toBe('orange');
   });
 
   it('reports parse errors for malformed rows', () => {

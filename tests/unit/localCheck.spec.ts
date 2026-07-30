@@ -36,7 +36,7 @@ const NEARBY_LZ: LandingZone = {
   longitude: 6.01,
   elevationM: 0,
   style: 2,
-  difficulty: 'A',
+  difficulty_level: 'green',
   description: null,
   isAirfield: true,
   source: 'user',
