@@ -262,9 +262,9 @@ export type FlightPhase =
   | 'final-glide';       // sustained descent + low-altitude circuit into the LZ
 
 export type LocalStatus =
-  | 'in-local'
-  | 'in-local-marginal'  // 0 <= margin < 100 m
-  | 'out-of-local';
+  | 'in-local'           // arrival above ground > arrivalHeightM param
+  | 'in-local-marginal'  // 0 < arrival above ground ≤ arrivalHeightM param
+  | 'out-of-local';      // arrival above ground ≤ 0
 
 export interface SampledPoint {
   timeMs: number;
@@ -397,27 +397,36 @@ type LocalCheckResponse =
 
 1. **AGL:** `terrainElevationM = sampleElevation(grid, lat, lon)`;
    `aglM = altitudeM - terrainElevationM` (or `null` if terrain is `NaN`).
-2. **Candidate LZs:** filter by a maximum plausible glide distance:
-   `maxDistM = (altitudeM - lzElevM - arrivalHeightM) * workingLD`.
-   Skip LZs where `maxDistM ≤ 0`.
-3. **Straight-line glide-plane check:** for each candidate,
+2. **Best LZ:** iterate all candidate LZs and pick the one with the
+   **highest arrival height above its own ground**:
    `distanceM = haversine(fix, lz)`;
-   `requiredAltitudeM = lzElevM + arrivalHeightM + distanceM / workingLD`;
-   `margin = altitudeM - requiredAltitudeM`.
-   Along the great-circle-approximated straight line, sample terrain every
-   ~200 m and verify the glide-plane altitude at each step is at least
-   `terrainAtStep + groundClearanceM`. If any step fails, the LZ is
-   ineligible for this fix.
-4. **Best LZ:** pick the LZ with the largest positive `margin`. If none
-   qualifies (all fail the terrain check or all have negative margins),
-   status is `out-of-local` and
-   `missingHeightM = -max(margin)` across all candidates (or a sentinel large
-   value if there are no candidates in range at all).
-5. **Marginal band:** `0 ≤ margin < 100 m` yields status `in-local-marginal`.
-6. **Phase override:** if the pre-computed `phases[fixIndex]` is
+   `arrivalAltAtLzM = altitudeM − distanceM / workingLD`;
+   `arrivalAboveGroundM = arrivalAltAtLzM − lzElevM`.
+   No terrain-collision or ground-clearance filter is applied here — the
+   same rule powers the on-map arrival-height labels and the escape-path
+   target picker, so the barogram colour always matches what the pilot
+   sees on the map.
+3. **Status classification** (single shared rule):
+   - `arrivalAboveGroundM > arrivalHeightM` → **in-local** (green)
+   - `0 < arrivalAboveGroundM ≤ arrivalHeightM` → **in-local-marginal**
+     (yellow)
+   - `arrivalAboveGroundM ≤ 0` → **out-of-local** (red)
+
+   `marginM = arrivalAboveGroundM − arrivalHeightM` is stored on the
+   `SampledPoint` for consumers that display a signed distance to the
+   safety buffer. `missingHeightM = max(0, −arrivalAboveGroundM)` — how
+   much altitude would be required to at least reach LZ ground.
+4. **Phase override:** if the pre-computed `phases[fixIndex]` is
    `initial-climb`, `motor`, or `final-glide`, the display status
    coloring uses the phase color (§9.3 of PRD), while the underlying
    in/out-of-local status is still stored for statistics.
+
+**Ground clearance is intentionally not part of the status.** It stays
+in `LocalCheckParams` and in the settings UI for future terrain-aware
+routing features, but neither the barogram colour nor the arrival-height
+labels are gated by it. A glide that would clip terrain is surfaced by the
+Phase 3 escape-path profile chart — the terrain trace shows exactly where
+the glide plane meets the ground.
 
 **Statistics:**
 
@@ -708,9 +717,10 @@ Additionally:
 2. **Elevation API SLA.** Open-Elevation has occasional outages; consider
    whether to add a secondary provider fallback in Phase 2 or leave that as
    a Phase 3 hardening item.
-3. **Marginal-band threshold (100 m).** The 100 m threshold for
-   `in-local-marginal` (yellow band per PRD §9.3) is copied from VerifLocal
-   conventions — confirm on a test flight or expose as a hidden param.
+3. ~~**Marginal-band threshold (100 m).**~~ **Resolved.** The marginal band
+   is now anchored on the safety arrival height rather than a fixed 100 m,
+   so the three colours are defined directly by `arrivalHeightM` — no
+   hidden constant. See §6.3 for the current rule.
 
 ---
 

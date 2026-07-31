@@ -118,13 +118,13 @@ relate to phases beyond the MVP.
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **IGC file**                | Standard glider flight-recorder log format (FAI/IGC). Contains fix records (`B` records) with UTC time, latitude, longitude, pressure altitude and GNSS altitude, plus headers (`H`), and optional extensions (e.g. ENL engine-noise level). |
 | **LZ — Landing Zone**       | A place the glider can safely land: an airfield or a vetted outlanding field. _(future)_                                                                                                                                                     |
-| **In local / Out of local** | The glider is "in local" if at least one LZ is reachable in a glide under the safety constraints; otherwise "out of local". _(future)_                                                                                                       |
+| **In local / Marginal / Out of local** | Three-way classification of the glider vs the *best* Landing Zone at each moment, based purely on the projected arrival height above LZ ground: `arrival > safety height` = **in local** (green); `0 < arrival ≤ safety height` = **marginal** (yellow); `arrival ≤ 0` = **out of local** (red). Applied to labels, escape path, and barogram track — one shared rule. _(future)_ |
 | **Working L/D**             | The glide ratio used for the safety computation (not the glider's max L/D). VerifLocal default: **20** for IGC. _(future)_                                                                                                                   |
-| **Safety arrival height**   | Minimum height above the LZ required on arrival. VerifLocal default: **300 m**. _(future)_                                                                                                                                                   |
-| **Ground clearance**        | Minimum height above terrain to maintain along an escape path. VerifLocal default: **150 m**. _(future)_                                                                                                                                     |
+| **Safety arrival height**   | Minimum height above the LZ ground required on arrival to qualify as "in local". Boundary between marginal (yellow) and in-local (green). VerifLocal default: **300 m**. _(future)_                                                          |
+| **Ground clearance**        | Minimum height above terrain to maintain along an escape path. Informational / display concept from VerifLocal (default **150 m**); does **not** gate the three-way status in Local Check — a mountain-clipping glide is visible in the escape-path profile chart, not through the barogram colour. _(future)_ |
 | **Escape path**             | A computed straight or poly-line trajectory from a point on the track to a reachable LZ. _(future)_                                                                                                                                          |
 | **Reachable zone**          | The full area reachable from the current point given L/D, wind and terrain. _(future)_                                                                                                                                                       |
-| **Missing height**          | How much additional altitude would be needed to be in local at a given point (0 = in local). _(future)_                                                                                                                                      |
+| **Missing height**          | How much additional altitude would be needed to arrive at LZ ground level at a given point (0 = arrival at or above ground, i.e. reachable at least marginally). _(future)_                                                                    |
 | **Barogram**                | Altitude-vs-time chart of the flight, color-coded to match the map track.                                                                                                                                                                    |
 | **Time step**               | Interval at which the local check is computed along the track. VerifLocal default: **20 s** (min 10 s). _(future)_                                                                                                                           |
 | **ENL / MOP**               | Engine Noise Level / Means Of Propulsion fields used to detect motor use in the IGC file.                                                                                                                                                    |
@@ -301,15 +301,24 @@ These are intentionally high-level; each will be detailed in its own phase.
 
 ### 9.3 Track/barogram color model (target, applied from Phase 2)
 
-Aligned with VerifLocal's conventions so the community finds it familiar:
+Aligned with VerifLocal's conventions so the community finds it familiar,
+with one deliberate departure: the marginal (yellow) band is defined by
+arrival vs safety height rather than a fixed "< 100 m above glide plane"
+band, so all four surfaces (barogram, escape-path line, escape-path
+profile, arrival-height labels) share one rule.
 
-| Color  | Meaning                                                  |
-| ------ | -------------------------------------------------------- |
-| Cyan   | Initial climb (tow / winch / motor)                      |
-| Green  | In local of a LZ (Yellow: < 100 m above the glide plane) |
-| Red    | Out of local                                             |
-| Blue   | Final glide                                              |
-| Purple | Low-height flight (if detection enabled)                 |
+| Color  | Meaning                                                                                            |
+| ------ | -------------------------------------------------------------------------------------------------- |
+| Cyan   | Initial climb (tow / winch / motor)                                                                |
+| Green  | In local — projected arrival at the best LZ is **> safety arrival height** above LZ ground        |
+| Yellow | Marginal — arrival is above LZ ground **but** ≤ safety arrival height                              |
+| Red    | Out of local — arrival is at or below LZ ground                                                    |
+| Blue   | Final glide                                                                                        |
+| Purple | Low-height flight (if detection enabled)                                                           |
+
+Terrain-collision along the glide path does **not** gate the colour: it is
+surfaced instead by the escape-path profile chart, which draws the glide
+plane against the terrain slice below it.
 
 For the **MVP**, the track uses a single neutral color (or an
 altitude/vario gradient) since "local" is not yet computed; the color model
@@ -426,8 +435,8 @@ above is introduced in Phase 2.
 | Parameter             | Default  | Notes                                                |
 | --------------------- | -------- | ---------------------------------------------------- |
 | Working L/D           | 20       | For IGC; ~half of max L/D if glider type is trusted. |
-| Safety arrival height | 300 m    | Minimum height over a LZ on arrival.                 |
-| Ground clearance      | 150 m    | Minimum height above terrain along escape paths.     |
+| Safety arrival height | 300 m    | Boundary between the marginal (yellow) and in-local (green) bands. |
+| Ground clearance      | 150 m    | Informational / display only. Does not gate the three-way status.  |
 | Time step             | 20 s     | Local check interval (min 10 s).                     |
 | ENL threshold         | 500      | Motor-run detection.                                 |
 | Reachable-zone grid   | 90–720 m | Grid cell size for reachable-zone computation.       |

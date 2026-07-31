@@ -20,11 +20,11 @@ It helps flight instructors, safety officers, and pilots answer critical safety 
 
 ---
 
-## 🚧 Project Status: Phase 1 MVP
+## 🚧 Project Status: Phase 3 (Escape paths & reachable zone)
 
-The current release is the **Phase 1 MVP**, focused on the foundation: uploading a single IGC flight log and replaying it. See [`docs/PRD.md`](docs/PRD.md) for the full product vision and [`docs/phase-1-technical-spec.md`](docs/phase-1-technical-spec.md) for the technical design.
+Phases 1, 2 and 3 are implemented. Phase 4 (airspace, wind, debrief reports) is the next milestone. See [`docs/PRD.md`](docs/PRD.md) for the full product vision and the per-phase specs: [`phase-1`](docs/phase-1-technical-spec.md), [`phase-2`](docs/phase-2-technical-spec.md), [`phase-3`](docs/phase-3-technical-spec.md).
 
-### ✨ Implemented in Phase 1
+### ✨ Implemented — Phase 1 (Upload & Replay)
 
 - **IGC Parsing:** Client-side parsing of standard IGC flight records, off the main thread via a Web Worker.
 - **Interactive Replay:** Play/pause, step forward/backward, reset, adjustable playback speed (1×–16×), and timeline scrubbing, with keyboard shortcuts (Space, ←/→, Home).
@@ -33,12 +33,28 @@ The current release is the **Phase 1 MVP**, focused on the foundation: uploading
 - **Telemetry & Flight Summary Panels:** Live time, position, altitude (pressure/GNSS), ground speed, and vario, plus overall flight stats (date, pilot, glider, duration, min/max altitude, max speed, total distance).
 - **Derived Metrics:** Ground speed, vario, and cumulative distance computed from raw IGC fixes.
 
-### 🗺️ Planned (future phases)
+### ✨ Implemented — Phase 2 (Local verification)
 
-- Dynamic safety cone / local-range calculator based on glider polar ($L/D$), altitude, terrain, and wind drift.
-- Landing Zone and airfield database import (`.cup`, `.wpt`, `.geojson`).
-- Out-of-local alerting and auditing of flight segments that breach safety boundaries.
-- Margin/altitude heatmaps and debrief/club compliance reports.
+- **Landing Zone import (`.cup`):** SeeYou-format waypoint files parsed client-side; airfield vs outlanding, difficulty tags (`{A}` / `{F}` / `{M}` / `{D}` / `{TD}`), 250 m de-duplication.
+- **Terrain elevation:** OpenTopography DEM prefetched around the flight bbox; bilinear sampling for AGL and glide computations.
+- **In-local / marginal / out-of-local classification:** One shared rule across all surfaces — for each fix, pick the LZ with the highest projected arrival above ground, then colour by `arrival > safety height` (green) / `arrival > 0` (yellow) / `arrival ≤ 0` (red).
+- **Coloured track & barogram:** Track segments and altitude line coloured per phase (initial-climb, motor, final-glide) and status. Legend surfaces every colour.
+- **Out-of-local statistics:** Time / % out-of-local, mean & max missing height, first out-of-local time (click-to-seek).
+- **Configurable parameters:** Working L/D, safety arrival height, time step, ENL threshold — all persisted via `localStorage`. (Ground clearance is exposed but informational only; it does not gate status.)
+
+### ✨ Implemented — Phase 3 (Escape paths & reachable zone)
+
+- **Escape path:** From the current replay position to the LZ with the highest arrival height above ground. Dashed polyline on the map (green/yellow/red per shared status rule).
+- **Escape-path profile chart:** Compact uPlot chart to the right of the barogram (30 / 70 width split). Draws the terrain profile and glide plane along the escape line, with a filled square marker at the LZ and a dashed arrival-target guide. Extends 20 % past the LZ for post-target context.
+- **Reachable zone:** From the current position, at user-selectable grid size (90 / 180 / 360 / 720 m) and extent (5–30 km). Rendered as a translucent green fill overlay under the track. Runs in a dedicated Web Worker with a 250 ms debounce on cursor moves.
+- **Arrival-height labels:** For every visible LZ, an SDF "pill" label shows the projected arrival height at the current fix, colour-coded by the shared status rule.
+
+### 🗺️ Planned — Phase 4
+
+- **Airspace penetration detection & reporting** (imported OpenAir/GeoJSON).
+- **Wind effect on glide,** manual entry or drift-derived.
+- **Downloadable debrief reports** — flight summary, out-of-local events, screenshots for club compliance.
+- **Terrain-avoiding poly-line escape routes** (Phase 3 ships straight-line only).
 
 ---
 

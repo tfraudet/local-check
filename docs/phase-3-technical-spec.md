@@ -231,12 +231,12 @@ export interface EscapePath {
   sourceLat: number;
   sourceLon: number;
   sourceAltM: number;
-  lzId: string;                          // target LZ (may be a fallback if out-of-local)
+  lzId: string;                          // target LZ = highest arrival height above ground at the current fix
   waypoints: EscapePathWaypoint[];       // straight line: [source, LZ] in Phase 3
   profile: EscapePathProfilePoint[];     // sampled every ~100 m along the line
-  arrivalHeightM: number;                // sourceAlt − lzElev − dist / L/D
-  minMarginM: number;                    // min(glideAlt − terrainM − groundClearanceM) along the line
-  status: EscapePathStatus;              // derived from margin & arrival height
+  arrivalHeightM: number;                // sourceAlt − lzElev − dist / L/D  (height above LZ ground)
+  minMarginM: number;                    // min(glideAlt − terrainM) along the line — informational, not used for status
+  status: EscapePathStatus;              // derived from `arrivalHeightM` only (see §6.1)
 }
 
 export interface EscapePathInputs {
@@ -327,34 +327,41 @@ No changes to Phase 2's `LocalCheckResult` / `SampledPoint` shape.
   on the sorted `timeMs` array). If `bestLzId` is set, that's the target;
   otherwise (out-of-local), the caller falls back to the LZ with the
   smallest `missingHeightM` and marks the path as `out-of-local`.
+- **Target LZ.** At each cursor position, pick the LZ with the
+  **highest arrival height above its own ground** (the same rule used by
+  the arrival-height labels and by `localCheck.classifyFix` for the
+  barogram). Terrain-collision is not part of the target selection.
 - **Algorithm (`computeEscapePath`).**
   1. Sample the straight line from source → LZ every `sampleStepM` metres
-     (default 100 m). Use great-circle interpolation
-     (`domain/geo.slerp(...)`, add if missing).
+     (default 100 m). Linear interpolation in lat/lon is adequate at the
+     distances involved.
   2. For each sample, `terrainM = sampleElevation(grid, lat, lon)`
-     (Phase 2). If `NaN`, propagate as `null` and mark the path
-     `out-of-local` conservatively.
-  3. Compute `glideAltM = sourceAltM − (distFromSourceM / workingLD)`.
-  4. Compute `arrivalHeightM = sourceAltM − lzElevM − distanceLZ /
-     workingLD`.
-  5. Compute `minMarginM` as the minimum of
-     `glideAltM − terrainM − groundClearanceM` over the samples.
-  6. Status: `in-local` if `arrivalHeightM ≥ arrivalHeightM param` and
-     `minMarginM ≥ 0`; `in-local-marginal` if any of the two is below its
-     safety threshold by less than 100 m; else `out-of-local`.
+     (Phase 2). `NaN` propagates as `null` in the profile.
+  3. `glideAltM = sourceAltM − (distFromSourceM / workingLD)`.
+  4. `arrivalHeightM = sourceAltM − lzElevM − distanceLZ / workingLD`
+     (height above LZ ground).
+  5. `minMarginM = min(glideAltM − terrainM)` along the source→LZ segment
+     — informational only, not part of the status.
+  6. **Status (shared rule):**
+     - `arrivalHeightM > arrivalHeightM param` → `in-local` (green)
+     - `0 < arrivalHeightM ≤ arrivalHeightM param` → `in-local-marginal`
+       (yellow)
+     - `arrivalHeightM ≤ 0` → `out-of-local` (red)
 - **Rendering (`MapView.tsx`).**
   - A new `LineString` GeoJSON source `escape-path-src` holds the
     2-vertex line (source → LZ). Two `line` layers are stacked: a wide
-    translucent halo (2 px, 30 % opacity) and a solid stroke (2 px). Colour
-    picked from `phaseColors.ts`: green (in-local), yellow (marginal),
-    red (out-of-local). Dashed variant when arrival height is below
-    threshold but terrain clearance is OK.
+    translucent halo (2 px, 30 % opacity) and a solid dashed stroke (2 px,
+    dash pattern `[2, 1.5]`). Colour picked from `phaseColors.ts`: green
+    (in-local), yellow (marginal), red (out-of-local).
   - Layer is added below the current-position marker and above the
     track / LZ symbols.
 - **Rendering (`EscapePathProfilePanel.tsx`).**
-  - A compact `uPlot` chart placed **to the left of the barogram** in a
+  - A compact `uPlot` chart placed **to the right of the barogram** in a
     horizontal `flex` container. Width ratio **barogram : escape-path
-    profile = 70 : 30**. Both share the same vertical size.
+    profile = 70 : 30**. The escape-path panel also hosts the current
+    telemetry row above the barogram so both panes share a top border,
+    and its outer wrapper adds a top border for the right pane
+    (`border-l border-t`) so the two edges align pixel-perfectly.
   - X axis: distance from source in km. Y axis: altitude m.
   - Two series: `terrainM` (filled area, ground colour) and
     `glideAltM` (solid stroke, coloured per status).
@@ -382,19 +389,16 @@ No changes to Phase 2's `LocalCheckResult` / `SampledPoint` shape.
   2. `glideAltAtCellM = sourceAltM − distM / workingLD`.
   3. `terrainM = sampleElevation(grid, lat, lon)`.
      If `NaN`, mark cell unreachable.
-  4. `marginM = glideAltAtCellM − terrainM − groundClearanceM`.
+  4. `marginM = glideAltAtCellM − terrainM` (ground clearance is not
+     applied — same convention as the barogram/label status).
   5. Cell is reachable iff `marginM ≥ 0` **and** the straight line from
-     source to cell passes the Phase 2 terrain-clearance check (reuse
-     `glide.ts::checkGlideToLz` semantics against a synthetic zero-elevation
-     target; the arrival-height constraint is dropped for reachable-zone
-     purposes because we're describing "can the glider even get there",
-     not "can it land safely there"). The straight-line terrain check runs
-     against ~10 evenly-spaced samples along the ray to keep the inner
-     loop cheap.
-- **Contour extraction.** Run a 2-D marching-squares pass over the
-  reachable mask to produce `outerPolygon` (a single connected outer
-  contour is sufficient; holes are optional in v1). Simplify with
-  Douglas–Peucker at `gridSizeM / 4` tolerance.
+     source to cell doesn't clip terrain (sparse ~10-sample check with
+     zero clearance buffer).
+- **Rendering primitives.** Emit one rectangular polygon ring per
+  reachable cell (a `MultiPolygon` of cell-sized quads). Simpler than
+  marching squares, handles holes trivially, and MapLibre's fill layer
+  blends adjacent quads visually. `fill-antialias: false` avoids seams
+  between quads at the edges.
 - **Worker contract.**
   ```ts
   // posted to worker
@@ -431,16 +435,18 @@ No changes to Phase 2's `LocalCheckResult` / `SampledPoint` shape.
 
 - **Trigger.** When `showArrivalHeights` is on and the flight has fixes,
   a small utility recomputes per-LZ arrival heights on `currentTimeMs`
-  change (throttled to ~10 Hz via `requestAnimationFrame`):
-  `arrivalHeightM = currentAltM − lzElevM − haversine(currentPos, lz) /
-  workingLD`. This is the informational figure; it does **not** apply the
-  Phase 2 terrain-clearance rule (the strict "reachable" check is what
-  Phase 2 already colour-codes).
-- **Rendering.** The value is pushed into each feature of the existing LZ
-  symbol source under `properties.arrivalHeightM`. A companion `symbol`
-  text layer displays `+340 m` / `−120 m` (sign always shown, m suffix)
-  offset just below the LZ icon, coloured green when ≥
-  `arrivalHeightM` param and red otherwise.
+  change: `arrivalHeightM = currentAltM − lzElevM − haversine(currentPos,
+  lz) / workingLD`. This drives both the on-map pill label and — via
+  `classifyFix` in Phase 2 — the barogram track colour, so the two
+  surfaces are always in agreement (same rule, same threshold).
+- **Rendering.** Each visible LZ carries a signed pill label rendered
+  through an SDF rounded-rectangle icon so a single image serves all
+  three status colours (`icon-color` recoloured at paint time via a
+  `match` on the `status` feature property). Label glyphs are white on
+  the coloured pill; text reads `+340 m` / `−120 m` (sign always shown,
+  m suffix). Colour: green when `arrivalHeightM > arrivalHeightM param`,
+  yellow when `> 0`, red otherwise — same three bands as the barogram
+  track and the escape-path polyline.
 - **Toggle** lives in the sidebar next to the escape-path and
   reachable-zone toggles.
 
