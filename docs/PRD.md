@@ -156,10 +156,10 @@ height, and produce out-of-local statistics.
 Display escape-path trajectories at sampled points, compute and
 render the reachable zone, and show arrival heights over LZs.
 
-### Phase 4 — Airspace, wind, reporting & batch
+### Phase 4 — Airspace, wind, reporting 
 
-Airspace penetration detection, wind effect on glide, downloadable debrief
-reports (per-flight summary), and batch analysis of multiple flights.
+Airspace penetration detection, wind effect on glide and downloadable debrief
+reports (per-flight summary).
 
 ---
 
@@ -269,7 +269,7 @@ These are intentionally high-level; each will be detailed in its own phase.
   method), with adjustable grid size.
 - **FR-3-3** Show arrival heights over LZs.
 
-### 8.3 Phase 4 — Airspace, wind, reporting & batch
+### 8.3 Phase 4 — Airspace, wind & reporting
 
 - **FR-4-1** Load and display airspace; detect penetration and report time spent
   inside zones.
@@ -277,7 +277,6 @@ These are intentionally high-level; each will be detailed in its own phase.
   clearly marked as indicative.
 - **FR-4-3** Generate a downloadable debrief report (summary of local status,
   out-of-local events with times/positions, statistics).
-- **FR-4-4** Batch-process multiple IGC files into a summary table (CSV).
 
 ---
 

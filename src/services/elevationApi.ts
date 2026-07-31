@@ -75,14 +75,22 @@ export async function fetchElevationGrid(
 
   const url = `${OT_BASE}?${params}`;
   console.log('[elevationApi] GET', url);
+  const startedAt = performance.now();
   const response = await fetch(url);
 
   if (!response.ok) {
     const body = await response.text().catch(() => '');
+    if (import.meta.env.DEV) {
+      console.log(`[elevationApi] ← HTTP ${response.status} · ${(performance.now() - startedAt).toFixed(0)}ms`);
+    }
     throw new ElevationApiError(
       `OpenTopography API returned HTTP ${response.status}${body ? `: ${body.slice(0, 200)}` : ''}`,
       response.status,
     );
+  }
+
+  if (import.meta.env.DEV) {
+    console.log(`[elevationApi] ← HTTP ${response.status} · ${(performance.now() - startedAt).toFixed(0)}ms`);
   }
 
   // An error from the API can come back as text/plain with status 200.
