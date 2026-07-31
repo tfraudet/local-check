@@ -16,26 +16,25 @@ function toServiceError(err: unknown): {
   hint?: string;
 } {
   if (err instanceof ElevationApiError) {
+    const svc = err.serviceName;
     if (err.statusCode === 401 || err.statusCode === 403) {
       return {
         title: 'Elevation API rejected the request',
-        message:
-          'OpenTopography returned an authorization error. Your API key is invalid, expired, or lacks access to the selected DEM.',
-        hint: 'Check your API key in your environment file, or request a new key at portal.opentopography.org.',
+        message: `${svc} returned an authorization error. Your API key is invalid, expired, or lacks access to the selected DEM.`,
+        hint: 'Check your API key in your environment file.',
       };
     }
     if (err.statusCode === 429) {
       return {
         title: 'Elevation API rate-limited',
-        message:
-          'OpenTopography returned 429 Too Many Requests. Terrain data will not be available for a short while.',
+        message: `${svc} returned 429 Too Many Requests. Terrain data will not be available for a short while.`,
         hint: 'Wait a minute and reload the flight to retry.',
       };
     }
     if (err.statusCode && err.statusCode >= 500) {
       return {
         title: 'Elevation service is unavailable',
-        message: `OpenTopography returned HTTP ${err.statusCode}.`,
+        message: `${svc} returned HTTP ${err.statusCode}.`,
         hint: 'The service is likely temporarily down; try again in a few minutes.',
       };
     }
