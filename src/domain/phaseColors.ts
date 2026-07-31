@@ -12,16 +12,14 @@ export const STATUS_COLORS = {
   'in-local': '#22c55e', // green-500
   'in-local-marginal': '#eab308', // yellow-400
   'out-of-local': '#ef4444', // red-500
-  'return-glide': '#60a5fa', // blue-400
-  'landing-circuit': '#3b82f6', // blue-500
+  'final-glide': '#3b82f6', // blue-500
   default: '#2563eb', // blue-600 (no local check result)
 } as const;
 
 export function getSegmentColor(phase: FlightPhase, status: LocalStatus): string {
   if (phase === 'initial-climb') return STATUS_COLORS['initial-climb'];
   if (phase === 'motor') return STATUS_COLORS['motor'];
-  if (phase === 'return-glide') return STATUS_COLORS['return-glide'];
-  if (phase === 'landing-circuit') return STATUS_COLORS['landing-circuit'];
+  if (phase === 'final-glide') return STATUS_COLORS['final-glide'];
   if (status === 'out-of-local') return STATUS_COLORS['out-of-local'];
   if (status === 'in-local-marginal') return STATUS_COLORS['in-local-marginal'];
   if (status === 'in-local') return STATUS_COLORS['in-local'];

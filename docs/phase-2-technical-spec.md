@@ -36,7 +36,7 @@ color-coded rendering) slot on top of the existing state/domain/UI stack.
 - Color-coded map track and barogram with an out-of-local statistics panel
   (FR-2-5).
 - Flight-phase detection: initial climb (tow/winch), motor use via ENL/MOP,
-  landing circuit (FR-2-6).
+  final glide (FR-2-6).
 
 ### 1.2 Explicitly out of scope (Phase 2)
 
@@ -174,7 +174,7 @@ local-check/
 │   │   ├── glide.ts                        # [new]  glide-plane / reachable-from-fix primitives
 │   │   ├── localCheck.ts                   # [new]  classification + missing-height algorithm
 │   │   ├── enlDetection.ts                 # [new]  motor use from ENL/MOP
-│   │   ├── flightPhases.ts                 # [new]  initial-climb & landing-circuit heuristics
+│   │   ├── flightPhases.ts                 # [new]  initial-climb & final-glide heuristics
 │   │   └── flight.ts                       # [mod]  extend DerivedPoint with terrainElevationM/aglM
 │   ├── services/
 │   │   └── elevationApi.ts                 # [new]  batched HTTP client for Open-Elevation
@@ -259,7 +259,7 @@ export type FlightPhase =
   | 'initial-climb'      // tow / winch
   | 'motor'              // ENL over threshold
   | 'cruise'
-  | 'landing-circuit';
+  | 'final-glide';       // sustained descent + low-altitude circuit into the LZ
 
 export type LocalStatus =
   | 'in-local'
@@ -415,7 +415,7 @@ type LocalCheckResponse =
    value if there are no candidates in range at all).
 5. **Marginal band:** `0 ≤ margin < 100 m` yields status `in-local-marginal`.
 6. **Phase override:** if the pre-computed `phases[fixIndex]` is
-   `initial-climb`, `motor`, or `landing-circuit`, the display status
+   `initial-climb`, `motor`, or `final-glide`, the display status
    coloring uses the phase color (§9.3 of PRD), while the underlying
    in/out-of-local status is still stored for statistics.
 
@@ -443,9 +443,12 @@ input.
   (default 1.5 m/s) and altitude is monotonically increasing (with a small
   tolerance). Stop at the first sustained level-off (>10 s below threshold),
   or at 500 m cumulative gain — whichever comes first.
-- **Landing circuit:** walk backward from the last fix; mark fixes as
-  `landing-circuit` while AGL < 300 m AND horizontal distance from the last
-  fix < 3 km. Terminate at the first fix violating either condition.
+- **Final glide:** walk backward from the last fix; mark fixes as
+  `final-glide` while AGL < 300 m AND horizontal distance from the last
+  fix < 3 km. Then extend `final-glide` further backwards through the
+  sustained descent from the last thermal (≥ 200 m altitude loss, tolerating
+  brief climbs ≤ 50 m). Terminate at the first fix that no longer satisfies
+  either condition.
 - **Motor:** if the IGC file exposes an ENL or MOP extension, mark any fix
   where the value exceeds `params.enlThreshold` (default 500) as `motor`.
   Motor tag wins over `cruise` but loses to `initial-climb` (a motor climb
@@ -462,7 +465,7 @@ fixtures with and without ENL.
 - **Track coloring (`MapView.tsx`):**
   - Every fix carries a numeric code combining phase & status (e.g., 0 =
     initial-climb, 1 = motor, 2 = in-local, 3 = in-local-marginal, 4 =
-    out-of-local, 5 = landing-circuit).
+    out-of-local, 5 = final-glide).
   - The GeoJSON `LineString` source is enriched at flight-load with an
     ordered `coordinates` array + a matching per-vertex code array supplied
     to MapLibre through `line-gradient` (using the layer's built-in
@@ -483,7 +486,7 @@ fixtures with and without ENL.
   not lost.
 - **Legend (`ColorLegend.tsx`):** persistent legend surfacing the color →
   meaning mapping (cyan initial climb / motor, green in-local, yellow
-  marginal, red out-of-local, blue landing circuit, purple deferred).
+  marginal, red out-of-local, blue final glide, purple deferred).
 
 ### 6.6 Settings & stats panels
 
@@ -591,7 +594,7 @@ New i18n key groups added to `src/i18n/locales/en.json`:
 - Color is never the sole carrier of status:
   - `ColorLegend` is persistent and pairs every color with a text label.
   - `TelemetryPanel` gains a text status badge ("In local", "Marginal",
-    "Out of local", "Initial climb", "Motor", "Landing circuit") tied to the
+    "Out of local", "Initial climb", "Motor", "Final glide") tied to the
     current fix.
   - LZ layer symbols vary in **shape** as well as color so airfield vs
     outlanding is distinguishable in monochrome.
@@ -685,7 +688,7 @@ demonstrable, and NFRs above are verified on a representative flight.
 | FR-2-3 Configurable parameters                           | §6.6 `LocalCheckSettings`; defaults in `LocalCheckParams`         |
 | FR-2-4 Classify + missing height per sampled point       | §6.3 worker algorithm                                            |
 | FR-2-5 Color-coded track/baro + statistics               | §6.5 map/baro; §6.6 `LocalStatsPanel`                             |
-| FR-2-6 Tow/winch initial climb, motor (ENL), landing circuit | §6.4 `flightPhases` + `enlDetection`                          |
+| FR-2-6 Tow/winch initial climb, motor (ENL), final glide     | §6.4 `flightPhases` + `enlDetection`                          |
 
 Additionally:
 

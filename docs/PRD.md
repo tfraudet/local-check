@@ -258,8 +258,9 @@ These are intentionally high-level; each will be detailed in its own phase.
   of local** and compute **missing height**.
 - **FR-2-5** Color-code the map track and barogram by status (see §9.3), and
   show out-of-local statistics (time and %, mean/max missing height).
-- **FR-2-6** Detect tow/winch initial climb, landing circuit entry, and motor
-  use (ENL/MOP, threshold default 500) for correct coloring.
+- **FR-2-6** Detect tow/winch initial climb, final glide (sustained descent
+  into the LZ), and motor use (ENL/MOP, threshold default 500) for correct
+  coloring.
 
 ### 8.2 Phase 3 — Escape paths & reachable zone
 
@@ -307,7 +308,7 @@ Aligned with VerifLocal's conventions so the community finds it familiar:
 | Cyan   | Initial climb (tow / winch / motor)                      |
 | Green  | In local of a LZ (Yellow: < 100 m above the glide plane) |
 | Red    | Out of local                                             |
-| Blue   | Landing circuit                                          |
+| Blue   | Final glide                                              |
 | Purple | Low-height flight (if detection enabled)                 |
 
 For the **MVP**, the track uses a single neutral color (or an

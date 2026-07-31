@@ -45,8 +45,7 @@
       "outOfLocal": "Out of local",
       "initialClimb": "Initial climb",
       "motor": "Motor",
-      "returnGlide": "Return glide",
-      "landingCircuit": "Landing circuit",
+      "finalGlide": "Final glide",
       "cruise": "Cruise"
     }
   },
@@ -114,8 +113,7 @@
       "inLocal": "In local",
       "marginal": "Marginal (< 100 m margin)",
       "outOfLocal": "Out of local",
-      "returnGlide": "Return glide",
-      "landingCircuit": "Landing circuit"
+      "finalGlide": "Final glide"
     }
   },
   "legend": {

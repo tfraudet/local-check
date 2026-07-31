@@ -200,7 +200,7 @@ describe('computeFlightPhases', () => {
     expect(phases[2]).toBe('cruise');
   });
 
-  it('marks landing circuit near the end at low AGL', () => {
+  it('marks final glide near the end at low AGL', () => {
     const lat0 = 43;
     const lon0 = 6;
     const fixes = [
@@ -218,11 +218,11 @@ describe('computeFlightPhases', () => {
       derived(-0.5, 50, 80),
     ];
     const phases = computeFlightPhases(fixes, derivedArr, new Array(5).fill(false), 'pressure');
-    expect(phases[4]).toBe('landing-circuit');
-    expect(phases[3]).toBe('landing-circuit');
+    expect(phases[4]).toBe('final-glide');
+    expect(phases[3]).toBe('final-glide');
   });
 
-  it('marks the descent before the landing circuit as return-glide', () => {
+  it('extends final glide back through the sustained descent from the last thermal', () => {
     const lat0 = 43;
     const lon0 = 6;
     const fixes = [
@@ -252,13 +252,13 @@ describe('computeFlightPhases', () => {
     const phases = computeFlightPhases(fixes, derivedArr, new Array(10).fill(false), 'pressure');
     expect(phases[0]).toBe('cruise');
     expect(phases[1]).toBe('cruise');
-    expect(phases[2]).toBe('return-glide');
-    expect(phases[7]).toBe('return-glide');
-    expect(phases[8]).toBe('landing-circuit');
-    expect(phases[9]).toBe('landing-circuit');
+    expect(phases[2]).toBe('final-glide');
+    expect(phases[7]).toBe('final-glide');
+    expect(phases[8]).toBe('final-glide');
+    expect(phases[9]).toBe('final-glide');
   });
 
-  it('stops the return-glide walk at the last thermal', () => {
+  it('stops the final-glide walk at the last thermal', () => {
     const lat0 = 43;
     const lon0 = 6;
     const fixes = [
@@ -284,12 +284,12 @@ describe('computeFlightPhases', () => {
     const phases = computeFlightPhases(fixes, derivedArr, new Array(8).fill(false), 'pressure');
     expect(phases[0]).toBe('cruise');
     expect(phases[2]).toBe('cruise');
-    expect(phases[3]).toBe('return-glide');
-    expect(phases[4]).toBe('return-glide');
-    expect(phases[7]).toBe('landing-circuit');
+    expect(phases[3]).toBe('final-glide');
+    expect(phases[4]).toBe('final-glide');
+    expect(phases[7]).toBe('final-glide');
   });
 
-  it('does not mark return-glide when there is no significant descent', () => {
+  it('does not mark final-glide when there is no significant descent', () => {
     const fixes = [
       fix(0, 1200),
       fix(60000, 1210),

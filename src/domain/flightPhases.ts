@@ -1,6 +1,6 @@
 /**
  * Flight-phase detection: initial climb (tow/winch), motor, cruise,
- * return-glide, and landing circuit.
+ * and final glide (sustained descent + low-altitude circuit into the LZ).
  *
  * Returns a parallel array of FlightPhase labels aligned 1:1 with `fixes`.
  */
@@ -13,8 +13,7 @@ export type FlightPhase =
   | 'initial-climb'
   | 'motor'
   | 'cruise'
-  | 'return-glide'
-  | 'landing-circuit';
+  | 'final-glide';
 
 // --- Initial-climb detection ---
 //
@@ -63,13 +62,13 @@ const TURN_RATE_RELEASE_DEG_S = 8;
  * gain, force a release here. */
 const MAX_INITIAL_CLIMB_GAIN_M = 900;
 
-// --- Landing-circuit / return-glide ---
+// --- Final-glide ---
 
-const LANDING_CIRCUIT_MAX_AGL_M = 300;
-const LANDING_CIRCUIT_MAX_RADIUS_M = 3000;
+const FINAL_GLIDE_MAX_AGL_M = 300;
+const FINAL_GLIDE_MAX_RADIUS_M = 3000;
 
-const RETURN_GLIDE_CLIMB_TOLERANCE_M = 50;
-const RETURN_GLIDE_MIN_DESCENT_M = 200;
+const FINAL_GLIDE_CLIMB_TOLERANCE_M = 50;
+const FINAL_GLIDE_MIN_DESCENT_M = 200;
 
 /**
  * Compute a FlightPhase tag for every fix.
@@ -109,7 +108,7 @@ export function computeFlightPhases(
     }
   }
 
-  // 3. Mark landing-circuit backwards from the last fix.
+  // 3. Mark the low-altitude circuit into the LZ backwards from the last fix.
   const lastLat = fixes[n - 1].latitude;
   const lastLon = fixes[n - 1].longitude;
 
@@ -117,20 +116,21 @@ export function computeFlightPhases(
     if (phases[i] !== 'cruise') break; // stop at motor/initial-climb
 
     const agl = derived[i].aglM;
-    const belowAgl = agl !== null && agl < LANDING_CIRCUIT_MAX_AGL_M;
+    const belowAgl = agl !== null && agl < FINAL_GLIDE_MAX_AGL_M;
     const distM = haversineDistanceM(fixes[i].latitude, fixes[i].longitude, lastLat, lastLon);
 
-    if (belowAgl && distM < LANDING_CIRCUIT_MAX_RADIUS_M) {
-      phases[i] = 'landing-circuit';
+    if (belowAgl && distM < FINAL_GLIDE_MAX_RADIUS_M) {
+      phases[i] = 'final-glide';
     } else {
       break;
     }
   }
 
-  // 4. Return-glide — sustained descent into the landing circuit.
+  // 4. Extend final-glide backwards to cover the sustained descent from the
+  //    last thermal into the circuit.
   let anchor = -1;
   for (let i = 0; i < n; i++) {
-    if (phases[i] === 'landing-circuit') {
+    if (phases[i] === 'final-glide') {
       anchor = i;
       break;
     }
@@ -148,14 +148,14 @@ export function computeFlightPhases(
         if (phases[i] !== 'cruise') break;
         const alt = pickAltitude(fixes[i], altSrc);
         if (alt === null) break;
-        if (backwardMaxAlt - alt > RETURN_GLIDE_CLIMB_TOLERANCE_M) break;
+        if (backwardMaxAlt - alt > FINAL_GLIDE_CLIMB_TOLERANCE_M) break;
         if (alt > backwardMaxAlt) backwardMaxAlt = alt;
         rgStart = i;
       }
 
-      if (backwardMaxAlt - endAlt >= RETURN_GLIDE_MIN_DESCENT_M) {
+      if (backwardMaxAlt - endAlt >= FINAL_GLIDE_MIN_DESCENT_M) {
         for (let i = rgStart; i <= endIdx; i++) {
-          phases[i] = 'return-glide';
+          phases[i] = 'final-glide';
         }
       }
     }

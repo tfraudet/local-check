@@ -6,8 +6,7 @@ const LEGEND_ITEMS = [
   { color: 'bg-green-500', key: 'inLocal' },
   { color: 'bg-yellow-400', key: 'marginal' },
   { color: 'bg-red-500', key: 'outOfLocal' },
-  { color: 'bg-blue-400', key: 'returnGlide' },
-  { color: 'bg-blue-500', key: 'landingCircuit' },
+  { color: 'bg-blue-500', key: 'finalGlide' },
 ] as const;
 
 export function ColorLegend() {
