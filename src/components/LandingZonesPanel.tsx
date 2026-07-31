@@ -1,11 +1,8 @@
-import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MapPin, Upload, X, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { MapPin, Eye, EyeOff } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { parseCup } from '../domain/parseCup';
 import type { DifficultyLevel } from '../domain/landingZone';
 import { useFlightStore } from '../state/useFlightStore';
-import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Badge } from './ui/badge';
 
 const LEVEL_TEXT_CLASS: Record<DifficultyLevel, string> = {
@@ -17,105 +14,16 @@ const LEVEL_TEXT_CLASS: Record<DifficultyLevel, string> = {
 
 export function LandingZonesPanel() {
   const { t } = useTranslation();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
-  const [parseErrors, setParseErrors] = useState<string | null>(null);
-  const dragCounterRef = useRef(0);
 
   const landingZones = useFlightStore((s) => s.landingZones);
   const visibleIds = useFlightStore((s) => s.visibleLandingZoneIds);
-  const addLandingZones = useFlightStore((s) => s.addLandingZones);
-  const clearLandingZones = useFlightStore((s) => s.clearLandingZones);
   const toggleVisibility = useFlightStore((s) => s.toggleLandingZoneVisibility);
-  const runLocalCheck = useFlightStore((s) => s.runLocalCheck);
-
-  const loadCupFile = async (file: File) => {
-    setParseErrors(null);
-    const text = await file.text();
-    const result = parseCup(text);
-    addLandingZones(result.zones);
-    if (!result.ok && result.errors.length > 0) {
-      setParseErrors(t('landingZones.errorLines', { count: result.errors.length }));
-    }
-    if (result.zones.length > 0) {
-      void runLocalCheck();
-    }
-  };
-
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) void loadCupFile(file);
-    e.target.value = '';
-  };
-
-  const onDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current += 1;
-    setIsDragActive(true);
-  };
-  const onDragOver = (e: React.DragEvent) => e.preventDefault();
-  const onDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
-    if (dragCounterRef.current === 0) setIsDragActive(false);
-  };
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current = 0;
-    setIsDragActive(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) void loadCupFile(file);
-  };
 
   const airfieldCount = landingZones.filter((z) => z.isAirfield).length;
   const outlandingCount = landingZones.length - airfieldCount;
 
   return (
     <div className="space-y-2 max-w-56">
-      {/* Drop zone */}
-      {/* <div
-        role="button"
-        tabIndex={0}
-        aria-label={t('landingZones.dragHint')}
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            inputRef.current?.click();
-          }
-        }}
-        onDragEnter={onDragEnter}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-        className={cn(
-          'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed p-3 text-center transition-colors',
-          isDragActive
-            ? 'border-primary bg-accent/50'
-            : 'border-border hover:bg-accent/30',
-        )}
-      >
-        <Upload className="size-3.5 text-muted-foreground" />
-        <p className="text-xs text-muted-foreground">{t('landingZones.dragHint')}</p>
-      </div> */}
-      {/* <input
-        ref={inputRef}
-        type="file"
-        accept=".cup"
-        className="hidden"
-        onChange={onFileChange}
-      /> */}
-
-      {/* Error */}
-      {parseErrors && (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertTitle>{t('landingZones.errorTitle')}</AlertTitle>
-          <AlertDescription>{parseErrors}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Zone list */}
       {landingZones.length === 0 ? (
         <p className="text-xs text-muted-foreground">{t('landingZones.empty')}</p>
       ) : (
@@ -135,7 +43,7 @@ export function LandingZonesPanel() {
               </Badge>
             )}
           </div>
-          
+
           <ul className="max-h-64 overflow-y-scroll w-[calc(100%-10px)]">
             {landingZones.map((lz) => {
               const visible = visibleIds.has(lz.id);
@@ -162,14 +70,6 @@ export function LandingZonesPanel() {
               );
             })}
           </ul>
-
-          {/* <button
-            onClick={() => clearLandingZones()}
-            className="flex w-full items-center justify-center gap-1 rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-          >
-            <X className="size-3" />
-            {t('landingZones.clear')}
-          </button> */}
         </>
       )}
     </div>

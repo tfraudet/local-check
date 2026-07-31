@@ -5,28 +5,9 @@ import { useFlightStore } from '../state/useFlightStore';
 import { useTheme } from '../hooks/useTheme';
 import type { SampledPoint } from '../domain/localCheck';
 import { sampleElevation } from '../domain/elevation';
+import { STATUS_COLORS, getSegmentColor } from '../domain/phaseColors';
 
 const DOWNSAMPLE_THRESHOLD = 5000;
-
-const STATUS_COLORS: Record<string, string> = {
-  'initial-climb': '#22d3ee',
-  motor: '#0891b2',
-  'in-local': '#22c55e',
-  'in-local-marginal': '#eab308',
-  'out-of-local': '#ef4444',
-  'landing-circuit': '#3b82f6',
-  default: '#2563eb',
-};
-
-function getSegmentColor(phase: string, status: string): string {
-  if (phase === 'initial-climb') return STATUS_COLORS['initial-climb'];
-  if (phase === 'motor') return STATUS_COLORS['motor'];
-  if (phase === 'landing-circuit') return STATUS_COLORS['landing-circuit'];
-  if (status === 'out-of-local') return STATUS_COLORS['out-of-local'];
-  if (status === 'in-local-marginal') return STATUS_COLORS['in-local-marginal'];
-  if (status === 'in-local') return STATUS_COLORS['in-local'];
-  return STATUS_COLORS['default'];
-}
 
 function buildBarogramColors(times: number[], samples: SampledPoint[]): string[] {
   const colors: string[] = new Array(times.length).fill(STATUS_COLORS['default']);

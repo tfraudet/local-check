@@ -14,6 +14,7 @@ import { sampleElevation } from './elevation';
 import type { LandingZone } from './landingZone';
 import { checkGlideToLz, maxGlideDistanceM } from './glide';
 import type { FlightPhase } from './flightPhases';
+import { pickAltitude } from './units';
 
 export interface LocalCheckParams {
   workingLD: number; // default 20
@@ -88,7 +89,7 @@ export function runLocalCheck(input: LocalCheckInput): LocalCheckResult {
     if (fix.timeMs - lastSampleMs < stepMs) continue;
     lastSampleMs = fix.timeMs;
 
-    const altM = pickAlt(fix, altitudeSource);
+    const altM = pickAltitude(fix, altitudeSource);
     if (altM === null) continue;
 
     const terrain = sampleElevation(elevationGrid, fix.latitude, fix.longitude);
@@ -207,6 +208,3 @@ function computeStats(
   };
 }
 
-function pickAlt(fix: Fix, src: 'pressure' | 'gnss'): number | null {
-  return src === 'pressure' ? fix.pressureAltitudeM : fix.gnssAltitudeM;
-}

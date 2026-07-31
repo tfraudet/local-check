@@ -15,6 +15,7 @@ import type { NormalizedFlight } from '../domain/flight';
 import type { SampledPoint } from '../domain/localCheck';
 import type { LandingZone } from '../domain/landingZone';
 import { DIFFICULTY_LEVEL_COLOR } from '../domain/landingZone';
+import { STATUS_COLORS, getSegmentColor } from '../domain/phaseColors';
 
 const DEFAULT_MAP_STYLE_URL =
   (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) ??
@@ -89,27 +90,6 @@ async function preloadLzIcons(map: MaplibreMap): Promise<void> {
 
 const DEFAULT_CENTER: [number, number] = [3.2489, 45.5401];
 const DEFAULT_ZOOM = 11;
-
-// Phase/status → hex color (matches ColorLegend)
-const STATUS_COLORS: Record<string, string> = {
-  'initial-climb': '#22d3ee', // cyan-400
-  motor: '#0891b2', // cyan-600
-  'in-local': '#22c55e', // green-500
-  'in-local-marginal': '#eab308', // yellow-400
-  'out-of-local': '#ef4444', // red-500
-  'landing-circuit': '#3b82f6', // blue-500
-  default: '#2563eb', // blue-600 (no local check result)
-};
-
-function getSegmentColor(phase: string, status: string): string {
-  if (phase === 'initial-climb') return STATUS_COLORS['initial-climb'];
-  if (phase === 'motor') return STATUS_COLORS['motor'];
-  if (phase === 'landing-circuit') return STATUS_COLORS['landing-circuit'];
-  if (status === 'out-of-local') return STATUS_COLORS['out-of-local'];
-  if (status === 'in-local-marginal') return STATUS_COLORS['in-local-marginal'];
-  if (status === 'in-local') return STATUS_COLORS['in-local'];
-  return STATUS_COLORS['default'];
-}
 
 /**
  * Build a GeoJSON FeatureCollection of colored line segments from the fixes

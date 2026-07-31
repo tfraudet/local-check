@@ -12,6 +12,8 @@
  * the grid's CRS when needed, so callers never need to think about it.
  */
 
+import { haversineDistanceKm } from './units';
+
 export type ElevationCrs = 'EPSG:4326' | 'EPSG:3035';
 
 export interface ElevationGrid {
@@ -154,8 +156,8 @@ export function buildGridPoints(
 ): { points: { lat: number; lon: number }[]; cols: number; rows: number; resolutionM: number } {
   const [minLon, minLat, maxLon, maxLat] = bbox;
 
-  const latSpanKm = haversineKm(minLat, minLon, maxLat, minLon);
-  const lonSpanKm = haversineKm(minLat, minLon, minLat, maxLon);
+  const latSpanKm = haversineDistanceKm(minLat, minLon, maxLat, minLon);
+  const lonSpanKm = haversineDistanceKm(minLat, minLon, minLat, maxLon);
 
   let rows = Math.max(2, Math.ceil((latSpanKm * 1000) / targetResolutionM) + 1);
   let cols = Math.max(2, Math.ceil((lonSpanKm * 1000) / targetResolutionM) + 1);
@@ -185,16 +187,4 @@ export function buildGridPoints(
   }
 
   return { points, cols, rows, resolutionM: Math.round(actualResM) };
-}
-
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }

@@ -1,4 +1,4 @@
-import { haversineDistanceKm } from './units';
+import { haversineDistanceKm, pickAltitude } from './units';
 import type { DerivedPoint, Fix } from './flight';
 import type { ElevationGrid } from './elevation';
 import { sampleElevation } from './elevation';
@@ -82,6 +82,3 @@ export function computeDerivedMetrics(
   return derived;
 }
 
-function pickAltitude(fix: Fix, source: 'pressure' | 'gnss'): number | null {
-  return source === 'pressure' ? fix.pressureAltitudeM : fix.gnssAltitudeM;
-}

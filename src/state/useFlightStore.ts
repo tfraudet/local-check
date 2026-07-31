@@ -11,6 +11,7 @@ import {
 } from '../domain/localCheck';
 import { computeFlightPhases } from '../domain/flightPhases';
 import { detectMotorUse } from '../domain/enlDetection';
+import { haversineDistanceM } from '../domain/units';
 
 export type PlaybackSpeed = 1 | 2 | 4 | 8 | 16;
 
@@ -101,26 +102,6 @@ function isSourceEnabled(
 const DEDUP_THRESHOLD_M = 400;
 
 /**
- * Great-circle distance in meters between two lat/lon points.
- * Spherical Earth approximation — sufficient at the scale of a runway.
- */
-function haversineM(
-  aLat: number,
-  aLon: number,
-  bLat: number,
-  bLon: number,
-): number {
-  const R = 6_371_000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(bLat - aLat);
-  const dLon = toRad(bLon - aLon);
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(s));
-}
-
-/**
  * Concatenate the per-source cache into a single active list.
  *
  * OpenAIP entries are authoritative: any zone from another source that lies
@@ -139,7 +120,7 @@ function computeActiveZones(
     if (!isSourceEnabled(src as LandingZoneSource, toggles)) continue;
     for (const z of arr) {
       const duplicate = openaipZones.some(
-        (o) => haversineM(z.latitude, z.longitude, o.latitude, o.longitude) < DEDUP_THRESHOLD_M,
+        (o) => haversineDistanceM(z.latitude, z.longitude, o.latitude, o.longitude) < DEDUP_THRESHOLD_M,
       );
       if (!duplicate) out.push(z);
     }

@@ -58,7 +58,6 @@ export function checkGlideToLz(
     fromAltM,
     lz.latitude,
     lz.longitude,
-    lzElev + params.arrivalHeightM,
     distanceM,
     params.workingLD,
     params.groundClearanceM,
@@ -75,7 +74,6 @@ function checkTerrainClearance(
   fromAltM: number,
   toLat: number,
   toLon: number,
-  toAltM: number,
   distanceM: number,
   workingLD: number,
   groundClearanceM: number,
@@ -92,10 +90,8 @@ function checkTerrainClearance(
     const terrain = sampleElevation(grid, lat, lon);
     if (isNaN(terrain)) continue; // no terrain data — skip
 
-    // Glide-plane altitude at this point
     const distSoFarM = t * distanceM;
     const glidePlaneAlt = fromAltM - distSoFarM / workingLD;
-    void toAltM; // only needed for the endpoint margin already checked above
 
     if (glidePlaneAlt < terrain + groundClearanceM) {
       return false;

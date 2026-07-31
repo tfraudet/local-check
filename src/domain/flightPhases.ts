@@ -7,6 +7,7 @@
 
 import type { Fix } from './flight';
 import type { DerivedPoint } from './flight';
+import { haversineDistanceM, pickAltitude } from './units';
 
 export type FlightPhase = 'initial-climb' | 'motor' | 'cruise' | 'landing-circuit';
 
@@ -41,7 +42,7 @@ export function computeFlightPhases(
   // vario above the threshold, then keep marking while vario stays above
   // threshold and cumulative gain < MAX_GAIN. Stop at the first fix that
   // drops below threshold (no grace period — tow/winch is continuous).
-  const takeoffAlt = pickAlt(fixes[0], altSrc) ?? 0;
+  const takeoffAlt = pickAltitude(fixes[0], altSrc) ?? 0;
 
   let scanIdx = 0;
   // Check whether the flight actually starts with a climb.
@@ -52,7 +53,7 @@ export function computeFlightPhases(
 
   while (scanIdx < n) {
     const vario = derived[scanIdx].verticalSpeedMs ?? 0;
-    const gain = (pickAlt(fixes[scanIdx], altSrc) ?? takeoffAlt) - takeoffAlt;
+    const gain = (pickAltitude(fixes[scanIdx], altSrc) ?? takeoffAlt) - takeoffAlt;
     if (vario >= INITIAL_CLIMB_VARIO_THRESHOLD_MS && gain < INITIAL_CLIMB_MAX_GAIN_M) {
       phases[scanIdx] = 'initial-climb';
       scanIdx++;
@@ -77,7 +78,7 @@ export function computeFlightPhases(
 
     const agl = derived[i].aglM;
     const belowAgl = agl !== null && agl < LANDING_CIRCUIT_MAX_AGL_M;
-    const distM = haversineM(fixes[i].latitude, fixes[i].longitude, lastLat, lastLon);
+    const distM = haversineDistanceM(fixes[i].latitude, fixes[i].longitude, lastLat, lastLon);
 
     if (belowAgl && distM < LANDING_CIRCUIT_MAX_RADIUS_M) {
       phases[i] = 'landing-circuit';
@@ -87,20 +88,4 @@ export function computeFlightPhases(
   }
 
   return phases;
-}
-
-function pickAlt(fix: Fix, src: 'pressure' | 'gnss'): number | null {
-  return src === 'pressure' ? fix.pressureAltitudeM : fix.gnssAltitudeM;
-}
-
-function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }

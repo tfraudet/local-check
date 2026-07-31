@@ -1,4 +1,5 @@
 import type { DerivedPoint, Fix, FlightHeader, FlightSummary } from './flight';
+import { pickAltitude } from './units';
 
 /**
  * Compute the flight summary from the fully normalized fix/derived arrays.
@@ -32,16 +33,13 @@ export function computeSummary(
   let maxGroundSpeedKmh = 0;
 
   for (let i = 0; i < fixes.length; i++) {
-    const alt =
-      altitudeSource === 'pressure'
-        ? fixes[i].pressureAltitudeM
-        : fixes[i].gnssAltitudeM;
+    const alt = pickAltitude(fixes[i], altitudeSource);
     if (alt !== null) {
       if (alt > maxAltitudeM) maxAltitudeM = alt;
       if (alt < minAltitudeM) minAltitudeM = alt;
     }
     const speed = derived[i]?.groundSpeedKmh;
-    if (speed !== null && speed !== undefined && speed > maxGroundSpeedKmh) {
+    if (speed != null && speed > maxGroundSpeedKmh) {
       maxGroundSpeedKmh = speed;
     }
   }

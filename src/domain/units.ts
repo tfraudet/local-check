@@ -5,6 +5,8 @@
  * module.
  */
 
+import type { Fix } from './flight';
+
 const EARTH_RADIUS_KM = 6371;
 
 /** Great-circle distance between two lat/lon points, in kilometers. */
@@ -23,6 +25,20 @@ export function haversineDistanceKm(
       Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return EARTH_RADIUS_KM * c;
+}
+
+/** Great-circle distance between two lat/lon points, in meters. */
+export function haversineDistanceM(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  return haversineDistanceKm(lat1, lon1, lat2, lon2) * 1000;
+}
+
+export function pickAltitude(fix: Fix, source: 'pressure' | 'gnss'): number | null {
+  return source === 'pressure' ? fix.pressureAltitudeM : fix.gnssAltitudeM;
 }
 
 function toRadians(deg: number): number {
