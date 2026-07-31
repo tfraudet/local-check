@@ -5,26 +5,46 @@ import 'uplot/dist/uPlot.min.css';
 import { useFlightStore, findCurrentFixIndex } from '../state/useFlightStore';
 import { useTheme } from '../hooks/useTheme';
 import { computeEscapePath, type EscapePath } from '../domain/escapePath';
-import { pickAltitude } from '../domain/units';
+import { reachableAltitudeAt } from '../domain/glide';
+import { haversineDistanceKm, pickAltitude } from '../domain/units';
 import { STATUS_COLORS } from '../domain/phaseColors';
-import type { SampledPoint } from '../domain/localCheck';
+import type { LandingZone } from '../domain/landingZone';
 
-/** Locate the sampled point closest in time to `timeMs`. */
-function findNearestSample(
-  samples: SampledPoint[],
-  timeMs: number,
-): SampledPoint | null {
-  if (samples.length === 0) return null;
-  let lo = 0;
-  let hi = samples.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (samples[mid].timeMs < timeMs) lo = mid + 1;
-    else hi = mid;
+/**
+ * Pick the "best" LZ from the pilot's current position: the one with the
+ * highest arrival height above ground. When reachable LZs exist, this is
+ * the one with the most margin over its ground; when everything is
+ * out-of-local, it's the least-negative — semantically "the LZ closest to
+ * being reachable", which is what a pilot debriefing wants.
+ *
+ * Uses the same math as the on-map arrival-height labels so the escape
+ * path always points at the LZ the pilot sees as the greenest / least-red
+ * (fixes an earlier mismatch where the sample-level bestLzId lagged the
+ * cursor by up to `timeStepS` seconds).
+ */
+function pickBestLzForEscape(
+  fromLat: number,
+  fromLon: number,
+  fromAltM: number,
+  workingLD: number,
+  landingZones: LandingZone[],
+): LandingZone | null {
+  let best: { lz: LandingZone; heightAboveGroundM: number } | null = null;
+  for (const lz of landingZones) {
+    const arrivalAltM = reachableAltitudeAt(
+      fromLat,
+      fromLon,
+      fromAltM,
+      lz.latitude,
+      lz.longitude,
+      workingLD,
+    );
+    const heightAboveGroundM = arrivalAltM - (lz.elevationM ?? 0);
+    if (!best || heightAboveGroundM > best.heightAboveGroundM) {
+      best = { lz, heightAboveGroundM };
+    }
   }
-  const a = samples[lo];
-  const b = lo > 0 ? samples[lo - 1] : a;
-  return Math.abs(a.timeMs - timeMs) < Math.abs(b.timeMs - timeMs) ? a : b;
+  return best?.lz ?? null;
 }
 
 const STATUS_COLOR_FOR_PATH: Record<EscapePath['status'], string> = {
@@ -59,8 +79,6 @@ export function EscapePathProfilePanel() {
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
   const localCheckParams = useFlightStore((s) => s.localCheckParams);
 
-  // Locate the target LZ from the nearest sampled point; fall back to the
-  // one with the smallest missing height when out-of-local.
   const escapePath = useMemo<EscapePath | null>(() => {
     if (!flight || !elevationGrid || !localCheckResult) return null;
     if (landingZones.length === 0) return null;
@@ -71,25 +89,20 @@ export function EscapePathProfilePanel() {
     const altM = pickAltitude(fix, altitudeSource);
     if (altM === null) return null;
 
-    const sample = findNearestSample(localCheckResult.samples, currentTimeMs);
-    let targetId: string | null = sample?.bestLzId ?? null;
-    if (!targetId) {
-      // Fallback: closest LZ (haversine) — used when the current point is
-      // out-of-local, so we can still visualise the "least bad" escape.
-      let best: { id: string; d: number } | null = null;
-      for (const lz of landingZones) {
-        const dLat = lz.latitude - fix.latitude;
-        const dLon = lz.longitude - fix.longitude;
-        const d = dLat * dLat + dLon * dLon;
-        if (!best || d < best.d) best = { id: lz.id, d };
-      }
-      targetId = best?.id ?? null;
-    }
-    if (!targetId) return null;
-
-    const lz = landingZones.find((z) => z.id === targetId);
+    const lz = pickBestLzForEscape(
+      fix.latitude,
+      fix.longitude,
+      altM,
+      localCheckParams.workingLD,
+      landingZones,
+    );
     if (!lz) return null;
 
+    // Extend the profile 20% beyond the source→LZ distance so the chart
+    // always shows some post-LZ context, scaled to the escape length.
+    const targetDistM =
+      haversineDistanceKm(fix.latitude, fix.longitude, lz.latitude, lz.longitude) *
+      1000;
     return computeEscapePath({
       sourceFixIndex: idx,
       sourceLat: fix.latitude,
@@ -98,9 +111,7 @@ export function EscapePathProfilePanel() {
       lz,
       grid: elevationGrid,
       params: localCheckParams,
-      // Sample 5 km beyond the LZ so the profile chart always shows
-      // context past the target — the x-axis is fixed at (distance + 5) km.
-      extraDistanceM: 5000,
+      extraDistanceM: targetDistM * 0.2,
     });
   }, [
     flight,
@@ -218,9 +229,10 @@ export function EscapePathProfilePanel() {
       scales: {
         x: {
           time: false,
-          // Force the x-axis to always span `distance + 5 km`, so the pilot
-          // sees terrain context past the LZ even when it's a short escape.
-          range: () => [0, escapePath.totalDistanceM / 1000 + 5],
+          // Force the x-axis to always span 120 % of the source→LZ
+          // distance, so the pilot sees some post-LZ context proportional
+          // to the escape length.
+          range: () => [0, (escapePath.totalDistanceM / 1000) * 1.2],
         },
       },
       legend: { show: false },
@@ -303,13 +315,6 @@ export function EscapePathProfilePanel() {
           <b className="text-foreground">
             {escapePath.arrivalHeightM >= 0 ? '+' : ''}
             {Math.round(escapePath.arrivalHeightM)} m
-          </b>
-        </span>
-        <span>
-          {t('escapePath.minMargin')}:{' '}
-          <b className="text-foreground">
-            {escapePath.minMarginM >= 0 ? '+' : ''}
-            {Math.round(escapePath.minMarginM)} m
           </b>
         </span>
       </div>

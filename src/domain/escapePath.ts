@@ -123,8 +123,12 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
 
     profile.push({ distFromSourceM, terrainM, glideAltM });
 
+    // `minMarginM` is the min glide-vs-terrain gap along the source→LZ
+    // segment. Ground clearance is intentionally NOT subtracted here —
+    // the safety buffer is a display concept and must not affect the
+    // green/yellow/red classification (see also `glide.ts`).
     if (t <= 1 && terrainM !== null) {
-      const margin = glideAltM - terrainM - params.groundClearanceM;
+      const margin = glideAltM - terrainM;
       if (margin < minMarginM) minMarginM = margin;
     }
   }
@@ -132,12 +136,16 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
   if (minMarginM === Infinity) minMarginM = 0;
 
   // Status convention (matches localCheck + arrival-height labels):
-  //   red    ← arrivalHeightM ≤ 0            (arrival at/below LZ ground)
-  //          OR minMarginM < 0                (glide plane clips terrain)
-  //   yellow ← 0 < arrivalHeightM ≤ arrivalHeightM param
+  // pure arrival-vs-buffer geometry, no terrain gating. The terrain
+  // profile is still visualised in the mini-chart, so pilots can still
+  // spot a glide plane that clips the ground — but the status colour is
+  // decided solely by "would we arrive above LZ ground, above safety
+  // buffer, or below?" See spec §status-classification.
   //   green  ← arrivalHeightM > arrivalHeightM param
+  //   yellow ← 0 < arrivalHeightM ≤ arrivalHeightM param
+  //   red    ← arrivalHeightM ≤ 0
   let status: EscapePathStatus;
-  if (arrivalHeightM <= 0 || minMarginM < 0) {
+  if (arrivalHeightM <= 0) {
     status = 'out-of-local';
   } else if (arrivalHeightM <= params.arrivalHeightM) {
     status = 'in-local-marginal';

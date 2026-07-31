@@ -433,43 +433,34 @@ export function MapView() {
     const altM = pickAltitude(fix, altitudeSource);
     if (altM === null) return null;
 
-    // Find the nearest sample to derive bestLzId (mirrors EscapePathProfilePanel).
-    const samples = localCheckResult.samples;
-    if (samples.length === 0) return null;
-    let lo = 0;
-    let hi = samples.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (samples[mid].timeMs < fix.timeMs) lo = mid + 1;
-      else hi = mid;
-    }
-    const a = samples[lo];
-    const b = lo > 0 ? samples[lo - 1] : a;
-    const sample =
-      Math.abs(a.timeMs - fix.timeMs) < Math.abs(b.timeMs - fix.timeMs) ? a : b;
-
-    let targetId: string | null = sample.bestLzId;
-    if (!targetId) {
-      let best: { id: string; d: number } | null = null;
-      for (const lz of landingZones) {
-        const dLat = lz.latitude - fix.latitude;
-        const dLon = lz.longitude - fix.longitude;
-        const d = dLat * dLat + dLon * dLon;
-        if (!best || d < best.d) best = { id: lz.id, d };
+    // Pick the LZ with the highest arrival height above ground at the
+    // current fix. Same criterion as the on-map arrival-height labels →
+    // the escape path always points at the greenest / least-red pill.
+    let bestLz: LandingZone | null = null;
+    let bestHeightAboveGround = -Infinity;
+    for (const lz of landingZones) {
+      const arrivalAltM = reachableAltitudeAt(
+        fix.latitude,
+        fix.longitude,
+        altM,
+        lz.latitude,
+        lz.longitude,
+        localCheckParams.workingLD,
+      );
+      const heightAboveGroundM = arrivalAltM - (lz.elevationM ?? 0);
+      if (heightAboveGroundM > bestHeightAboveGround) {
+        bestHeightAboveGround = heightAboveGroundM;
+        bestLz = lz;
       }
-      targetId = best?.id ?? null;
     }
-    if (!targetId) return null;
-
-    const lz = landingZones.find((z) => z.id === targetId);
-    if (!lz) return null;
+    if (!bestLz) return null;
 
     return computeEscapePath({
       sourceFixIndex: idx,
       sourceLat: fix.latitude,
       sourceLon: fix.longitude,
       sourceAltM: altM,
-      lz,
+      lz: bestLz,
       grid: elevationGrid,
       params: localCheckParams,
     });

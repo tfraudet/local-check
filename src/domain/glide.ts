@@ -58,7 +58,12 @@ export function checkGlideToLz(
     return { reachable: false, marginM, distanceM };
   }
 
-  // Terrain clearance check along straight-line path.
+  // Terrain-collision check along straight-line path. The
+  // `groundClearanceM` safety buffer is intentionally NOT applied to the
+  // status classification: only an actual crash (glide plane below
+  // terrain) makes an LZ unreachable. Ground clearance stays in
+  // GlideCheckParams for potential UI/informational use but has no
+  // bearing on green/yellow/red.
   const terrainClear = checkTerrainClearance(
     fromLat,
     fromLon,
@@ -67,7 +72,7 @@ export function checkGlideToLz(
     lz.longitude,
     distanceM,
     params.workingLD,
-    params.groundClearanceM,
+    0,
     elevationGrid,
   );
 

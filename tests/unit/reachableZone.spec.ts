@@ -83,11 +83,14 @@ describe('computeReachableZone', () => {
     expect(result.reachableMask[centreR * result.cols + centreC]).toBe(1);
   });
 
-  it('reports no reachable cells when altitude is too low', () => {
+  it('reports no reachable cells when altitude is below ground', () => {
     const result = computeReachableZone({
       sourceLat: 43.0,
       sourceLon: 6.0,
-      sourceAltM: 100, // below groundClearance (150m) already
+      // Source below flat-ground level → arrival at any cell < 0.
+      // Ground clearance is not applied to status anymore, so the source
+      // must actually be underground for zero cells to be reachable.
+      sourceAltM: -50,
       grid: FLAT_GRID,
       params: PARAMS,
       zoneParams: { gridSizeM: 720, extentKm: 20 },
