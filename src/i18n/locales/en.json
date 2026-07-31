@@ -19,6 +19,9 @@
     "elevation": {
       "fetchFailed": "Could not load terrain data. Local check is unavailable.",
       "retry": "Retry"
+    },
+    "reachableZone": {
+      "failed": "Reachable zone computation failed."
     }
   },
   "controls": {
@@ -115,6 +118,42 @@
       "outOfLocal": "Out of local",
       "finalGlide": "Final glide"
     }
+  },
+  "escapePath": {
+    "title": "Escape path",
+    "toggle": "Show escape path",
+    "toggleHint": "Show the straight-line escape trajectory from the current position to the best reachable landing zone",
+    "empty": "Toggle \"Show escape path\" to visualise the escape trajectory at the current replay position.",
+    "waiting": "Load a flight and landing zones to see the escape path.",
+    "profileTitle": "Escape path profile",
+    "terrainSeries": "Terrain",
+    "glideSeries": "Glide plane",
+    "arrivalTarget": "Arrival target",
+    "lzMarker": "Landing zone",
+    "arrivalHeight": "Arrival height",
+    "minMargin": "Min margin",
+    "distance": "Distance",
+    "status": {
+      "inLocal": "In local",
+      "marginal": "Marginal",
+      "outOfLocal": "Out of local"
+    }
+  },
+  "reachableZone": {
+    "title": "Reachable zone",
+    "toggle": "Show reachable zone",
+    "toggleHint": "Overlay the area reachable in a glide from the current replay position, given L/D and terrain",
+    "gridSize": "Grid size",
+    "gridSizeHint": "Sampling cell size for the reachable-zone grid. Smaller = more detail but slower.",
+    "extent": "Extent (km)",
+    "extentHint": "Half-width of the sampled area around the current position",
+    "degradedHint": "Grid downgraded to fit the {{cellCap}}-cell budget: {{gridSizeM}} m / {{extentKm}} km",
+    "empty": "Toggle \"Show reachable zone\" to compute the reachable overlay for the current replay position.",
+    "computing": "Computing reachable zone…"
+  },
+  "arrivalHeights": {
+    "toggle": "Show arrival heights on LZs",
+    "toggleHint": "Display, next to each visible landing zone, the height at which the glider would arrive from the current position"
   },
   "legend": {
     "shortcutsTitle": "Keyboard shortcuts",

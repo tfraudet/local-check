@@ -113,3 +113,22 @@ export function maxGlideDistanceM(
 ): number {
   return Math.max(0, (altitudeM - lzElevM - arrivalHeightM) * workingLD);
 }
+
+/**
+ * Altitude at which the glide plane arrives at (toLat, toLon) from
+ * (fromLat, fromLon, fromAltM) at the given working L/D. Ignores terrain
+ * and any arrival-height/ground-clearance safety margins — it is a pure
+ * geometric projection, useful for the "arrival height over each LZ"
+ * label (Phase 3, FR-3-3).
+ */
+export function reachableAltitudeAt(
+  fromLat: number,
+  fromLon: number,
+  fromAltM: number,
+  toLat: number,
+  toLon: number,
+  workingLD: number,
+): number {
+  const distM = haversineDistanceKm(fromLat, fromLon, toLat, toLon) * 1000;
+  return fromAltM - distM / workingLD;
+}

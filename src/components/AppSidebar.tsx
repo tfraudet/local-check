@@ -8,6 +8,7 @@ import { FlightSummaryPanel } from './FlightSummaryPanel';
 import { LocalCheckSettings } from './LocalCheckSettings';
 import { LocalStatsPanel } from './LocalStatsPanel';
 import { ColorLegend } from './ColorLegend';
+import { ReachableZoneSettings } from './ReachableZoneSettings';
 import {
   Sidebar,
   SidebarContent,
@@ -108,11 +109,19 @@ export function AppSidebar() {
         <SidebarContent>
           {activeNav === 'flight' && <FlightPanel />}
           {activeNav === 'settings' && (
-            <SidebarGroup>
-              <SidebarGroupContent className="px-2">
-                <LocalCheckSettings />
-              </SidebarGroupContent>
-            </SidebarGroup>
+            <>
+              <SidebarGroup>
+                <SidebarGroupContent className="px-2">
+                  <LocalCheckSettings />
+                </SidebarGroupContent>
+              </SidebarGroup>
+              <Separator />
+              <SidebarGroup>
+                <SidebarGroupContent className="px-2">
+                  <ReachableZoneSettings />
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </>
           )}
         </SidebarContent>
       </Sidebar>

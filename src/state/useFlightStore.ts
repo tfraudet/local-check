@@ -9,9 +9,15 @@ import {
   type LocalCheckResult,
   type LocalCheckInput,
 } from '../domain/localCheck';
+import {
+  DEFAULT_REACHABLE_ZONE_PARAMS,
+  type ReachableZoneInputs,
+  type ReachableZoneParams,
+  type ReachableZoneResult,
+} from '../domain/reachableZone';
 import { computeFlightPhases } from '../domain/flightPhases';
 import { detectMotorUse } from '../domain/enlDetection';
-import { haversineDistanceM } from '../domain/units';
+import { haversineDistanceM, pickAltitude } from '../domain/units';
 
 export type PlaybackSpeed = 1 | 2 | 4 | 8 | 16;
 
@@ -50,6 +56,14 @@ export interface FlightStoreState {
   localCheckResult: LocalCheckResult | null;
   isComputingLocalCheck: boolean;
 
+  // Phase 3
+  showEscapePath: boolean;
+  showReachableZone: boolean;
+  showArrivalHeights: boolean;
+  reachableZoneParams: ReachableZoneParams;
+  reachableZoneResult: ReachableZoneResult | null;
+  isComputingReachableZone: boolean;
+
   // Phase 1 actions
   loadFlight: (flight: NormalizedFlight) => void;
   setLoadError: (error: IgcParseError) => void;
@@ -76,6 +90,14 @@ export interface FlightStoreState {
   setVisibleBounds: (bbox: [number, number, number, number] | null) => void;
   setLocalCheckParams: (patch: Partial<LocalCheckParams>) => void;
   runLocalCheck: () => Promise<void>;
+
+  // Phase 3 actions
+  setShowEscapePath: (visible: boolean) => void;
+  setShowReachableZone: (visible: boolean) => void;
+  setShowArrivalHeights: (visible: boolean) => void;
+  setReachableZoneParams: (patch: Partial<ReachableZoneParams>) => void;
+  runReachableZone: () => Promise<void>;
+  clearReachableZone: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +186,19 @@ function getWorker(): Worker {
   return worker;
 }
 
+let rzWorker: Worker | null = null;
+let rzRequestId = 0;
+
+function getReachableZoneWorker(): Worker {
+  if (!rzWorker) {
+    rzWorker = new Worker(
+      new URL('../workers/reachableZone.worker.ts', import.meta.url),
+      { type: 'module' },
+    );
+  }
+  return rzWorker;
+}
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
@@ -192,6 +227,14 @@ export const useFlightStore = create<FlightStoreState>()(
       localCheckResult: null,
       isComputingLocalCheck: false,
 
+      // Phase 3 initial state
+      showEscapePath: false,
+      showReachableZone: false,
+      showArrivalHeights: false,
+      reachableZoneParams: DEFAULT_REACHABLE_ZONE_PARAMS,
+      reachableZoneResult: null,
+      isComputingReachableZone: false,
+
       // Phase 1 actions (unchanged)
       loadFlight: (flight) =>
         set({
@@ -204,6 +247,7 @@ export const useFlightStore = create<FlightStoreState>()(
           localCheckResult: null,
           elevationGrid: null,
           elevationLoadError: null,
+          reachableZoneResult: null,
         }),
 
       setLoadError: (error) => set({ loadError: error, flight: null }),
@@ -217,6 +261,7 @@ export const useFlightStore = create<FlightStoreState>()(
           localCheckResult: null,
           elevationGrid: null,
           elevationLoadError: null,
+          reachableZoneResult: null,
         }),
 
       play: () => {
@@ -419,6 +464,90 @@ export const useFlightStore = create<FlightStoreState>()(
           w.postMessage({ type: 'run', requestId, input });
         });
       },
+
+      // Phase 3 actions
+      setShowEscapePath: (visible) => set({ showEscapePath: visible }),
+
+      setShowReachableZone: (visible) => {
+        set({ showReachableZone: visible });
+        if (!visible) set({ reachableZoneResult: null });
+      },
+
+      setShowArrivalHeights: (visible) => set({ showArrivalHeights: visible }),
+
+      setReachableZoneParams: (patch) => {
+        const { reachableZoneParams } = get();
+        set({ reachableZoneParams: { ...reachableZoneParams, ...patch } });
+      },
+
+      clearReachableZone: () => set({ reachableZoneResult: null }),
+
+      runReachableZone: async () => {
+        const {
+          flight,
+          currentTimeMs,
+          elevationGrid,
+          localCheckParams,
+          reachableZoneParams,
+          altitudeSource,
+          showReachableZone,
+        } = get();
+
+        if (!showReachableZone || !flight || !elevationGrid) return;
+
+        const fixes = flight.fixes;
+        if (fixes.length === 0) return;
+
+        // Locate the fix closest to the current replay time.
+        const idx = findCurrentFixIndex(flight, currentTimeMs);
+        if (idx < 0) return;
+        const fix = fixes[idx];
+        const altM = pickAltitude(fix, altitudeSource);
+        if (altM === null) return;
+
+        set({ isComputingReachableZone: true });
+
+        const input: ReachableZoneInputs = {
+          sourceLat: fix.latitude,
+          sourceLon: fix.longitude,
+          sourceAltM: altM,
+          grid: elevationGrid,
+          params: localCheckParams,
+          zoneParams: reachableZoneParams,
+        };
+
+        const requestId = ++rzRequestId;
+
+        return new Promise<void>((resolve) => {
+          const w = getReachableZoneWorker();
+
+          const handler = (event: MessageEvent) => {
+            const { data } = event;
+            if (data.requestId !== requestId) return;
+
+            w.removeEventListener('message', handler);
+
+            // Only clear the "computing" flag if this response corresponds
+            // to the newest request — otherwise a stale, faster response
+            // would prematurely stop the spinner while the latest work is
+            // still in-flight.
+            if (requestId === rzRequestId) {
+              set({ isComputingReachableZone: false });
+            }
+
+            if (data.type === 'success') {
+              // Guard against a stale response overwriting a fresher one.
+              if (requestId === rzRequestId) {
+                set({ reachableZoneResult: data.result });
+              }
+            }
+            resolve();
+          };
+
+          w.addEventListener('message', handler);
+          w.postMessage({ type: 'run', requestId, input });
+        });
+      },
     }),
     {
       name: 'local-check.params.v1',
@@ -427,6 +556,10 @@ export const useFlightStore = create<FlightStoreState>()(
         localCheckParams: state.localCheckParams,
         showOutlandingFields: state.showOutlandingFields,
         showAuvergneFields: state.showAuvergneFields,
+        showEscapePath: state.showEscapePath,
+        showReachableZone: state.showReachableZone,
+        showArrivalHeights: state.showArrivalHeights,
+        reachableZoneParams: state.reachableZoneParams,
       }),
     },
   ),

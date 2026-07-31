@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Map as MaplibreMap,
   Marker,
@@ -16,6 +16,10 @@ import type { SampledPoint } from '../domain/localCheck';
 import type { LandingZone } from '../domain/landingZone';
 import { DIFFICULTY_LEVEL_COLOR } from '../domain/landingZone';
 import { STATUS_COLORS, getSegmentColor } from '../domain/phaseColors';
+import { computeEscapePath, type EscapePath } from '../domain/escapePath';
+import { reachableAltitudeAt } from '../domain/glide';
+import { pickAltitude } from '../domain/units';
+import type { ReachableZoneResult } from '../domain/reachableZone';
 
 const DEFAULT_MAP_STYLE_URL =
   (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) ??
@@ -26,6 +30,14 @@ const TRACK_LAYER_ID = 'flight-track-line';
 const LZ_SOURCE_ID = 'landing-zones';
 const LZ_LAYER_ICON = 'lz-icons';
 const LZ_LAYER_LABEL = 'lz-labels';
+const RZ_SOURCE_ID = 'reachable-zone';
+const RZ_FILL_LAYER = 'reachable-zone-fill';
+const RZ_OUTLINE_LAYER = 'reachable-zone-outline';
+const ESCAPE_SOURCE_ID = 'escape-path';
+const ESCAPE_HALO_LAYER = 'escape-path-halo';
+const ESCAPE_LINE_LAYER = 'escape-path-line';
+const ARRIVAL_SOURCE_ID = 'arrival-heights';
+const ARRIVAL_LABEL_LAYER = 'arrival-height-labels';
 
 // Icon image IDs registered via map.addImage; referenced by icon-image on the
 // LZ symbol layer.
@@ -246,6 +258,86 @@ function buildLzPopupHtml(
   `;
 }
 
+const ESCAPE_STATUS_COLOR: Record<EscapePath['status'], string> = {
+  'in-local': STATUS_COLORS['in-local'],
+  'in-local-marginal': STATUS_COLORS['in-local-marginal'],
+  'out-of-local': STATUS_COLORS['out-of-local'],
+};
+
+function buildEscapePathGeoJSON(
+  escapePath: EscapePath | null,
+): GeoJSON.FeatureCollection {
+  if (!escapePath) return { type: 'FeatureCollection', features: [] };
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: {
+          color: ESCAPE_STATUS_COLOR[escapePath.status],
+          status: escapePath.status,
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [escapePath.sourceLon, escapePath.sourceLat],
+            [escapePath.lzLon, escapePath.lzLat],
+          ],
+        },
+      },
+    ],
+  };
+}
+
+function buildReachableZoneGeoJSON(
+  result: ReachableZoneResult | null,
+): GeoJSON.FeatureCollection {
+  if (!result) return { type: 'FeatureCollection', features: [] };
+  return {
+    type: 'FeatureCollection',
+    features: result.cellPolygons.map((ring) => ({
+      type: 'Feature' as const,
+      properties: {},
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [ring],
+      },
+    })),
+  };
+}
+
+interface ArrivalHeightFeature {
+  id: string;
+  latitude: number;
+  longitude: number;
+  arrivalHeightM: number;
+  isReachable: boolean;
+}
+
+function buildArrivalHeightsGeoJSON(
+  features: ArrivalHeightFeature[],
+): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: features.map((f) => ({
+      type: 'Feature',
+      properties: {
+        id: f.id,
+        arrivalHeightM: Math.round(f.arrivalHeightM),
+        label:
+          (f.arrivalHeightM >= 0 ? '+' : '') +
+          Math.round(f.arrivalHeightM) +
+          ' m',
+        isReachable: f.isReachable,
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [f.longitude, f.latitude],
+      },
+    })),
+  };
+}
+
 function buildLzGeoJSON(
   zones: LandingZone[],
   visibleIds: Set<string>,
@@ -295,6 +387,117 @@ export function MapView() {
   const landingZones = useFlightStore((s) => s.landingZones);
   const visibleLandingZoneIds = useFlightStore((s) => s.visibleLandingZoneIds);
   const setVisibleBounds = useFlightStore((s) => s.setVisibleBounds);
+  const altitudeSource = useFlightStore((s) => s.altitudeSource);
+  const elevationGrid = useFlightStore((s) => s.elevationGrid);
+  const localCheckParams = useFlightStore((s) => s.localCheckParams);
+  const showEscapePath = useFlightStore((s) => s.showEscapePath);
+  const showReachableZone = useFlightStore((s) => s.showReachableZone);
+  const showArrivalHeights = useFlightStore((s) => s.showArrivalHeights);
+  const reachableZoneResult = useFlightStore((s) => s.reachableZoneResult);
+
+  // ---- Derived Phase 3 state ----
+
+  const currentEscapePath = useMemo<EscapePath | null>(() => {
+    if (!showEscapePath) return null;
+    if (!flight || !elevationGrid || !localCheckResult) return null;
+    if (landingZones.length === 0) return null;
+
+    const idx = findCurrentFixIndex(flight, currentTimeMs);
+    if (idx < 0) return null;
+    const fix = flight.fixes[idx];
+    const altM = pickAltitude(fix, altitudeSource);
+    if (altM === null) return null;
+
+    // Find the nearest sample to derive bestLzId (mirrors EscapePathProfilePanel).
+    const samples = localCheckResult.samples;
+    if (samples.length === 0) return null;
+    let lo = 0;
+    let hi = samples.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (samples[mid].timeMs < fix.timeMs) lo = mid + 1;
+      else hi = mid;
+    }
+    const a = samples[lo];
+    const b = lo > 0 ? samples[lo - 1] : a;
+    const sample =
+      Math.abs(a.timeMs - fix.timeMs) < Math.abs(b.timeMs - fix.timeMs) ? a : b;
+
+    let targetId: string | null = sample.bestLzId;
+    if (!targetId) {
+      let best: { id: string; d: number } | null = null;
+      for (const lz of landingZones) {
+        const dLat = lz.latitude - fix.latitude;
+        const dLon = lz.longitude - fix.longitude;
+        const d = dLat * dLat + dLon * dLon;
+        if (!best || d < best.d) best = { id: lz.id, d };
+      }
+      targetId = best?.id ?? null;
+    }
+    if (!targetId) return null;
+
+    const lz = landingZones.find((z) => z.id === targetId);
+    if (!lz) return null;
+
+    return computeEscapePath({
+      sourceFixIndex: idx,
+      sourceLat: fix.latitude,
+      sourceLon: fix.longitude,
+      sourceAltM: altM,
+      lz,
+      grid: elevationGrid,
+      params: localCheckParams,
+    });
+  }, [
+    showEscapePath,
+    flight,
+    elevationGrid,
+    localCheckResult,
+    landingZones,
+    currentTimeMs,
+    altitudeSource,
+    localCheckParams,
+  ]);
+
+  const arrivalHeightFeatures = useMemo<ArrivalHeightFeature[]>(() => {
+    if (!showArrivalHeights || !flight) return [];
+    const idx = findCurrentFixIndex(flight, currentTimeMs);
+    if (idx < 0) return [];
+    const fix = flight.fixes[idx];
+    const altM = pickAltitude(fix, altitudeSource);
+    if (altM === null) return [];
+
+    const out: ArrivalHeightFeature[] = [];
+    for (const lz of landingZones) {
+      if (!visibleLandingZoneIds.has(lz.id)) continue;
+      const arrivalAtLzAltM = reachableAltitudeAt(
+        fix.latitude,
+        fix.longitude,
+        altM,
+        lz.latitude,
+        lz.longitude,
+        localCheckParams.workingLD,
+      );
+      const lzElev = lz.elevationM ?? 0;
+      const arrivalHeightM = arrivalAtLzAltM - lzElev;
+      out.push({
+        id: lz.id,
+        latitude: lz.latitude,
+        longitude: lz.longitude,
+        arrivalHeightM,
+        isReachable: arrivalHeightM >= localCheckParams.arrivalHeightM,
+      });
+    }
+    return out;
+  }, [
+    showArrivalHeights,
+    flight,
+    currentTimeMs,
+    altitudeSource,
+    landingZones,
+    visibleLandingZoneIds,
+    localCheckParams,
+  ]);
 
   // Initialize the map once.
   useEffect(() => {
@@ -547,6 +750,154 @@ export function MapView() {
       map.once('load', applyLzLayer);
     }
   }, [landingZones, visibleLandingZoneIds, iconsReady]);
+
+  // Escape-path line layer (Phase 3, FR-3-1).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const geojson = buildEscapePathGeoJSON(currentEscapePath);
+
+    // Fast path: source already exists — always call setData directly,
+    // regardless of `isStyleLoaded()`. Deferring to `map.once('load', ...)`
+    // is only safe for the initial addSource/addLayer, since `load` fires
+    // once and any subsequent one-shot listener would silently drop.
+    const existing = map.getSource(ESCAPE_SOURCE_ID) as
+      | GeoJSONSource
+      | undefined;
+    if (existing) {
+      existing.setData(geojson);
+      return;
+    }
+
+    const addLayers = () => {
+      if (map.getSource(ESCAPE_SOURCE_ID)) return; // race: added while we waited
+      map.addSource(ESCAPE_SOURCE_ID, { type: 'geojson', data: geojson });
+      map.addLayer({
+        id: ESCAPE_HALO_LAYER,
+        type: 'line',
+        source: ESCAPE_SOURCE_ID,
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 8,
+          'line-opacity': 0.25,
+        },
+      });
+      map.addLayer({
+        id: ESCAPE_LINE_LAYER,
+        type: 'line',
+        source: ESCAPE_SOURCE_ID,
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 3,
+          'line-dasharray': [2, 1.5],
+        },
+      });
+    };
+
+    if (map.isStyleLoaded()) addLayers();
+    else map.once('load', addLayers);
+  }, [currentEscapePath]);
+
+  // Reachable-zone fill layer (Phase 3, FR-3-2).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const geojson = buildReachableZoneGeoJSON(
+      showReachableZone ? reachableZoneResult : null,
+    );
+
+    const existing = map.getSource(RZ_SOURCE_ID) as GeoJSONSource | undefined;
+    if (existing) {
+      existing.setData(geojson);
+      return;
+    }
+
+    const addLayers = () => {
+      if (map.getSource(RZ_SOURCE_ID)) return;
+      map.addSource(RZ_SOURCE_ID, { type: 'geojson', data: geojson });
+      // Insert reachable-zone layers UNDER the track/LZ layers so the
+      // interactive layers stay on top. addLayer(id, beforeId).
+      const beforeId = map.getLayer(TRACK_LAYER_ID) ? TRACK_LAYER_ID : undefined;
+      map.addLayer(
+        {
+          id: RZ_FILL_LAYER,
+          type: 'fill',
+          source: RZ_SOURCE_ID,
+          paint: {
+            'fill-color': STATUS_COLORS['in-local'],
+            'fill-opacity': 0.18,
+            'fill-antialias': false,
+          },
+        },
+        beforeId,
+      );
+      map.addLayer(
+        {
+          id: RZ_OUTLINE_LAYER,
+          type: 'line',
+          source: RZ_SOURCE_ID,
+          paint: {
+            'line-color': STATUS_COLORS['in-local'],
+            'line-opacity': 0.35,
+            'line-width': 0.5,
+          },
+        },
+        beforeId,
+      );
+    };
+
+    if (map.isStyleLoaded()) addLayers();
+    else map.once('load', addLayers);
+  }, [reachableZoneResult, showReachableZone]);
+
+  // Arrival-height labels layer (Phase 3, FR-3-3).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const geojson = buildArrivalHeightsGeoJSON(arrivalHeightFeatures);
+
+    const existing = map.getSource(ARRIVAL_SOURCE_ID) as
+      | GeoJSONSource
+      | undefined;
+    if (existing) {
+      existing.setData(geojson);
+      return;
+    }
+
+    const addLayers = () => {
+      if (map.getSource(ARRIVAL_SOURCE_ID)) return;
+      map.addSource(ARRIVAL_SOURCE_ID, { type: 'geojson', data: geojson });
+      map.addLayer({
+        id: ARRIVAL_LABEL_LAYER,
+        type: 'symbol',
+        source: ARRIVAL_SOURCE_ID,
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 11,
+          'text-offset': [0, -1.4],
+          'text-anchor': 'bottom',
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': [
+            'case',
+            ['==', ['get', 'isReachable'], true],
+            STATUS_COLORS['in-local'],
+            STATUS_COLORS['out-of-local'],
+          ],
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 1.2,
+        },
+      });
+    };
+
+    if (map.isStyleLoaded()) addLayers();
+    else map.once('load', addLayers);
+  }, [arrivalHeightFeatures]);
 
   // Move the glider marker on every currentTimeMs change.
   useEffect(() => {

@@ -12,9 +12,11 @@ import { useElevationLoader } from '../hooks/useElevationLoader';
 import { useOutlandingDatabase } from '../hooks/useOutlandingDatabase';
 import { useOpenaipAirports } from '../hooks/useOpenaipAirports';
 import { useAutoLocalCheck } from '../hooks/useAutoLocalCheck';
+import { useAutoReachableZone } from '../hooks/useAutoReachableZone';
 import { AppSidebar } from '../components/AppSidebar';
 import { MapView } from '../components/MapView';
 import { Barogram } from '../components/Barogram';
+import { EscapePathProfilePanel } from '../components/EscapePathProfilePanel';
 import { ReplayControls } from '../components/ReplayControls';
 import { TelemetryPanel } from '../components/TelemetryPanel';
 import {
@@ -35,6 +37,7 @@ import { Button } from '../components/ui/button';
 function App() {
   const { t } = useTranslation();
   const flight = useFlightStore((s) => s.flight);
+  const showEscapePath = useFlightStore((s) => s.showEscapePath);
   const { theme, toggleTheme } = useTheme();
 
   useReplayEngine();
@@ -43,6 +46,7 @@ function App() {
   useOutlandingDatabase();
   useOpenaipAirports();
   useAutoLocalCheck();
+  useAutoReachableZone();
 
   useEffect(() => {
     document.title = t('app.title');
@@ -94,10 +98,27 @@ function App() {
                 <div className="flex-1 overflow-hidden">
                   <MapView />
                 </div>
-                {flight && <TelemetryPanel />}
-                {flight && (
+                {flight && !showEscapePath && <TelemetryPanel />}
+                {flight && !showEscapePath && (
                   <div className="h-48 border-t">
                     <Barogram />
+                  </div>
+                )}
+                {flight && showEscapePath && (
+                  <div className="flex">
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      {/* TelemetryPanel provides its own top border, so the
+                          outer wrapper doesn't add one — otherwise the two
+                          would stack and offset the left column by 1 px
+                          below the right panel's top edge. */}
+                      <TelemetryPanel />
+                      <div className="h-48 border-t">
+                        <Barogram />
+                      </div>
+                    </div>
+                    <div className="min-w-0 basis-[30%] border-l border-t">
+                      <EscapePathProfilePanel />
+                    </div>
                   </div>
                 )}
               </div>
