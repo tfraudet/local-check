@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { useFlightStore, findCurrentFixIndex } from '../state/useFlightStore';
@@ -98,6 +98,9 @@ export function EscapePathProfilePanel() {
       lz,
       grid: elevationGrid,
       params: localCheckParams,
+      // Sample 5 km beyond the LZ so the profile chart always shows
+      // context past the target — the x-axis is fixed at (distance + 5) km.
+      extraDistanceM: 5000,
     });
   }, [
     flight,
@@ -182,16 +185,29 @@ export function EscapePathProfilePanel() {
             ctx.lineTo(xLz, top + bh);
             ctx.stroke();
             ctx.setLineDash([]);
+
+            // Filled square marker at the LZ ground position — same look
+            // as an airfield on the map.
+            const yLzGround = u.valToPos(escapePath.lzElevM, 'y', true);
+            const size = 9 * uPlot.pxRatio;
+            ctx.fillStyle = '#3E6FC4';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5 * uPlot.pxRatio;
+            ctx.fillRect(xLz - size / 2, yLzGround - size / 2, size, size);
+            ctx.strokeRect(xLz - size / 2, yLzGround - size / 2, size, size);
+
             ctx.restore();
           },
         ],
       },
       axes: [
         {
-          label: t('escapePath.distance') + ' (km)',
+          // Axis title omitted so the chart bottom aligns with the
+          // barogram's. Unit is baked into each tick label instead.
           stroke: axisStroke,
           grid: { stroke: gridStroke },
           ticks: { stroke: gridStroke },
+          values: (_u, splits) => splits.map((v) => `${v} km`),
         },
         {
           stroke: axisStroke,
@@ -200,7 +216,12 @@ export function EscapePathProfilePanel() {
         },
       ],
       scales: {
-        x: { time: false },
+        x: {
+          time: false,
+          // Force the x-axis to always span `distance + 5 km`, so the pilot
+          // sees terrain context past the LZ even when it's a short escape.
+          range: () => [0, escapePath.totalDistanceM / 1000 + 5],
+        },
       },
       legend: { show: false },
     };
@@ -246,6 +267,8 @@ export function EscapePathProfilePanel() {
       : escapePath.status === 'in-local-marginal'
         ? t('escapePath.status.marginal')
         : t('escapePath.status.outOfLocal');
+  const targetLz = landingZones.find((z) => z.id === escapePath.lzId);
+  const lzName = targetLz?.name ?? escapePath.lzId;
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -257,6 +280,16 @@ export function EscapePathProfilePanel() {
         >
           {statusLabel}
         </span>
+      </div>
+      <div className="px-2 pt-1 text-[10px] text-muted-foreground">
+        <Trans
+          i18nKey="escapePath.profileSubtitle"
+          values={{
+            lzName,
+            lzElevM: Math.round(escapePath.lzElevM),
+          }}
+          components={{ b: <b className="text-foreground" /> }}
+        />
       </div>
       <div className="flex items-center gap-3 px-2 py-1 text-[10px] text-muted-foreground">
         <span>

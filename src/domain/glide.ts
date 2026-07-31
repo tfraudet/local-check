@@ -27,10 +27,15 @@ export interface GlideResult {
 /**
  * Check whether an LZ is reachable from a given position.
  *
- * Steps:
- * 1. Compute minimum required altitude at the current position.
- * 2. Verify the glide plane does not dip below terrain + groundClearance
- *    along the straight-line path (sampled every ~200 m).
+ * "Reachable" means the glider would arrive **above LZ ground** AND the
+ * glide plane clears terrain along the straight-line path — i.e. the LZ
+ * qualifies for at least the "marginal" (yellow) band.
+ *
+ * The `marginM` field is a signed measure vs the safety arrival buffer:
+ * `arrival_height_above_ground − arrivalHeightM param`. Positive = above
+ * the safety buffer (green band); zero or negative = below the buffer
+ * (yellow if reachable, red otherwise). Callers use it together with
+ * `reachable` to pick a three-way status.
  */
 export function checkGlideToLz(
   fromLat: number,
@@ -44,10 +49,12 @@ export function checkGlideToLz(
   const lzElev = isNaN(lzElevM) ? 0 : lzElevM;
 
   const distanceM = haversineDistanceKm(fromLat, fromLon, lz.latitude, lz.longitude) * 1000;
-  const requiredAltM = lzElev + params.arrivalHeightM + distanceM / params.workingLD;
-  const marginM = fromAltM - requiredAltM;
+  const arrivalAltAtLzM = fromAltM - distanceM / params.workingLD;
+  const arrivalHeightAboveGroundM = arrivalAltAtLzM - lzElev;
+  const marginM = arrivalHeightAboveGroundM - params.arrivalHeightM;
 
-  if (marginM < 0) {
+  // Would arrive at or below LZ ground — cannot land.
+  if (arrivalHeightAboveGroundM <= 0) {
     return { reachable: false, marginM, distanceM };
   }
 
@@ -64,7 +71,7 @@ export function checkGlideToLz(
     elevationGrid,
   );
 
-  return { reachable: terrainClear, marginM: terrainClear ? marginM : -1, distanceM };
+  return { reachable: terrainClear, marginM, distanceM };
 }
 
 /** Sample terrain along the straight line every ~200 m. */

@@ -126,6 +126,7 @@
     "empty": "Toggle \"Show escape path\" to visualise the escape trajectory at the current replay position.",
     "waiting": "Load a flight and landing zones to see the escape path.",
     "profileTitle": "Escape path profile",
+    "profileSubtitle": "Straight glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
     "terrainSeries": "Terrain",
     "glideSeries": "Glide plane",
     "arrivalTarget": "Arrival target",

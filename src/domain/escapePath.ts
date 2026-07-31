@@ -56,9 +56,14 @@ export interface EscapePathInputs {
   params: LocalCheckParams;
   /** Sampling step along the straight line, in meters. Default 100 m. */
   sampleStepM?: number;
+  /**
+   * Extra distance past the LZ to keep sampling terrain, for the profile
+   * chart's "context past target" band. Glide-plane samples continue
+   * mathematically (glider would already have landed), but the visual
+   * intent is a terrain trace beyond the LZ. Default 0.
+   */
+  extraDistanceM?: number;
 }
-
-const MARGINAL_BAND_M = 100;
 
 /**
  * Compute the straight-line escape path from source to LZ.
@@ -77,6 +82,7 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
     grid,
     params,
     sampleStepM = 100,
+    extraDistanceM = 0,
   } = inputs;
 
   const lzElevM =
@@ -96,11 +102,18 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
   ];
 
   const steps = Math.max(1, Math.ceil(totalDistanceM / sampleStepM));
+  const extraSteps =
+    extraDistanceM > 0 ? Math.ceil(extraDistanceM / sampleStepM) : 0;
   const profile: EscapePathProfilePoint[] = [];
   let minMarginM = Infinity;
 
-  for (let s = 0; s <= steps; s++) {
-    const t = s / steps;
+  const totalSteps = steps + extraSteps;
+  for (let s = 0; s <= totalSteps; s++) {
+    // `t` parameter along the source→LZ segment. Values > 1 sample past
+    // the LZ in the same direction; we still store the profile point so
+    // the chart can render the context band, but the terrain-clearance
+    // min-margin only considers the in-line source→LZ portion (t ≤ 1).
+    const t = (s / steps);
     const lat = sourceLat + t * (lz.latitude - sourceLat);
     const lon = sourceLon + t * (lz.longitude - sourceLon);
     const distFromSourceM = t * totalDistanceM;
@@ -110,7 +123,7 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
 
     profile.push({ distFromSourceM, terrainM, glideAltM });
 
-    if (terrainM !== null) {
+    if (t <= 1 && terrainM !== null) {
       const margin = glideAltM - terrainM - params.groundClearanceM;
       if (margin < minMarginM) minMarginM = margin;
     }
@@ -118,10 +131,15 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
 
   if (minMarginM === Infinity) minMarginM = 0;
 
+  // Status convention (matches localCheck + arrival-height labels):
+  //   red    ← arrivalHeightM ≤ 0            (arrival at/below LZ ground)
+  //          OR minMarginM < 0                (glide plane clips terrain)
+  //   yellow ← 0 < arrivalHeightM ≤ arrivalHeightM param
+  //   green  ← arrivalHeightM > arrivalHeightM param
   let status: EscapePathStatus;
-  if (arrivalHeightM < 0 || minMarginM < 0) {
+  if (arrivalHeightM <= 0 || minMarginM < 0) {
     status = 'out-of-local';
-  } else if (arrivalHeightM < MARGINAL_BAND_M || minMarginM < MARGINAL_BAND_M) {
+  } else if (arrivalHeightM <= params.arrivalHeightM) {
     status = 'in-local-marginal';
   } else {
     status = 'in-local';

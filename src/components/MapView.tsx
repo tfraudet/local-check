@@ -49,6 +49,10 @@ const LZ_ICON_RECT: Record<string, string> = {
   red: 'lz-icon-rect-red',
   black: 'lz-icon-rect-black',
 };
+// SDF pill used as the background for arrival-height labels. Because it
+// is SDF, `icon-color` recolors it at paint time — one image, both
+// green/red variants driven by the `isReachable` feature property.
+const ARRIVAL_PILL_ICON = 'arrival-height-pill';
 
 // The bar-heading placeholder (`H` in the request) is baked to 0° — we
 // don't currently track runway heading on the LandingZone shape.
@@ -70,6 +74,17 @@ function squareSvg(fill: string): string {
     <rect x="2" y="2" width="28" height="28" rx="2.5" ry="2.5" fill="${fill}" stroke="#ffffff" stroke-width="2.5"/>
   </svg>`;
 }
+
+/**
+ * Solid-white rounded-rectangle template used as the SDF background for
+ * arrival-height labels. Only the alpha channel matters for SDF images;
+ * `icon-color` recolours it at paint time. `viewBox` is deliberately small
+ * so the border-radius stays visible after MapLibre stretches the icon to
+ * fit its text via `icon-text-fit: 'both'`.
+ */
+const ARRIVAL_PILL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 20" width="60" height="20">
+  <rect x="0" y="0" width="60" height="20" rx="6" ry="6" fill="#ffffff"/>
+</svg>`;
 
 async function svgToImage(svg: string): Promise<HTMLImageElement> {
   const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
@@ -98,6 +113,14 @@ async function preloadLzIcons(map: MaplibreMap): Promise<void> {
       if (!map.hasImage(id)) map.addImage(id, img, { pixelRatio: 2 });
     }),
   );
+
+  // Arrival-height pill: SDF variant so `icon-color` recolours it.
+  if (!map.hasImage(ARRIVAL_PILL_ICON)) {
+    const pill = await svgToImage(ARRIVAL_PILL_SVG);
+    if (!map.hasImage(ARRIVAL_PILL_ICON)) {
+      map.addImage(ARRIVAL_PILL_ICON, pill, { pixelRatio: 2, sdf: true });
+    }
+  }
 }
 
 const DEFAULT_CENTER: [number, number] = [3.2489, 45.5401];
@@ -306,12 +329,14 @@ function buildReachableZoneGeoJSON(
   };
 }
 
+type ArrivalStatus = 'in-local' | 'in-local-marginal' | 'out-of-local';
+
 interface ArrivalHeightFeature {
   id: string;
   latitude: number;
   longitude: number;
   arrivalHeightM: number;
-  isReachable: boolean;
+  status: ArrivalStatus;
 }
 
 function buildArrivalHeightsGeoJSON(
@@ -328,7 +353,7 @@ function buildArrivalHeightsGeoJSON(
           (f.arrivalHeightM >= 0 ? '+' : '') +
           Math.round(f.arrivalHeightM) +
           ' m',
-        isReachable: f.isReachable,
+        status: f.status,
       },
       geometry: {
         type: 'Point',
@@ -480,12 +505,22 @@ export function MapView() {
       );
       const lzElev = lz.elevationM ?? 0;
       const arrivalHeightM = arrivalAtLzAltM - lzElev;
+      // Shared status convention (see localCheck + escapePath):
+      //   green  ← arrivalHeightM > arrivalHeightM param
+      //   yellow ← 0 < arrivalHeightM ≤ arrivalHeightM param
+      //   red    ← arrivalHeightM ≤ 0
+      const status: ArrivalStatus =
+        arrivalHeightM > localCheckParams.arrivalHeightM
+          ? 'in-local'
+          : arrivalHeightM > 0
+            ? 'in-local-marginal'
+            : 'out-of-local';
       out.push({
         id: lz.id,
         latitude: lz.latitude,
         longitude: lz.longitude,
         arrivalHeightM,
-        isReachable: arrivalHeightM >= localCheckParams.arrivalHeightM,
+        status,
       });
     }
     return out;
@@ -795,8 +830,17 @@ export function MapView() {
       });
     };
 
-    if (map.isStyleLoaded()) addLayers();
-    else map.once('load', addLayers);
+    // See the arrival-heights effect below for why `idle` is used as
+    // fallback rather than `once('load')`.
+    if (map.isStyleLoaded()) {
+      addLayers();
+    } else {
+      const onIdle = () => {
+        map.off('idle', onIdle);
+        addLayers();
+      };
+      map.on('idle', onIdle);
+    }
   }, [currentEscapePath]);
 
   // Reachable-zone fill layer (Phase 3, FR-3-2).
@@ -848,14 +892,21 @@ export function MapView() {
       );
     };
 
-    if (map.isStyleLoaded()) addLayers();
-    else map.once('load', addLayers);
+    if (map.isStyleLoaded()) {
+      addLayers();
+    } else {
+      const onIdle = () => {
+        map.off('idle', onIdle);
+        addLayers();
+      };
+      map.on('idle', onIdle);
+    }
   }, [reachableZoneResult, showReachableZone]);
 
   // Arrival-height labels layer (Phase 3, FR-3-3).
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !iconsReady) return;
 
     const geojson = buildArrivalHeightsGeoJSON(arrivalHeightFeatures);
 
@@ -875,29 +926,52 @@ export function MapView() {
         type: 'symbol',
         source: ARRIVAL_SOURCE_ID,
         layout: {
+          'icon-image': ARRIVAL_PILL_ICON,
+          // Stretch the SDF pill around the label. `icon-text-fit: 'both'`
+          // makes the icon grow with the text; the padding [top,right,
+          // bottom,left] leaves room around the glyphs.
+          'icon-text-fit': 'both',
+          'icon-text-fit-padding': [2, 6, 2, 6],
+          'icon-allow-overlap': true,
           'text-field': ['get', 'label'],
-          'text-font': ['Noto Sans Regular'],
+          'text-font': ['Noto Sans Bold'],
           'text-size': 11,
-          'text-offset': [0, -1.4],
+          'text-offset': [0, -1.6],
           'text-anchor': 'bottom',
           'text-allow-overlap': true,
         },
         paint: {
-          'text-color': [
-            'case',
-            ['==', ['get', 'isReachable'], true],
+          'icon-color': [
+            'match',
+            ['get', 'status'],
+            'in-local',
             STATUS_COLORS['in-local'],
+            'in-local-marginal',
+            STATUS_COLORS['in-local-marginal'],
+            'out-of-local',
+            STATUS_COLORS['out-of-local'],
             STATUS_COLORS['out-of-local'],
           ],
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 1.2,
+          'text-color': '#ffffff',
         },
       });
     };
 
-    if (map.isStyleLoaded()) addLayers();
-    else map.once('load', addLayers);
-  }, [arrivalHeightFeatures]);
+    // Robust readiness check: `load` fires only once per map lifecycle, so
+    // if `isStyleLoaded()` transiently returns false after the initial load
+    // (e.g. during style modifications), a `once('load', ...)` fallback
+    // never fires and the source is silently dropped. `idle` fires whenever
+    // the map settles, so it's a reliable retry point.
+    if (map.isStyleLoaded()) {
+      addLayers();
+    } else {
+      const onIdle = () => {
+        map.off('idle', onIdle);
+        addLayers();
+      };
+      map.on('idle', onIdle);
+    }
+  }, [arrivalHeightFeatures, iconsReady]);
 
   // Move the glider marker on every currentTimeMs change.
   useEffect(() => {

@@ -34,9 +34,6 @@ export const DEFAULT_LOCAL_CHECK_PARAMS: LocalCheckParams = {
 
 export type LocalStatus = 'in-local' | 'in-local-marginal' | 'out-of-local';
 
-/** In-local margin < 100 m triggers the marginal (yellow) status. */
-const MARGINAL_BAND_M = 100;
-
 export interface SampledPoint {
   timeMs: number;
   fixIndex: number;
@@ -137,39 +134,65 @@ function classifyFix(
   params: LocalCheckParams,
   grid: ElevationGrid,
 ): { status: LocalStatus; bestLzId: string | null; missingHeightM: number; marginM: number } {
-  let bestMargin = -Infinity;
-  let bestLzId: string | null = null;
+  // Track two bests: the best reachable LZ (arrives above ground AND terrain
+  // clear), and the best margin overall (used for the out-of-local
+  // missing-height metric when no LZ qualifies).
+  let bestReachableMargin = -Infinity;
+  let bestReachableLzId: string | null = null;
+  let bestOverallMargin = -Infinity;
 
   for (const lz of landingZones) {
     const lzElev = lz.elevationM ?? 0;
-    const maxDist = maxGlideDistanceM(altM, lzElev, params.arrivalHeightM, params.workingLD);
+    // Widest pre-filter: use 0 as the arrival buffer, so marginal LZs
+    // (arrival between 0 and arrivalHeightM param above ground) are still
+    // evaluated. `maxGlideDistanceM(alt, elev, 0, LD)` is the distance at
+    // which arrival = LZ ground exactly.
+    const maxDist = maxGlideDistanceM(altM, lzElev, 0, params.workingLD);
     if (maxDist <= 0) continue;
 
     const result = checkGlideToLz(fix.latitude, fix.longitude, altM, lz, params, grid);
-    if (result.marginM > bestMargin) {
-      bestMargin = result.marginM;
-      bestLzId = result.reachable ? lz.id : null;
+    if (result.marginM > bestOverallMargin) {
+      bestOverallMargin = result.marginM;
+    }
+    if (result.reachable && result.marginM > bestReachableMargin) {
+      bestReachableMargin = result.marginM;
+      bestReachableLzId = lz.id;
     }
   }
 
-  if (bestMargin === -Infinity) {
-    // No LZ in range at all
+  // Convention (matches escape-path + arrival-height labels):
+  //   arrivalHeightAboveGround = margin + params.arrivalHeightM
+  //   green  ← margin > 0                       (arrival above safety buffer)
+  //   yellow ← margin ≤ 0 AND reachable          (arrival above ground, below buffer)
+  //   red    ← not reachable                    (arrival at/below ground OR terrain blocks)
+  if (bestReachableLzId !== null) {
+    if (bestReachableMargin > 0) {
+      return {
+        status: 'in-local',
+        bestLzId: bestReachableLzId,
+        missingHeightM: 0,
+        marginM: bestReachableMargin,
+      };
+    }
+    return {
+      status: 'in-local-marginal',
+      bestLzId: bestReachableLzId,
+      missingHeightM: 0,
+      marginM: bestReachableMargin,
+    };
+  }
+
+  if (bestOverallMargin === -Infinity) {
     return { status: 'out-of-local', bestLzId: null, missingHeightM: 9999, marginM: -9999 };
   }
-
-  if (bestMargin >= MARGINAL_BAND_M) {
-    return { status: 'in-local', bestLzId, missingHeightM: 0, marginM: bestMargin };
-  }
-
-  if (bestMargin >= 0) {
-    return { status: 'in-local-marginal', bestLzId, missingHeightM: 0, marginM: bestMargin };
-  }
-
+  // Missing height: extra altitude needed to reach LZ ground level
+  // (arrivalHeightAboveGround = 0).
+  const arrivalAboveGroundM = bestOverallMargin + params.arrivalHeightM;
   return {
     status: 'out-of-local',
     bestLzId: null,
-    missingHeightM: Math.abs(bestMargin),
-    marginM: bestMargin,
+    missingHeightM: Math.max(0, -arrivalAboveGroundM),
+    marginM: bestOverallMargin,
   };
 }
 
