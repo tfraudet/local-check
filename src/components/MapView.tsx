@@ -572,42 +572,58 @@ export function MapView() {
     const samples = localCheckResult?.samples ?? null;
     const geojson = buildColoredTrackGeoJSON(flight, samples);
 
-    const applyTrack = () => {
-      const source = map.getSource(TRACK_SOURCE_ID) as GeoJSONSource | undefined;
-      if (source) {
-        source.setData(geojson);
-        // Update line-color expression after data change
-        map.setPaintProperty(TRACK_LAYER_ID, 'line-color', [
-          'get',
-          'color',
+    // Fast path: source already exists — always call setData directly,
+    // regardless of `isStyleLoaded()`. Deferring to `map.once('load', ...)`
+    // in this branch is a trap (load fires only once per lifecycle) and
+    // was silently dropping recolour updates after settings changes.
+    const existingSource = map.getSource(TRACK_SOURCE_ID) as
+      | GeoJSONSource
+      | undefined;
+    if (existingSource) {
+      existingSource.setData(geojson);
+      map.setPaintProperty(TRACK_LAYER_ID, 'line-color', ['get', 'color']);
+      // Ensure the marker exists (a new flight might have cleared it while
+      // reusing the source shell via a fresh setData).
+      if (!markerRef.current) {
+        const el = document.createElement('div');
+        el.className =
+          'h-4 w-4 rounded-full border-2 border-white bg-blue-600 shadow';
+        markerRef.current = new Marker({ element: el }).setLngLat([
+          flight.fixes[0].longitude,
+          flight.fixes[0].latitude,
         ]);
-      } else {
-        map.addSource(TRACK_SOURCE_ID, { type: 'geojson', data: geojson });
-        map.addLayer({
-          id: TRACK_LAYER_ID,
-          type: 'line',
-          source: TRACK_SOURCE_ID,
-          paint: {
-            'line-color': ['get', 'color'],
-            'line-width': 3,
-          },
-        });
-        map.on('mousemove', TRACK_LAYER_ID, () => {
-          map.getCanvas().style.cursor = 'pointer';
-        });
-        map.on('mouseleave', TRACK_LAYER_ID, () => {
-          map.getCanvas().style.cursor = '';
-        });
-        map.on('click', TRACK_LAYER_ID, (e: MapLayerMouseEvent) => {
-          if (e.lngLat) seekToNearestFix(flight, e.lngLat, seek);
-        });
-        map.on('mousemove', TRACK_LAYER_ID, (e: MapLayerMouseEvent) => {
-          if (e.lngLat) seekToNearestFix(flight, e.lngLat, seek);
-        });
+        markerRef.current.addTo(map);
       }
+      return;
+    }
 
-      // Only fit bounds when the track is first added (no localCheckResult yet),
-      // not on every recolor — that would reset the user's map position.
+    const addTrack = () => {
+      if (map.getSource(TRACK_SOURCE_ID)) return; // race: added while we waited
+      map.addSource(TRACK_SOURCE_ID, { type: 'geojson', data: geojson });
+      map.addLayer({
+        id: TRACK_LAYER_ID,
+        type: 'line',
+        source: TRACK_SOURCE_ID,
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 3,
+        },
+      });
+      map.on('mousemove', TRACK_LAYER_ID, () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', TRACK_LAYER_ID, () => {
+        map.getCanvas().style.cursor = '';
+      });
+      map.on('click', TRACK_LAYER_ID, (e: MapLayerMouseEvent) => {
+        if (e.lngLat) seekToNearestFix(flight, e.lngLat, seek);
+      });
+      map.on('mousemove', TRACK_LAYER_ID, (e: MapLayerMouseEvent) => {
+        if (e.lngLat) seekToNearestFix(flight, e.lngLat, seek);
+      });
+
+      // Fit bounds only when the track is first added — not on every
+      // recolour, which would reset the user's map position.
       if (!localCheckResult) {
         const coordinates = flight.fixes.map((f) => [f.longitude, f.latitude]);
         const bounds = coordinates.reduce(
@@ -632,10 +648,16 @@ export function MapView() {
       }
     };
 
+    // See the Phase 3 effects below for why `idle` is used as the
+    // fallback rather than `once('load')`.
     if (map.isStyleLoaded()) {
-      applyTrack();
+      addTrack();
     } else {
-      map.once('load', applyTrack);
+      const onIdle = () => {
+        map.off('idle', onIdle);
+        addTrack();
+      };
+      map.on('idle', onIdle);
     }
   }, [flight, seek, localCheckResult]);
 
@@ -646,11 +668,18 @@ export function MapView() {
 
     const lzGeoJSON = buildLzGeoJSON(landingZones, visibleLandingZoneIds);
 
+    // Fast path: same rationale as the track effect above.
+    const existingLzSource = map.getSource(LZ_SOURCE_ID) as
+      | GeoJSONSource
+      | undefined;
+    if (existingLzSource) {
+      existingLzSource.setData(lzGeoJSON);
+      return;
+    }
+
     const applyLzLayer = () => {
-      const source = map.getSource(LZ_SOURCE_ID) as GeoJSONSource | undefined;
-      if (source) {
-        source.setData(lzGeoJSON);
-      } else {
+      if (map.getSource(LZ_SOURCE_ID)) return;
+      {
         map.addSource(LZ_SOURCE_ID, { type: 'geojson', data: lzGeoJSON });
         map.addLayer({
           id: LZ_LAYER_ICON,
@@ -773,7 +802,11 @@ export function MapView() {
     if (map.isStyleLoaded()) {
       applyLzLayer();
     } else {
-      map.once('load', applyLzLayer);
+      const onIdle = () => {
+        map.off('idle', onIdle);
+        applyLzLayer();
+      };
+      map.on('idle', onIdle);
     }
   }, [landingZones, visibleLandingZoneIds, iconsReady]);
 

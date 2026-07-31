@@ -2,6 +2,48 @@ import { useEffect, useRef } from 'react';
 import { useFlightStore } from '../state/useFlightStore';
 import { fetchOpenAipAirports, OpenAipApiError } from '../services/openaipApi';
 
+/** Translate an OpenAipApiError (or arbitrary throw) into a friendly
+ * user-facing payload for the service-error banner. */
+function toServiceError(err: unknown): {
+  title: string;
+  message: string;
+  hint?: string;
+} {
+  if (err instanceof OpenAipApiError) {
+    if (err.statusCode === 401 || err.statusCode === 403) {
+      return {
+        title: 'OpenAIP rejected the request',
+        message:
+          'OpenAIP returned an authorization error. The public airport catalog will not be available on the map.',
+        hint: 'If this persists, check the OpenAIP status page or your proxy configuration.',
+      };
+    }
+    if (err.statusCode === 429) {
+      return {
+        title: 'OpenAIP rate-limited',
+        message:
+          'OpenAIP is throttling requests. New airports will not appear on the map for a short cooldown.',
+        hint: 'The app will automatically retry after the cooldown; you can also pan the map to trigger a fresh fetch later.',
+      };
+    }
+    if (err.statusCode && err.statusCode >= 500) {
+      return {
+        title: 'OpenAIP is unavailable',
+        message: `OpenAIP returned HTTP ${err.statusCode}. Airports may be missing from the map.`,
+        hint: 'The service is likely temporarily down; try again in a few minutes.',
+      };
+    }
+    return {
+      title: 'Could not load airports from OpenAIP',
+      message: err.message,
+    };
+  }
+  return {
+    title: 'Could not load airports from OpenAIP',
+    message: err instanceof Error ? err.message : String(err),
+  };
+}
+
 type Bbox = [number, number, number, number];
 
 /** Debounce window applied to `moveend` bursts. Long enough that a pan
@@ -37,6 +79,7 @@ const RATE_LIMIT_BACKOFF_MS = 30_000;
 export function useOpenaipAirports() {
   const visibleBounds = useFlightStore((s) => s.visibleBounds);
   const addLandingZones = useFlightStore((s) => s.addLandingZones);
+  const pushServiceError = useFlightStore((s) => s.pushServiceError);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -74,16 +117,23 @@ export function useOpenaipAirports() {
             cooldownUntilRef.current = Date.now() + wait;
             rateLimitStrikesRef.current += 1;
             console.warn(`[openaip] rate limited — cooling down for ${wait}ms`);
-            return;
+          } else {
+            console.warn('[openaip] fetch failed:', err);
           }
-          console.warn('[openaip] fetch failed:', err);
+          const friendly = toServiceError(err);
+          pushServiceError({
+            service: 'openaip',
+            title: friendly.title,
+            message: friendly.message,
+            hint: friendly.hint,
+          });
         });
     }, DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [visibleBounds, addLandingZones]);
+  }, [visibleBounds, addLandingZones, pushServiceError]);
 }
 
 function isContained(view: Bbox, regions: Bbox[]): boolean {

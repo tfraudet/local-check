@@ -4,6 +4,52 @@ import { fetchElevationGrid, ElevationApiError } from '../services/elevationApi'
 import type { ElevationFetchProgress } from '../services/elevationApi';
 import type { NormalizedFlight } from '../domain/flight';
 
+/**
+ * Translate an ElevationApiError (or arbitrary throw) into a friendly
+ * user-facing `ServiceError` payload — mostly matters for HTTP 401
+ * (invalid key) and 429 (rate limit), which are the two failures a pilot
+ * is most likely to hit in practice.
+ */
+function toServiceError(err: unknown): {
+  title: string;
+  message: string;
+  hint?: string;
+} {
+  if (err instanceof ElevationApiError) {
+    if (err.statusCode === 401 || err.statusCode === 403) {
+      return {
+        title: 'Elevation API rejected the request',
+        message:
+          'OpenTopography returned an authorization error. Your API key is invalid, expired, or lacks access to the selected DEM.',
+        hint: 'Check your API key in your environment file, or request a new key at portal.opentopography.org.',
+      };
+    }
+    if (err.statusCode === 429) {
+      return {
+        title: 'Elevation API rate-limited',
+        message:
+          'OpenTopography returned 429 Too Many Requests. Terrain data will not be available for a short while.',
+        hint: 'Wait a minute and reload the flight to retry.',
+      };
+    }
+    if (err.statusCode && err.statusCode >= 500) {
+      return {
+        title: 'Elevation service is unavailable',
+        message: `OpenTopography returned HTTP ${err.statusCode}.`,
+        hint: 'The service is likely temporarily down; try again in a few minutes.',
+      };
+    }
+    return {
+      title: 'Terrain data unavailable',
+      message: err.message,
+    };
+  }
+  return {
+    title: 'Terrain data unavailable',
+    message: err instanceof Error ? err.message : String(err),
+  };
+}
+
 function computeBbox(flight: NormalizedFlight): [number, number, number, number] {
   let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
   for (const fix of flight.fixes) {
@@ -23,6 +69,7 @@ export function useElevationLoader() {
   const flight = useFlightStore((s) => s.flight);
   const setElevationGrid = useFlightStore((s) => s.setElevationGrid);
   const setElevationLoadError = useFlightStore((s) => s.setElevationLoadError);
+  const pushServiceError = useFlightStore((s) => s.pushServiceError);
   const [progress, setProgress] = useState<ElevationFetchProgress | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -55,17 +102,20 @@ export function useElevationLoader() {
       .catch((err) => {
         if (controller.signal.aborted) return;
         setIsFetching(false);
-        const message =
-          err instanceof ElevationApiError
-            ? err.message
-            : 'Terrain data unavailable.';
-        setElevationLoadError(message);
+        const friendly = toServiceError(err);
+        setElevationLoadError(friendly.message);
+        pushServiceError({
+          service: 'elevation',
+          title: friendly.title,
+          message: friendly.message,
+          hint: friendly.hint,
+        });
       });
 
     return () => {
       controller.abort();
     };
-  }, [flight, setElevationGrid, setElevationLoadError]);
+  }, [flight, setElevationGrid, setElevationLoadError, pushServiceError]);
 
   return { isFetching, progress };
 }

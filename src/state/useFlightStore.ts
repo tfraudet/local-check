@@ -21,6 +21,18 @@ import { haversineDistanceM, pickAltitude } from '../domain/units';
 
 export type PlaybackSpeed = 1 | 2 | 4 | 8 | 16;
 
+/** Transient user-facing error pushed by any of the external-service hooks
+ * (elevation, OpenAIP, outlanding DB fetches). Rendered by
+ * `ServiceErrorBanner`; users dismiss them explicitly. */
+export interface ServiceError {
+  id: string;
+  service: 'elevation' | 'openaip' | 'outlanding-db';
+  title: string;
+  message: string;
+  hint?: string;
+  createdAt: number;
+}
+
 // ---------------------------------------------------------------------------
 // Store interface
 // ---------------------------------------------------------------------------
@@ -56,6 +68,9 @@ export interface FlightStoreState {
   localCheckResult: LocalCheckResult | null;
   isComputingLocalCheck: boolean;
 
+  // Cross-service errors surfaced via ServiceErrorBanner.
+  serviceErrors: ServiceError[];
+
   // Phase 3
   showEscapePath: boolean;
   showReachableZone: boolean;
@@ -90,6 +105,10 @@ export interface FlightStoreState {
   setVisibleBounds: (bbox: [number, number, number, number] | null) => void;
   setLocalCheckParams: (patch: Partial<LocalCheckParams>) => void;
   runLocalCheck: () => Promise<void>;
+
+  // Service-error actions
+  pushServiceError: (err: Omit<ServiceError, 'id' | 'createdAt'>) => void;
+  dismissServiceError: (id: string) => void;
 
   // Phase 3 actions
   setShowEscapePath: (visible: boolean) => void;
@@ -226,6 +245,8 @@ export const useFlightStore = create<FlightStoreState>()(
       localCheckParams: DEFAULT_LOCAL_CHECK_PARAMS,
       localCheckResult: null,
       isComputingLocalCheck: false,
+
+      serviceErrors: [],
 
       // Phase 3 initial state
       showEscapePath: false,
@@ -463,6 +484,27 @@ export const useFlightStore = create<FlightStoreState>()(
           w.addEventListener('message', handler);
           w.postMessage({ type: 'run', requestId, input });
         });
+      },
+
+      pushServiceError: (err) => {
+        const id = `${err.service}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        // De-duplicate by (service + title) so a service failing repeatedly
+        // (e.g. retry attempts) doesn't stack identical banners.
+        const { serviceErrors } = get();
+        const withoutDup = serviceErrors.filter(
+          (e) => !(e.service === err.service && e.title === err.title),
+        );
+        set({
+          serviceErrors: [
+            ...withoutDup,
+            { ...err, id, createdAt: Date.now() },
+          ],
+        });
+      },
+
+      dismissServiceError: (id) => {
+        const { serviceErrors } = get();
+        set({ serviceErrors: serviceErrors.filter((e) => e.id !== id) });
       },
 
       // Phase 3 actions
