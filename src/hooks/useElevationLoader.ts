@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFlightStore } from '../state/useFlightStore';
 import { fetchElevationGrid, ElevationApiError } from '../services/elevationApi';
-import type { ElevationFetchProgress } from '../services/elevationApi';
 import type { NormalizedFlight } from '../domain/flight';
 
 /**
@@ -69,13 +68,10 @@ export function useElevationLoader() {
   const setElevationGrid = useFlightStore((s) => s.setElevationGrid);
   const setElevationLoadError = useFlightStore((s) => s.setElevationLoadError);
   const pushServiceError = useFlightStore((s) => s.pushServiceError);
-  const [progress, setProgress] = useState<ElevationFetchProgress | null>(null);
-  const [isFetching, setIsFetching] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!flight) {
-      setProgress(null);
       return;
     }
 
@@ -84,23 +80,16 @@ export function useElevationLoader() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setIsFetching(true);
-    setProgress(null);
-
     const bbox = computeBbox(flight);
 
-    fetchElevationGrid(bbox, (p) => {
-      if (!controller.signal.aborted) setProgress(p);
-    })
+    fetchElevationGrid(bbox)
       .then((grid) => {
         if (!controller.signal.aborted) {
           setElevationGrid(grid);
-          setIsFetching(false);
         }
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
-        setIsFetching(false);
         const friendly = toServiceError(err);
         setElevationLoadError(friendly.message);
         pushServiceError({
@@ -115,6 +104,4 @@ export function useElevationLoader() {
       controller.abort();
     };
   }, [flight, setElevationGrid, setElevationLoadError, pushServiceError]);
-
-  return { isFetching, progress };
 }

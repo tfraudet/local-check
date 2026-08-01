@@ -622,20 +622,6 @@ export function MapView() {
         if (e.lngLat) seekToNearestFix(flight, e.lngLat, seek);
       });
 
-      // Fit bounds only when the track is first added — not on every
-      // recolour, which would reset the user's map position.
-      if (!localCheckResult) {
-        const coordinates = flight.fixes.map((f) => [f.longitude, f.latitude]);
-        const bounds = coordinates.reduce(
-          (b, coord) => b.extend(coord as [number, number]),
-          new LngLatBounds(
-            coordinates[0] as [number, number],
-            coordinates[0] as [number, number],
-          ),
-        );
-        map.fitBounds(expandBoundsKm(bounds, 10), { padding: 40, duration: 0 });
-      }
-
       if (!markerRef.current) {
         const el = document.createElement('div');
         el.className =
@@ -660,6 +646,35 @@ export function MapView() {
       map.on('idle', onIdle);
     }
   }, [flight, seek, localCheckResult]);
+
+  // Fit the map viewport to the full track whenever a new flight is loaded,
+  // so the whole flight is visible instead of the previous flight's region.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !flight || flight.fixes.length === 0) return;
+
+    const first = flight.fixes[0];
+    const bounds = new LngLatBounds(
+      [first.longitude, first.latitude],
+      [first.longitude, first.latitude],
+    );
+    for (const fix of flight.fixes) {
+      bounds.extend([fix.longitude, fix.latitude]);
+    }
+
+    const fit = () => {
+      map.fitBounds(bounds, { padding: 40, duration: 0 });
+    };
+
+    if (mapReadyRef.current) {
+      fit();
+      return;
+    }
+    map.once('load', fit);
+    return () => {
+      map.off('load', fit);
+    };
+  }, [flight]);
 
   // LZ symbol layer — rebuild whenever the zones or visibility changes.
   useEffect(() => {
@@ -1022,18 +1037,6 @@ function interpolatePosition(
   const lon = current.longitude + (next.longitude - current.longitude) * ratio;
   const lat = current.latitude + (next.latitude - current.latitude) * ratio;
   return [lon, lat];
-}
-
-function expandBoundsKm(bounds: LngLatBounds, km: number): LngLatBounds {
-  const sw = bounds.getSouthWest();
-  const ne = bounds.getNorthEast();
-  const centerLat = (sw.lat + ne.lat) / 2;
-  const dLat = km / 111;
-  const dLon = km / (111 * Math.cos((centerLat * Math.PI) / 180));
-  return new LngLatBounds(
-    [sw.lng - dLon, sw.lat - dLat],
-    [ne.lng + dLon, ne.lat + dLat],
-  );
 }
 
 function seekToNearestFix(

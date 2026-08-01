@@ -76,11 +76,14 @@ export function ReplayControls() {
 
       <div className="min-w-0 flex-1 px-2">
         <Slider
-          min={firstFixTime}
-          max={lastFixTime}
+          key={firstFixTime}
+          min={0}
+          max={totalMs}
           step={1000}
-          value={[currentTimeMs]}
-          onValueChange={(v) => seek(Array.isArray(v) ? v[0] : v)}
+          value={elapsedMs}
+          onValueChange={(v) =>
+            seek(firstFixTime + (Array.isArray(v) ? v[0] : v))
+          }
           aria-label="Timeline scrub"
         />
       </div>
