@@ -48,7 +48,11 @@ import {
 import { buildLzPopupHtml } from './map/lzPopup';
 import { useGeoJsonLayer } from './map/useGeoJsonLayer';
 import { useLatestRef } from '@/hooks/useLatestRef';
-import { interpolatePosition, nearestFixTimeMs } from './map/trackGeometry';
+import {
+  interpolatePosition,
+  interpolateTrackState,
+  nearestFixTimeMs,
+} from './map/trackGeometry';
 
 const DEFAULT_MAP_STYLE_URL =
   (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) ??
@@ -77,11 +81,20 @@ const EMPTY_FEATURE_COLLECTION: GeoJSON.FeatureCollection = {
   features: [],
 };
 
+const GLIDER_MARKER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" class="h-full w-full">
+  <g fill="currentColor" stroke="#fff" stroke-width="2.2" stroke-linejoin="round" paint-order="stroke">
+    <path d="M32 15.5c1.1 0 1.7 3.5 2 7.5.3 4-.4 10.5-1.25 14v13h-1.5V37c-.85-3.5-1.55-10-1.25-14 .3-4 .9-7.5 2-7.5Z"/>
+    <path d="M32 26.2 59.5 28.7c2.1.2 2.1 3.4 0 3.6L32 33Zm0 0L4.5 28.7c-2.1.2-2.1 3.4 0 3.6L32 33Z"/>
+    <path d="M32 44.2 42.4 45.5c1.6.2 1.6 2.6 0 2.8L32 49.4Zm0 0L21.6 45.5c-1.6.2-1.6 2.6 0 2.8L32 49.4Z"/>
+  </g>
+</svg>`;
+
 export function MapView() {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const markerGlyphRef = useRef<HTMLDivElement | null>(null);
   const mapReadyRef = useRef(false);
 
   const [iconsReady, setIconsReady] = useState(false);
@@ -135,6 +148,7 @@ export function MapView() {
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
+      markerGlyphRef.current = null;
       mapReadyRef.current = false;
       setIconsReady(false);
     };
@@ -435,10 +449,15 @@ export function MapView() {
     const apply = () => {
       map.fitBounds(bounds, { padding: 40, duration: 0 });
       if (!markerRef.current) {
-        const el = document.createElement('div');
-        el.className =
-          'h-4 w-4 rounded-full border-2 border-white bg-blue-600 shadow';
-        markerRef.current = new Marker({ element: el });
+        const markerRoot = document.createElement('div');
+        markerRoot.className = 'h-16 w-16';
+        const markerGlyph = document.createElement('div');
+        markerGlyph.className = 'h-full w-full text-blue-600 dark:text-blue-400';
+        markerGlyph.style.transformOrigin = 'center center';
+        markerGlyph.innerHTML = GLIDER_MARKER_SVG;
+        markerRoot.appendChild(markerGlyph);
+        markerGlyphRef.current = markerGlyph;
+        markerRef.current = new Marker({ element: markerRoot, anchor: 'center' });
       }
       markerRef.current.setLngLat([first.longitude, first.latitude]).addTo(map);
     };
@@ -456,8 +475,12 @@ export function MapView() {
   // Move the glider marker on every currentTimeMs change.
   useEffect(() => {
     if (!flight || !markerRef.current) return;
-    const position = interpolatePosition(flight, currentTimeMs);
-    if (position) markerRef.current.setLngLat(position);
+    const state = interpolateTrackState(flight, currentTimeMs);
+    if (!state) return;
+    markerRef.current.setLngLat(state.position);
+    if (markerGlyphRef.current) {
+      markerGlyphRef.current.style.transform = `rotate(${state.headingDeg}deg)`;
+    }
   }, [flight, currentTimeMs]);
 
   // Auto-pan: when the glider enters the outer AUTO_PAN_MARGIN_FRACTION
