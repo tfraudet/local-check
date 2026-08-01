@@ -2,11 +2,14 @@
  * Reachable-zone computation (Phase 3, FR-3-2).
  *
  * Given a source (lat/lon/altitude), a working L/D, and terrain, compute
- * the set of ground points reachable in a glide. Each cell is evaluated as:
+ * the set of ground points reachable in a glide, sampled on a circular
+ * grid centred on the pilot with diameter `diameterKm`. Each cell is
+ * evaluated as:
  *
  *   glideAltAtCell = sourceAltM − distM / workingLD
  *   marginM        = glideAltAtCell − terrainM − groundClearanceM
- *   reachable      = marginM ≥ 0 AND straight-line terrain clearance passes
+ *   reachable      = marginM ≥ arrivalHeightM AND straight-line terrain
+ *                    clearance passes
  *
  * The result carries the raw mask plus a `MultiPolygon` built as one
  * rectangular ring per reachable cell — MapLibre's fill layer renders it
@@ -28,17 +31,18 @@ export const REACHABLE_ZONE_GRID_SIZES: ReachableZoneGridSizeM[] = [
 ];
 
 export const REACHABLE_ZONE_CELL_CAP = 100_000;
-export const REACHABLE_ZONE_MAX_EXTENT_KM = 30;
-export const REACHABLE_ZONE_MIN_EXTENT_KM = 5;
+export const REACHABLE_ZONE_MAX_DIAMETER_KM = 60;
+export const REACHABLE_ZONE_MIN_DIAMETER_KM = 10;
 
 export interface ReachableZoneParams {
   gridSizeM: ReachableZoneGridSizeM;
-  extentKm: number;
+  /** Diameter of the circular sampling grid, in km. */
+  diameterKm: number;
 }
 
 export const DEFAULT_REACHABLE_ZONE_PARAMS: ReachableZoneParams = {
   gridSizeM: 360,
-  extentKm: 20,
+  diameterKm: 40,
 };
 
 export interface ReachableZoneResult {
@@ -76,8 +80,8 @@ export interface ReachableZoneInputs {
 /**
  * Effective grid parameters after enforcing the cell cap. If the requested
  * grid would produce more than REACHABLE_ZONE_CELL_CAP cells, bump the grid
- * size to the next step; if still over, shrink the extent by 5 km until it
- * fits. The `degraded` flag surfaces the change to the UI.
+ * size to the next step; if still over, shrink the diameter by 5 km until
+ * it fits. The `degraded` flag surfaces the change to the UI.
  */
 export function resolveEffectiveParams(
   requested: ReachableZoneParams,
@@ -85,25 +89,26 @@ export function resolveEffectiveParams(
   const sizes = REACHABLE_ZONE_GRID_SIZES;
   let sizeIdx = sizes.indexOf(requested.gridSizeM);
   if (sizeIdx < 0) sizeIdx = sizes.indexOf(DEFAULT_REACHABLE_ZONE_PARAMS.gridSizeM);
-  let extentKm = Math.min(
-    REACHABLE_ZONE_MAX_EXTENT_KM,
-    Math.max(REACHABLE_ZONE_MIN_EXTENT_KM, requested.extentKm),
+  let diameterKm = Math.min(
+    REACHABLE_ZONE_MAX_DIAMETER_KM,
+    Math.max(REACHABLE_ZONE_MIN_DIAMETER_KM, requested.diameterKm),
   );
 
-  const cellsFor = (sM: number, eKm: number) => {
-    const n = Math.ceil((2 * eKm * 1000) / sM) + 1;
+  const cellsFor = (sM: number, dKm: number) => {
+    // dKm is the circle's diameter → bounding square has side dKm.
+    const n = Math.ceil((dKm * 1000) / sM) + 1;
     return n * n;
   };
 
   let degraded = false;
-  while (cellsFor(sizes[sizeIdx], extentKm) > REACHABLE_ZONE_CELL_CAP) {
+  while (cellsFor(sizes[sizeIdx], diameterKm) > REACHABLE_ZONE_CELL_CAP) {
     if (sizeIdx < sizes.length - 1) {
       sizeIdx += 1;
       degraded = true;
       continue;
     }
-    if (extentKm > REACHABLE_ZONE_MIN_EXTENT_KM) {
-      extentKm = Math.max(REACHABLE_ZONE_MIN_EXTENT_KM, extentKm - 5);
+    if (diameterKm > REACHABLE_ZONE_MIN_DIAMETER_KM) {
+      diameterKm = Math.max(REACHABLE_ZONE_MIN_DIAMETER_KM, diameterKm - 5);
       degraded = true;
       continue;
     }
@@ -111,11 +116,11 @@ export function resolveEffectiveParams(
   }
 
   return {
-    effective: { gridSizeM: sizes[sizeIdx], extentKm },
+    effective: { gridSizeM: sizes[sizeIdx], diameterKm },
     degraded:
       degraded ||
       sizes[sizeIdx] !== requested.gridSizeM ||
-      extentKm !== requested.extentKm,
+      diameterKm !== requested.diameterKm,
   };
 }
 
@@ -129,19 +134,22 @@ export function computeReachableZone(
   const { sourceLat, sourceLon, sourceAltM, grid, params, zoneParams } = inputs;
 
   const { effective, degraded } = resolveEffectiveParams(zoneParams);
-  const { gridSizeM, extentKm } = effective;
+  const { gridSizeM, diameterKm } = effective;
 
-  // Convert half-width in km to degrees. cos(lat) squishes longitudes.
-  const dLat = extentKm / 111;
-  const dLon = extentKm / (111 * Math.cos((sourceLat * Math.PI) / 180));
+  // The grid is still a square bounding box (for regular indexing); cells
+  // outside the inscribed disc are skipped in the loop below.
+  const radiusKm = diameterKm / 2;
+  const dLat = radiusKm / 111;
+  const dLon = radiusKm / (111 * Math.cos((sourceLat * Math.PI) / 180));
 
   const minLat = sourceLat - dLat;
   const maxLat = sourceLat + dLat;
   const minLon = sourceLon - dLon;
   const maxLon = sourceLon + dLon;
 
-  const cols = Math.ceil((2 * extentKm * 1000) / gridSizeM) + 1;
+  const cols = Math.ceil((diameterKm * 1000) / gridSizeM) + 1;
   const rows = cols;
+  const radiusM = radiusKm * 1000;
 
   const reachableMask = new Uint8Array(cols * rows);
   const marginM = new Float32Array(cols * rows);
@@ -158,6 +166,11 @@ export function computeReachableZone(
 
       const distM =
         haversineDistanceKm(sourceLat, sourceLon, lat, lon) * 1000;
+
+      // Circular footprint: skip cells outside the disc of radius
+      // `radiusM` centred on the pilot.
+      if (distM > radiusM) continue;
+
       const glideAltAtCellM = sourceAltM - distM / params.workingLD;
 
       const terrain = sampleElevation(grid, lat, lon);

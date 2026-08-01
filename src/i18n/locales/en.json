@@ -145,9 +145,9 @@
     "toggleHint": "Overlay the area reachable in a glide from the current replay position, given L/D and terrain",
     "gridSize": "Grid size",
     "gridSizeHint": "Sampling cell size for the reachable-zone grid. Smaller = more detail but slower.",
-    "extent": "Extent (km)",
-    "extentHint": "Half-width of the sampled area around the current position",
-    "degradedHint": "Grid downgraded to fit the {{cellCap}}-cell budget: {{gridSizeM}} m / {{extentKm}} km",
+    "diameter": "Diameter (km)",
+    "diameterHint": "Diameter of the circular sampled area around the current position",
+    "degradedHint": "Grid downgraded to fit the {{cellCap}}-cell budget: {{gridSizeM}} m / {{diameterKm}} km",
     "empty": "Toggle \"Show reachable zone\" to compute the reachable overlay for the current replay position.",
     "computing": "Computing reachable zone…"
   },

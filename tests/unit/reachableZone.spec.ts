@@ -36,39 +36,40 @@ describe('resolveEffectiveParams', () => {
   });
 
   it('bumps grid size when the requested one exceeds the cap', () => {
-    // 90 m grid over 30 km half-extent ≈ 668 x 668 ≈ 446k cells, way over cap.
+    // 90 m grid over 60 km diameter ≈ 668 x 668 ≈ 446k cells, way over cap.
     const { effective, degraded } = resolveEffectiveParams({
       gridSizeM: 90 as ReachableZoneGridSizeM,
-      extentKm: 30,
+      diameterKm: 60,
     });
     expect(degraded).toBe(true);
     expect(effective.gridSizeM).toBeGreaterThan(90);
     // Effective cell count should be at or below the cap.
-    const n = Math.ceil((2 * effective.extentKm * 1000) / effective.gridSizeM) + 1;
+    const n = Math.ceil((effective.diameterKm * 1000) / effective.gridSizeM) + 1;
     expect(n * n).toBeLessThanOrEqual(REACHABLE_ZONE_CELL_CAP);
   });
 
-  it('clamps out-of-range extent to the allowed band', () => {
+  it('clamps out-of-range diameter to the allowed band', () => {
     const { effective } = resolveEffectiveParams({
       gridSizeM: 360 as ReachableZoneGridSizeM,
-      extentKm: 999,
+      diameterKm: 999,
     });
-    expect(effective.extentKm).toBeLessThanOrEqual(30);
+    expect(effective.diameterKm).toBeLessThanOrEqual(60);
   });
 });
 
 describe('computeReachableZone', () => {
   it('produces a roughly circular reachable set on flat terrain', () => {
     // Altitude tuned so the reachable disc lies well inside the sampled
-    // square: usable altitude ≈ 500-150 = 350 m; radius ≈ 350 × 20 = 7 km,
-    // much smaller than the 20 km half-extent.
+    // circle. With arrivalHeight=300 and workingLD=20, usable altitude
+    // = 500-300 = 200 m, reachable radius ≈ 200 × 20 = 4 km — well
+    // inside the 40 km diameter (20 km radius) footprint.
     const result = computeReachableZone({
       sourceLat: 43.0,
       sourceLon: 6.0,
       sourceAltM: 500,
       grid: FLAT_GRID,
       params: PARAMS,
-      zoneParams: { gridSizeM: 720, extentKm: 20 },
+      zoneParams: { gridSizeM: 720, diameterKm: 40 },
     });
     // Some cells should be reachable, some not (edges of the disc).
     let reachableCount = 0;
@@ -93,7 +94,7 @@ describe('computeReachableZone', () => {
       sourceAltM: -50,
       grid: FLAT_GRID,
       params: PARAMS,
-      zoneParams: { gridSizeM: 720, extentKm: 20 },
+      zoneParams: { gridSizeM: 720, diameterKm: 40 },
     });
     for (let i = 0; i < result.reachableMask.length; i++) {
       expect(result.reachableMask[i]).toBe(0);
@@ -108,7 +109,7 @@ describe('computeReachableZone', () => {
       sourceAltM: 2000,
       grid: FLAT_GRID,
       params: PARAMS,
-      zoneParams: { gridSizeM: 90 as ReachableZoneGridSizeM, extentKm: 30 },
+      zoneParams: { gridSizeM: 90 as ReachableZoneGridSizeM, diameterKm: 60 },
     });
     expect(result.degraded).toBe(true);
     expect(result.cols * result.rows).toBeLessThanOrEqual(REACHABLE_ZONE_CELL_CAP);

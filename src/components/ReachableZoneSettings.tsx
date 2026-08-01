@@ -3,8 +3,8 @@ import { useFlightStore } from '../state/useFlightStore';
 import {
   REACHABLE_ZONE_CELL_CAP,
   REACHABLE_ZONE_GRID_SIZES,
-  REACHABLE_ZONE_MAX_EXTENT_KM,
-  REACHABLE_ZONE_MIN_EXTENT_KM,
+  REACHABLE_ZONE_MAX_DIAMETER_KM,
+  REACHABLE_ZONE_MIN_DIAMETER_KM,
   type ReachableZoneGridSizeM,
 } from '../domain/reachableZone';
 import { Switch } from './ui/switch';
@@ -28,7 +28,7 @@ export function ReachableZoneSettings() {
     (s) => s.setReachableZoneParams,
   );
   const result = useFlightStore((s) => s.reachableZoneResult);
-  const isComputing = useFlightStore((s) => s.isComputingReachableZone);
+  // const isComputing = useFlightStore((s) => s.isComputingReachableZone);
 
   return (
     <div className="space-y-3">
@@ -94,57 +94,57 @@ export function ReachableZoneSettings() {
             <div className="flex items-center justify-between">
               <label
                 className="text-xs font-medium"
-                title={t('reachableZone.extentHint')}
+                title={t('reachableZone.diameterHint')}
               >
-                {t('reachableZone.extent')}
+                {t('reachableZone.diameter')}
               </label>
               <input
                 type="number"
-                min={REACHABLE_ZONE_MIN_EXTENT_KM}
-                max={REACHABLE_ZONE_MAX_EXTENT_KM}
-                step={5}
-                value={reachableZoneParams.extentKm}
+                min={REACHABLE_ZONE_MIN_DIAMETER_KM}
+                max={REACHABLE_ZONE_MAX_DIAMETER_KM}
+                step={10}
+                value={reachableZoneParams.diameterKm}
                 onChange={(e) => {
                   const n = parseFloat(e.target.value);
                   if (!isNaN(n)) {
                     setReachableZoneParams({
-                      extentKm: Math.max(
-                        REACHABLE_ZONE_MIN_EXTENT_KM,
-                        Math.min(REACHABLE_ZONE_MAX_EXTENT_KM, n),
+                      diameterKm: Math.max(
+                        REACHABLE_ZONE_MIN_DIAMETER_KM,
+                        Math.min(REACHABLE_ZONE_MAX_DIAMETER_KM, n),
                       ),
                     });
                   }
                 }}
                 className="w-16 rounded border border-border bg-background px-1 py-0.5 text-right text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                aria-label={t('reachableZone.extent')}
+                aria-label={t('reachableZone.diameter')}
               />
             </div>
             <input
               type="range"
-              min={REACHABLE_ZONE_MIN_EXTENT_KM}
-              max={REACHABLE_ZONE_MAX_EXTENT_KM}
-              step={5}
-              value={reachableZoneParams.extentKm}
+              min={REACHABLE_ZONE_MIN_DIAMETER_KM}
+              max={REACHABLE_ZONE_MAX_DIAMETER_KM}
+              step={10}
+              value={reachableZoneParams.diameterKm}
               onChange={(e) =>
-                setReachableZoneParams({ extentKm: parseFloat(e.target.value) })
+                setReachableZoneParams({ diameterKm: parseFloat(e.target.value) })
               }
               className="h-1 w-full cursor-pointer accent-primary"
-              aria-label={t('reachableZone.extent')}
+              aria-label={t('reachableZone.diameter')}
             />
           </div>
 
-          {isComputing && (
+          {/* {isComputing && (
             <p className="text-[10px] text-muted-foreground">
               {t('reachableZone.computing')}
             </p>
-          )}
+          )} */}
 
           {result?.degraded && (
             <p className="text-[10px] text-amber-600 dark:text-amber-400">
               {t('reachableZone.degradedHint', {
                 cellCap: REACHABLE_ZONE_CELL_CAP.toLocaleString(),
                 gridSizeM: result.params.gridSizeM,
-                extentKm: result.params.extentKm,
+                diameterKm: result.params.diameterKm,
               })}
             </p>
           )}

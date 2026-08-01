@@ -31,7 +31,7 @@ new map layers slot on top of the existing state/domain/UI stack.
 - **Reachable zone (FR-3-2).** For the current replay position, compute and
   render the set of ground points reachable in a glide, using a grid
   method with user-configurable grid size (90 / 180 / 360 / 720 m) and
-  extent.
+  diameter.
 - **Arrival heights over LZs (FR-3-3).** For every currently visible LZ,
   display the height at which the glider would arrive over that LZ from the
   current position, as a text label on the map.
@@ -132,7 +132,7 @@ with one new worker and a handful of new domain / UI modules.
    `groundClearanceM` re-runs Phase 2's `runLocalCheck` (existing behaviour)
    and — if the reachable zone is visible — also re-runs
    `runReachableZone` because it consumes the same glide parameters.
-6. Changing `reachableZoneParams.gridSizeM` or `.extentKm` re-invokes only
+6. Changing `reachableZoneParams.gridSizeM` or `.diameterKm` re-invokes only
    `runReachableZone` (Phase 2 result is untouched).
 
 ### 2.3 Non-happy paths
@@ -179,7 +179,7 @@ local-check/
 ├── src/
 │   ├── components/
 │   │   ├── EscapePathProfilePanel.tsx           # [new]  altitude profile mini-chart
-│   │   ├── ReachableZoneSettings.tsx            # [new]  toggle + grid-size + extent controls
+│   │   ├── ReachableZoneSettings.tsx            # [new]  toggle + grid-size + diameter controls
 │   │   ├── MapView.tsx                          # [mod]  escape-path line, reachable-zone fill, LZ arrival-height labels
 │   │   ├── Barogram.tsx                         # [mod]  becomes the 70% right pane of a 30/70 layout
 │   │   └── AppSidebar.tsx                       # [mod]  hosts ReachableZoneSettings + toggles
@@ -260,7 +260,7 @@ export type ReachableZoneGridSizeM = 90 | 180 | 360 | 720;
 
 export interface ReachableZoneParams {
   gridSizeM: ReachableZoneGridSizeM;     // default 360
-  extentKm: number;                      // half-width around source; default 20, max 30
+  diameterKm: number;                    // circular sampling diameter around source; default 40, max 60
 }
 
 export interface ReachableZoneResult {
@@ -275,7 +275,7 @@ export interface ReachableZoneResult {
   reachableMask: Uint8Array;             // 1 = reachable, 0 = not, length = cols*rows
   marginM: Float32Array;                 // margin above (glide − terrain − clearance)
   outerPolygon: Array<[number, number]>; // marching-squares contour (lon, lat)
-  degraded: boolean;                     // true if we downgraded the grid size / extent
+  degraded: boolean;                     // true if we downgraded the grid size / diameter
   computedAt: number;                    // ms since epoch
 }
 
@@ -378,20 +378,22 @@ No changes to Phase 2's `LocalCheckResult` / `SampledPoint` shape.
 **Maps to:** FR-3-2
 
 - **Grid construction.**
-  - Centre the grid on the source lat/lon; half-width = `extentKm`.
+  - Centre the grid on the source lat/lon; the disc has diameter =
+    `diameterKm` (radius `diameterKm / 2`).
   - `gridSizeM` values allowed: `90 | 180 | 360 | 720`. Default `360`.
-  - `cols = rows = ceil((2 * extentKm * 1000) / gridSizeM) + 1`.
+  - Bounding square: `cols = rows = ceil((diameterKm * 1000) / gridSizeM) + 1`.
+    Cells whose distance to the source exceeds the radius are skipped
+    (circular footprint inscribed in the square).
   - Enforce the **cell cap of 100 000**: while `cols * rows > 100_000`,
     bump `gridSizeM` to the next step (720 max); if still exceeded, shrink
-    `extentKm` in 5 km decrements. Set `degraded = true` when this happens.
+    `diameterKm` in 5 km decrements. Set `degraded = true` when this happens.
 - **Per-cell computation.** For each grid cell at `(lat, lon)`:
   1. `distM = haversine(source, cell)`.
   2. `glideAltAtCellM = sourceAltM − distM / workingLD`.
   3. `terrainM = sampleElevation(grid, lat, lon)`.
      If `NaN`, mark cell unreachable.
-  4. `marginM = glideAltAtCellM − terrainM` (ground clearance is not
-     applied — same convention as the barogram/label status).
-  5. Cell is reachable iff `marginM ≥ 0` **and** the straight line from
+  4. `marginM = glideAltAtCellM − terrainM`.
+  5. Cell is reachable iff `marginM ≥ arrivalHeightM` **and** the straight line from
      source to cell doesn't clip terrain (sparse ~10-sample check with
      zero clearance buffer).
 - **Rendering primitives.** Emit one rectangular polygon ring per
@@ -424,7 +426,7 @@ No changes to Phase 2's `LocalCheckResult` / `SampledPoint` shape.
 - **Settings (`ReachableZoneSettings.tsx`).**
   - Toggle **Show reachable zone**.
   - Radio group for grid size: `90 / 180 / 360 / 720 m`.
-  - Slider for extent: 5 – 30 km (step 5 km), default 20 km.
+  - Slider for diameter: 10 – 60 km (step 10 km), default 40 km.
   - Values persist in `localStorage` under the existing
     `local-check.params.v1` key.
   - Any change debounces (250 ms) into `runReachableZone`.
@@ -475,7 +477,7 @@ interface FlightStoreState {
   showEscapePath: boolean;                    // default false
   showReachableZone: boolean;                 // default false
   showArrivalHeights: boolean;                // default false
-  reachableZoneParams: ReachableZoneParams;   // default { gridSizeM: 360, extentKm: 20 }
+  reachableZoneParams: ReachableZoneParams;   // default { gridSizeM: 360, diameterKm: 40 }
   reachableZoneResult: ReachableZoneResult | null;
   isComputingReachableZone: boolean;
 
@@ -508,7 +510,7 @@ New i18n key groups added to `src/i18n/locales/en.json`:
 - `escapePath.*` — panel title, toggle label, empty state, axis labels,
   legend labels (terrain, glide plane, arrival target), status pills.
 - `reachableZone.*` — panel title, toggle, grid-size radio labels
-  (90 / 180 / 360 / 720 m), extent slider, degraded hint.
+  (90 / 180 / 360 / 720 m), diameter slider, degraded hint.
 - `arrivalHeights.*` — toggle, label format (`{sign}{value} m`).
 - `errors.reachableZone.*` — cell-cap hint, worker failure, no-terrain
   fallback.
@@ -529,7 +531,7 @@ New i18n key groups added to `src/i18n/locales/en.json`:
 | ID       | Requirement                                                                                                                                    |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | NFR-3T-1 | Escape-path recompute on `currentTimeMs` change completes in ≤ 15 ms on a mid-range laptop (100 m sampling along a ≤ 20 km line).              |
-| NFR-3T-2 | Reachable-zone worker computes a typical case (extent 20 km, grid 360 m ≈ 12 100 cells) in ≤ 500 ms; hard cap 100 k cells enforced.            |
+| NFR-3T-2 | Reachable-zone worker computes a typical case (diameter 40 km, grid 360 m ≈ 12 500 cells) in ≤ 500 ms; hard cap 100 k cells enforced.          |
 | NFR-3T-3 | Recompute during scrubbing is debounced 250 ms; only the latest response is applied. In-flight requests are cancelled on new posts.            |
 | NFR-3T-4 | Replay marker and barogram cursor never stutter (≥ 30 fps) while the reachable-zone worker is running.                                         |
 | NFR-3T-5 | Phase 1/2 replay is unaffected when Phase 3 overlays are off. The escape-path mini-chart collapses to zero width.                              |
@@ -649,7 +651,7 @@ Additionally:
 ## 14. Open questions
 
 1. **Marching-squares vs raster overlay.** For very large reachable zones
-   (extent ≥ 25 km at 90 m), a raster image source may render faster than a
+   (diameter ≥ 50 km at 90 m), a raster image source may render faster than a
    very-many-vertex polygon. Spike a comparison on the reference flight
    before locking in the vector approach.
 2. **Elevation-grid transfer to worker.** The Phase 2
