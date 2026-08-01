@@ -36,12 +36,11 @@
   "telemetry": {
     "title": "Telemetry",
     "time": "Time",
-    "position": "Position",
     "pressureAltitude": "Pressure altitude",
     "gnssAltitude": "GNSS altitude",
     "groundSpeed": "Ground speed",
     "vario": "Vario",
-    "agl": "Height AGL",
+    "agl": "AGL",
     "status": {
       "inLocal": "In local",
       "inLocalMarginal": "Marginal",

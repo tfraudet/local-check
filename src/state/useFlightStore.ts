@@ -16,6 +16,7 @@ import {
   type ReachableZoneResult,
 } from '../domain/reachableZone';
 import { computeFlightPhases } from '../domain/flightPhases';
+import { computeDerivedMetrics } from '../domain/derivedMetrics';
 import { detectMotorUse } from '../domain/enlDetection';
 import { haversineDistanceM, pickAltitude } from '../domain/units';
 
@@ -447,9 +448,19 @@ export const useFlightStore = create<FlightStoreState>()(
         set({ isComputingLocalCheck: true });
 
         const motorFlags = detectMotorUse(flight.fixes, localCheckParams.enlThreshold);
+        // Derived metrics stored on `flight` may lack AGL when the elevation
+        // grid loaded after IGC parsing. Re-derive with the grid so
+        // `computeFlightPhases` sees populated `aglM` for initial-climb /
+        // final-glide detection. Kept local so `flight` identity stays
+        // stable (mutating it here would loop the auto-effect hooks).
+        const derivedWithAgl = computeDerivedMetrics(
+          flight.fixes,
+          altitudeSource,
+          elevationGrid,
+        );
         const phases = computeFlightPhases(
           flight.fixes,
-          flight.derived,
+          derivedWithAgl,
           motorFlags,
           altitudeSource,
         );

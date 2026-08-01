@@ -2,20 +2,23 @@ import { useTranslation } from 'react-i18next';
 import { useFlightStore, findCurrentFixIndex } from '../state/useFlightStore';
 import {
   formatAltitude,
-  formatLatLon,
   formatSpeed,
   formatTimeUtc,
   formatVario,
+  pickAltitude,
 } from '../domain/units';
+import { sampleElevation } from '../domain/elevation';
 
 /**
- * Live readout of the fix at the current replay time: UTC time, position,
+ * Live readout of the fix at the current replay time: UTC time, AGL,
  * altitude (both sources), ground speed, vario (FR-M-18, FR-M-20).
  */
 export function TelemetryPanel() {
   const { t } = useTranslation();
   const flight = useFlightStore((s) => s.flight);
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
+  const elevationGrid = useFlightStore((s) => s.elevationGrid);
+  const altitudeSource = useFlightStore((s) => s.altitudeSource);
 
   if (!flight) return null;
 
@@ -25,14 +28,22 @@ export function TelemetryPanel() {
   const fix = flight.fixes[index];
   const derived = flight.derived[index];
 
+  // Compute AGL on the fly: `flight.derived[i].aglM` is only populated when
+  // the elevation grid was available at parse time; the grid usually loads
+  // asynchronously after the flight, so read it directly here.
+  let aglM: number | null = null;
+  if (elevationGrid) {
+    const terrain = sampleElevation(elevationGrid, fix.latitude, fix.longitude);
+    if (!isNaN(terrain)) {
+      const alt = pickAltitude(fix, altitudeSource);
+      if (alt !== null) aglM = alt - terrain;
+    }
+  }
+
   return (
     <section className="border-t bg-background">
       <div className="grid grid-cols-2 gap-0 md:grid-cols-3 xl:grid-cols-6">
         <Row label={t('telemetry.time')} value={formatTimeUtc(fix.timeMs)} />
-        <Row
-          label={t('telemetry.position')}
-          value={formatLatLon(fix.latitude, fix.longitude)}
-        />
         <Row
           label={t('telemetry.pressureAltitude')}
           value={formatAltitude(fix.pressureAltitudeM)}
@@ -40,6 +51,10 @@ export function TelemetryPanel() {
         <Row
           label={t('telemetry.gnssAltitude')}
           value={formatAltitude(fix.gnssAltitudeM)}
+        />
+        <Row
+          label={t('telemetry.agl')}
+          value={formatAltitude(aglM)}
         />
         <Row
           label={t('telemetry.groundSpeed')}
