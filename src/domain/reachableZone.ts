@@ -163,14 +163,13 @@ export function computeReachableZone(
       const terrain = sampleElevation(grid, lat, lon);
       if (isNaN(terrain)) continue;
 
-      // Ground clearance is intentionally NOT applied here: reachability
-      // means the glider arrives above ground and doesn't crash en route.
-      // The safety buffer is a display concept and doesn't gate the
-      // reachable-zone footprint (see also `glide.ts`, `escapePath.ts`).
+      // A cell is reachable only if the glider arrives at least
+      // `arrivalHeightM` above the terrain, matching the arrival-height
+      // requirement used for landing zones.
       const margin = glideAltAtCellM - terrain;
       marginM[idx] = margin;
 
-      if (margin < 0) continue;
+      if (margin < params.arrivalHeightM) continue;
 
       if (
         !checkTerrainClearanceAlongRay(
