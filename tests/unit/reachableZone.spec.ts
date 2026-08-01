@@ -44,7 +44,8 @@ describe('resolveEffectiveParams', () => {
     expect(degraded).toBe(true);
     expect(effective.gridSizeM).toBeGreaterThan(90);
     // Effective cell count should be at or below the cap.
-    const n = Math.ceil((effective.diameterKm * 1000) / effective.gridSizeM) + 1;
+    const n =
+      Math.ceil((effective.diameterKm * 1000) / effective.gridSizeM) + 1;
     expect(n * n).toBeLessThanOrEqual(REACHABLE_ZONE_CELL_CAP);
   });
 
@@ -112,17 +113,15 @@ describe('computeReachableZone', () => {
       zoneParams: { gridSizeM: 90 as ReachableZoneGridSizeM, diameterKm: 60 },
     });
     expect(result.degraded).toBe(true);
-    expect(result.cols * result.rows).toBeLessThanOrEqual(REACHABLE_ZONE_CELL_CAP);
+    expect(result.cols * result.rows).toBeLessThanOrEqual(
+      REACHABLE_ZONE_CELL_CAP,
+    );
   });
 });
 
 describe('buildCellPolygons', () => {
   it('emits one closed quad per reachable cell', () => {
-    const mask = new Uint8Array([
-      0, 0, 0,
-      0, 1, 0,
-      0, 0, 0,
-    ]);
+    const mask = new Uint8Array([0, 0, 0, 0, 1, 0, 0, 0, 0]);
     const polys = buildCellPolygons(mask, 3, 3, 0, 0, 1, 1);
     expect(polys).toHaveLength(1);
     const ring = polys[0];

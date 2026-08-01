@@ -22,7 +22,8 @@
 import type { ElevationGrid } from './elevation';
 import { sampleElevation } from './elevation';
 import type { LocalCheckParams } from './localCheck';
-import { haversineDistanceKm } from './units';
+import { glideClearsTerrain } from './glide';
+import { haversineDistanceM } from './units';
 
 export type ReachableZoneGridSizeM = 90 | 180 | 360 | 720;
 
@@ -33,6 +34,10 @@ export const REACHABLE_ZONE_GRID_SIZES: ReachableZoneGridSizeM[] = [
 export const REACHABLE_ZONE_CELL_CAP = 100_000;
 export const REACHABLE_ZONE_MAX_DIAMETER_KM = 60;
 export const REACHABLE_ZONE_MIN_DIAMETER_KM = 10;
+
+/** Samples taken along each source→cell ray for the terrain-clearance
+ * check. Deliberately sparse: it runs once per grid cell. */
+const RAY_CLEARANCE_SAMPLES = 10;
 
 export interface ReachableZoneParams {
   gridSizeM: ReachableZoneGridSizeM;
@@ -83,12 +88,14 @@ export interface ReachableZoneInputs {
  * size to the next step; if still over, shrink the diameter by 5 km until
  * it fits. The `degraded` flag surfaces the change to the UI.
  */
-export function resolveEffectiveParams(
-  requested: ReachableZoneParams,
-): { effective: ReachableZoneParams; degraded: boolean } {
+export function resolveEffectiveParams(requested: ReachableZoneParams): {
+  effective: ReachableZoneParams;
+  degraded: boolean;
+} {
   const sizes = REACHABLE_ZONE_GRID_SIZES;
   let sizeIdx = sizes.indexOf(requested.gridSizeM);
-  if (sizeIdx < 0) sizeIdx = sizes.indexOf(DEFAULT_REACHABLE_ZONE_PARAMS.gridSizeM);
+  if (sizeIdx < 0)
+    sizeIdx = sizes.indexOf(DEFAULT_REACHABLE_ZONE_PARAMS.gridSizeM);
   let diameterKm = Math.min(
     REACHABLE_ZONE_MAX_DIAMETER_KM,
     Math.max(REACHABLE_ZONE_MIN_DIAMETER_KM, requested.diameterKm),
@@ -164,8 +171,7 @@ export function computeReachableZone(
       const lon = minLon + c * lonStep;
       const idx = r * cols + c;
 
-      const distM =
-        haversineDistanceKm(sourceLat, sourceLon, lat, lon) * 1000;
+      const distM = haversineDistanceM(sourceLat, sourceLon, lat, lon);
 
       // Circular footprint: skip cells outside the disc of radius
       // `radiusM` centred on the pilot.
@@ -184,18 +190,20 @@ export function computeReachableZone(
 
       if (margin < params.arrivalHeightM) continue;
 
+      // Sparse ray check: ~10 samples rather than the accurate 200 m step,
+      // because this runs once per grid cell (accuracy vs speed tradeoff).
       if (
-        !checkTerrainClearanceAlongRay(
-          sourceLat,
-          sourceLon,
-          sourceAltM,
-          lat,
-          lon,
-          distM,
-          params.workingLD,
-          0,
+        !glideClearsTerrain({
+          fromLat: sourceLat,
+          fromLon: sourceLon,
+          fromAltM: sourceAltM,
+          toLat: lat,
+          toLon: lon,
+          distanceM: distM,
+          workingLD: params.workingLD,
           grid,
-        )
+          steps: RAY_CLEARANCE_SAMPLES,
+        })
       ) {
         continue;
       }
@@ -229,38 +237,6 @@ export function computeReachableZone(
     degraded,
     computedAt: Date.now(),
   };
-}
-
-/**
- * Sparse straight-line terrain-clearance check between two points. Samples
- * ~10 evenly spaced points along the ray and verifies the glide plane sits
- * above `terrain + groundClearanceM` at each. Uses ~10 samples rather than
- * the 200m step used by Phase 2's checkGlideToLz because we run this per
- * grid cell — accuracy vs speed tradeoff.
- */
-function checkTerrainClearanceAlongRay(
-  fromLat: number,
-  fromLon: number,
-  fromAltM: number,
-  toLat: number,
-  toLon: number,
-  distanceM: number,
-  workingLD: number,
-  groundClearanceM: number,
-  grid: ElevationGrid,
-): boolean {
-  const STEPS = 10;
-  for (let s = 1; s < STEPS; s++) {
-    const t = s / STEPS;
-    const lat = fromLat + t * (toLat - fromLat);
-    const lon = fromLon + t * (toLon - fromLon);
-    const terrain = sampleElevation(grid, lat, lon);
-    if (isNaN(terrain)) continue;
-    const distSoFarM = t * distanceM;
-    const glidePlaneAlt = fromAltM - distSoFarM / workingLD;
-    if (glidePlaneAlt < terrain + groundClearanceM) return false;
-  }
-  return true;
 }
 
 /**

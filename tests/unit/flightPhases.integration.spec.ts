@@ -11,7 +11,8 @@ describe('initial-climb detection on real IGC', () => {
       'utf8',
     );
     const result = parseAndNormalizeIgc(raw);
-    if ('error' in result) throw new Error('parse failed: ' + result.error.message);
+    if ('error' in result)
+      throw new Error('parse failed: ' + result.error.message);
     const { flight } = result;
 
     const motorFlags = detectMotorUse(flight.fixes, 500);
@@ -34,7 +35,9 @@ describe('initial-climb detection on real IGC', () => {
     // Ground-truth from manual inspection: release at 12:30:17 UTC / 860 m.
     // Allow a small tolerance in case the algorithm converges on an
     // adjacent fix.
-    expect(releaseTimeIso >= '12:30:14' && releaseTimeIso <= '12:30:20').toBe(true);
+    expect(releaseTimeIso >= '12:30:14' && releaseTimeIso <= '12:30:20').toBe(
+      true,
+    );
     expect(lastFix.pressureAltitudeM).toBeGreaterThanOrEqual(850);
     expect(lastFix.pressureAltitudeM).toBeLessThanOrEqual(870);
   });

@@ -188,3 +188,65 @@ body {
 .dark .uplot .u-cursor-x::after {
   border-bottom-color: #60a5fa;
 }
+
+/* ---------------------------------------------------------------------------
+   Landing-zone map popup. Styles live here (rather than inline in the popup
+   HTML) so the popup follows the light/dark theme tokens like the rest of
+   the UI.
+   --------------------------------------------------------------------------- */
+
+.lz-popup .maplibregl-popup-content {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+.lz-popup .maplibregl-popup-tip {
+  border-top-color: var(--popover);
+  border-bottom-color: var(--popover);
+}
+
+.lz-popup__body {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.lz-popup__title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.lz-popup__chips {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.lz-popup__chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lz-popup__rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+}
+
+.lz-popup__label {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.lz-popup__description {
+  margin-top: 6px;
+  color: var(--muted-foreground);
+}

@@ -9,11 +9,7 @@ import type { Fix } from './flight';
 import type { DerivedPoint } from './flight';
 import { haversineDistanceM, pickAltitude } from './units';
 
-export type FlightPhase =
-  | 'initial-climb'
-  | 'motor'
-  | 'cruise'
-  | 'final-glide';
+export type FlightPhase = 'initial-climb' | 'motor' | 'cruise' | 'final-glide';
 
 // --- Initial-climb detection ---
 //
@@ -117,7 +113,12 @@ export function computeFlightPhases(
 
     const agl = derived[i].aglM;
     const belowAgl = agl !== null && agl < FINAL_GLIDE_MAX_AGL_M;
-    const distM = haversineDistanceM(fixes[i].latitude, fixes[i].longitude, lastLat, lastLon);
+    const distM = haversineDistanceM(
+      fixes[i].latitude,
+      fixes[i].longitude,
+      lastLat,
+      lastLon,
+    );
 
     if (belowAgl && distM < FINAL_GLIDE_MAX_RADIUS_M) {
       phases[i] = 'final-glide';
@@ -289,7 +290,12 @@ function toDegrees(rad: number): number {
 }
 
 /** Great-circle initial bearing from (lat1,lon1) to (lat2,lon2), in degrees. */
-function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): number {
+function bearingDeg(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
   const phi1 = toRadians(lat1);
   const phi2 = toRadians(lat2);
   const dLambda = toRadians(lon2 - lon1);
@@ -311,8 +317,18 @@ function turnRateDegPerSec(fixes: Fix[], i: number): number {
   const dtSec = (next.timeMs - prev.timeMs) / 1000;
   if (dtSec <= 0) return 0;
 
-  const b1 = bearingDeg(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
-  const b2 = bearingDeg(curr.latitude, curr.longitude, next.latitude, next.longitude);
+  const b1 = bearingDeg(
+    prev.latitude,
+    prev.longitude,
+    curr.latitude,
+    curr.longitude,
+  );
+  const b2 = bearingDeg(
+    curr.latitude,
+    curr.longitude,
+    next.latitude,
+    next.longitude,
+  );
   let delta = b2 - b1;
   while (delta > 180) delta -= 360;
   while (delta < -180) delta += 360;

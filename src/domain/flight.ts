@@ -59,3 +59,40 @@ export type IgcParseError =
   | { kind: 'invalid-format'; message: string }
   | { kind: 'empty-file'; message: string }
   | { kind: 'unknown'; message: string };
+
+/** First/last recorded fix times, in epoch ms. */
+export interface FlightTimeBounds {
+  firstFixTimeMs: number;
+  lastFixTimeMs: number;
+}
+
+export function flightTimeBounds(flight: NormalizedFlight): FlightTimeBounds {
+  const { fixes } = flight;
+  return {
+    firstFixTimeMs: fixes[0].timeMs,
+    lastFixTimeMs: fixes[fixes.length - 1].timeMs,
+  };
+}
+
+/**
+ * Binary search for the index of the fix at/just-before `timeMs`.
+ * Returns -1 when there is no flight or it has no fixes.
+ */
+export function findCurrentFixIndex(
+  flight: NormalizedFlight | null,
+  timeMs: number,
+): number {
+  if (!flight || flight.fixes.length === 0) return -1;
+  const { fixes } = flight;
+  let lo = 0;
+  let hi = fixes.length - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fixes[mid].timeMs <= timeMs) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return lo;
+}

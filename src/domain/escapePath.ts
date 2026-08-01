@@ -13,9 +13,12 @@ import type { ElevationGrid } from './elevation';
 import { sampleElevation } from './elevation';
 import type { LandingZone } from './landingZone';
 import type { LocalCheckParams } from './localCheck';
-import { haversineDistanceKm } from './units';
+import { classifyArrival, type LocalStatus } from './arrival';
+import { haversineDistanceM } from './units';
 
-export type EscapePathStatus = 'in-local' | 'in-local-marginal' | 'out-of-local';
+/** @deprecated Use `LocalStatus` from `domain/arrival`. Kept as an alias so
+ * existing `EscapePath['status']` consumers keep compiling. */
+export type EscapePathStatus = LocalStatus;
 
 export interface EscapePathWaypoint {
   lat: number;
@@ -43,7 +46,7 @@ export interface EscapePath {
   totalDistanceM: number;
   arrivalHeightM: number;
   minMarginM: number;
-  status: EscapePathStatus;
+  status: LocalStatus;
 }
 
 export interface EscapePathInputs {
@@ -86,15 +89,21 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
   } = inputs;
 
   const lzElevM =
-    lz.elevationM ?? (() => {
+    lz.elevationM ??
+    (() => {
       const v = sampleElevation(grid, lz.latitude, lz.longitude);
       return isNaN(v) ? 0 : v;
     })();
 
-  const totalDistanceM =
-    haversineDistanceKm(sourceLat, sourceLon, lz.latitude, lz.longitude) * 1000;
+  const totalDistanceM = haversineDistanceM(
+    sourceLat,
+    sourceLon,
+    lz.latitude,
+    lz.longitude,
+  );
 
-  const arrivalHeightM = sourceAltM - lzElevM - totalDistanceM / params.workingLD;
+  const arrivalHeightM =
+    sourceAltM - lzElevM - totalDistanceM / params.workingLD;
 
   const waypoints: EscapePathWaypoint[] = [
     { lat: sourceLat, lon: sourceLon, distFromSourceM: 0 },
@@ -113,7 +122,7 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
     // the LZ in the same direction; we still store the profile point so
     // the chart can render the context band, but the terrain-clearance
     // min-margin only considers the in-line source→LZ portion (t ≤ 1).
-    const t = (s / steps);
+    const t = s / steps;
     const lat = sourceLat + t * (lz.latitude - sourceLat);
     const lon = sourceLon + t * (lz.longitude - sourceLon);
     const distFromSourceM = t * totalDistanceM;
@@ -135,23 +144,11 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
 
   if (minMarginM === Infinity) minMarginM = 0;
 
-  // Status convention (matches localCheck + arrival-height labels):
-  // pure arrival-vs-buffer geometry, no terrain gating. The terrain
-  // profile is still visualised in the mini-chart, so pilots can still
-  // spot a glide plane that clips the ground — but the status colour is
-  // decided solely by "would we arrive above LZ ground, above safety
-  // buffer, or below?" See spec §status-classification.
-  //   green  ← arrivalHeightM > arrivalHeightM param
-  //   yellow ← 0 < arrivalHeightM ≤ arrivalHeightM param
-  //   red    ← arrivalHeightM ≤ 0
-  let status: EscapePathStatus;
-  if (arrivalHeightM <= 0) {
-    status = 'out-of-local';
-  } else if (arrivalHeightM <= params.arrivalHeightM) {
-    status = 'in-local-marginal';
-  } else {
-    status = 'in-local';
-  }
+  // Status uses the shared arrival bands (see `arrival.ts`): pure
+  // arrival-vs-buffer geometry, no terrain gating. The terrain profile is
+  // still visualised in the mini-chart, so pilots can spot a glide plane
+  // that clips the ground.
+  const status = classifyArrival(arrivalHeightM, params.arrivalHeightM);
 
   return {
     sourceFixIndex,

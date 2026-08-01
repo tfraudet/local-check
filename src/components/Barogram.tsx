@@ -8,14 +8,20 @@ import { STATUS_COLORS, getSegmentColor } from '../domain/phaseColors';
 
 const DOWNSAMPLE_THRESHOLD = 5000;
 
-function buildBarogramColors(times: number[], samples: SampledPoint[]): string[] {
-  const colors: string[] = new Array(times.length).fill(STATUS_COLORS['default']);
+function buildBarogramColors(
+  times: number[],
+  samples: SampledPoint[],
+): string[] {
+  const colors: string[] = new Array(times.length).fill(
+    STATUS_COLORS['default'],
+  );
   let sIdx = 0;
   for (let i = 0; i < times.length; i++) {
     const tMs = times[i] * 1000;
     while (
       sIdx < samples.length - 1 &&
-      Math.abs(samples[sIdx + 1].timeMs - tMs) < Math.abs(samples[sIdx].timeMs - tMs)
+      Math.abs(samples[sIdx + 1].timeMs - tMs) <
+        Math.abs(samples[sIdx].timeMs - tMs)
     ) {
       sIdx++;
     }
@@ -111,7 +117,10 @@ export function Barogram() {
       : [times, altitudes];
 
     const samples = localCheckResult?.samples ?? null;
-    const colors = samples && samples.length > 0 ? buildBarogramColors(times, samples) : null;
+    const colors =
+      samples && samples.length > 0
+        ? buildBarogramColors(times, samples)
+        : null;
 
     if (uplotRef.current) {
       uplotRef.current.destroy();
@@ -162,34 +171,38 @@ export function Barogram() {
             }
           },
         ],
-        ...(colors ? { draw: [
-              (u: uPlot) => {
-                const ctx = u.ctx;
-                const { left, top, width: bw, height: bh } = u.bbox;
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(left, top, bw, bh);
-                ctx.clip();
-                ctx.lineWidth = 2 * uPlot.pxRatio;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                for (let i = 0; i < times.length - 1; i++) {
-                  const a0 = altitudes[i];
-                  const a1 = altitudes[i + 1];
-                  if (a0 == null || a1 == null) continue;
-                  const x0 = u.valToPos(times[i], 'x', true);
-                  const y0 = u.valToPos(a0, 'y', true);
-                  const x1 = u.valToPos(times[i + 1], 'x', true);
-                  const y1 = u.valToPos(a1, 'y', true);
+        ...(colors
+          ? {
+              draw: [
+                (u: uPlot) => {
+                  const ctx = u.ctx;
+                  const { left, top, width: bw, height: bh } = u.bbox;
+                  ctx.save();
                   ctx.beginPath();
-                  ctx.strokeStyle = colors[i];
-                  ctx.moveTo(x0, y0);
-                  ctx.lineTo(x1, y1);
-                  ctx.stroke();
-                }
-                ctx.restore();
-              },
-            ] } : {}),
+                  ctx.rect(left, top, bw, bh);
+                  ctx.clip();
+                  ctx.lineWidth = 2 * uPlot.pxRatio;
+                  ctx.lineCap = 'round';
+                  ctx.lineJoin = 'round';
+                  for (let i = 0; i < times.length - 1; i++) {
+                    const a0 = altitudes[i];
+                    const a1 = altitudes[i + 1];
+                    if (a0 == null || a1 == null) continue;
+                    const x0 = u.valToPos(times[i], 'x', true);
+                    const y0 = u.valToPos(a0, 'y', true);
+                    const x1 = u.valToPos(times[i + 1], 'x', true);
+                    const y1 = u.valToPos(a1, 'y', true);
+                    ctx.beginPath();
+                    ctx.strokeStyle = colors[i];
+                    ctx.moveTo(x0, y0);
+                    ctx.lineTo(x1, y1);
+                    ctx.stroke();
+                  }
+                  ctx.restore();
+                },
+              ],
+            }
+          : {}),
       },
       axes: [
         {

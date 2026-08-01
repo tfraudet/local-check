@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { runLocalCheck, DEFAULT_LOCAL_CHECK_PARAMS } from '../../src/domain/localCheck';
+import {
+  runLocalCheck,
+  DEFAULT_LOCAL_CHECK_PARAMS,
+} from '../../src/domain/localCheck';
 import type { LocalCheckInput } from '../../src/domain/localCheck';
 import type { Fix } from '../../src/domain/flight';
 import type { ElevationGrid } from '../../src/domain/elevation';
@@ -18,7 +21,12 @@ const FLAT_GRID: ElevationGrid = {
   crs: 'EPSG:4326',
 };
 
-function fix(timeMs: number, lat: number, lon: number, pressureAltitudeM: number): Fix {
+function fix(
+  timeMs: number,
+  lat: number,
+  lon: number,
+  pressureAltitudeM: number,
+): Fix {
   return {
     timeMs,
     latitude: lat,
@@ -86,7 +94,12 @@ describe('runLocalCheck', () => {
   it('classifies low-altitude fix far from LZ as out-of-local', () => {
     // LZ is at 6.01°E, glider is at 6.0°E and only 200 m altitude.
     // required = 0 + 300 + dist/20 > 200 → out-of-local
-    const lzFar: LandingZone = { ...NEARBY_LZ, latitude: 45.0, longitude: 7.0, elevationM: 0 };
+    const lzFar: LandingZone = {
+      ...NEARBY_LZ,
+      latitude: 45.0,
+      longitude: 7.0,
+      elevationM: 0,
+    };
     const fixes = Array.from({ length: 5 }, (_, i) =>
       fix(i * PARAMS.timeStepS * 1000, 43.0, 6.0, 200),
     );
@@ -99,13 +112,20 @@ describe('runLocalCheck', () => {
       params: PARAMS,
     };
     const result = runLocalCheck(input);
-    const outSamples = result.samples.filter((s) => s.status === 'out-of-local');
+    const outSamples = result.samples.filter(
+      (s) => s.status === 'out-of-local',
+    );
     expect(outSamples.length).toBeGreaterThan(0);
     expect(result.stats.outOfLocalTimeMs).toBeGreaterThan(0);
   });
 
   it('computes missingHeightM as positive value when out of local', () => {
-    const lzFar: LandingZone = { ...NEARBY_LZ, latitude: 45.0, longitude: 7.0, elevationM: 0 };
+    const lzFar: LandingZone = {
+      ...NEARBY_LZ,
+      latitude: 45.0,
+      longitude: 7.0,
+      elevationM: 0,
+    };
     const fixes = [fix(0, 43.0, 6.0, 200)];
     const input: LocalCheckInput = {
       fixes,

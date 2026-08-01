@@ -1,11 +1,6 @@
 import { AlertCircle, X } from 'lucide-react';
 import { useFlightStore } from '../state/useFlightStore';
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from './ui/alert';
+import { Alert, AlertAction, AlertDescription, AlertTitle } from './ui/alert';
 import { Button } from './ui/button';
 
 /**
@@ -33,9 +28,7 @@ export function ServiceErrorBanner() {
           <AlertTitle>{err.title}</AlertTitle>
           <AlertDescription>
             <p>{err.message}</p>
-            {err.hint && (
-              <p className="mt-1 text-xs opacity-80">{err.hint}</p>
-            )}
+            {err.hint && <p className="mt-1 text-xs opacity-80">{err.hint}</p>}
           </AlertDescription>
           <AlertAction>
             <Button

@@ -14,7 +14,9 @@ export function ColorLegend() {
 
   return (
     <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{t('localCheck.legend.title')}</p>
+      <p className="text-xs font-medium text-muted-foreground">
+        {t('localCheck.legend.title')}
+      </p>
       <ul className="space-y-0.5">
         {LEGEND_ITEMS.map(({ color, key }) => (
           <li key={key} className="flex items-center gap-2 text-xs">

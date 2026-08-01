@@ -90,9 +90,10 @@ describe('computeEscapePath', () => {
       );
     }
     expect(path.profile[0].distFromSourceM).toBe(0);
-    expect(
-      path.profile[path.profile.length - 1].distFromSourceM,
-    ).toBeCloseTo(path.totalDistanceM, 3);
+    expect(path.profile[path.profile.length - 1].distFromSourceM).toBeCloseTo(
+      path.totalDistanceM,
+      3,
+    );
   });
 
   it('flags marginal status when arrival height is just above the target', () => {

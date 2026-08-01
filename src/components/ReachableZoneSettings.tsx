@@ -126,7 +126,9 @@ export function ReachableZoneSettings() {
               step={10}
               value={reachableZoneParams.diameterKm}
               onChange={(e) =>
-                setReachableZoneParams({ diameterKm: parseFloat(e.target.value) })
+                setReachableZoneParams({
+                  diameterKm: parseFloat(e.target.value),
+                })
               }
               className="h-1 w-full cursor-pointer accent-primary"
               aria-label={t('reachableZone.diameter')}

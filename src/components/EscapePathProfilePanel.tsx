@@ -2,50 +2,13 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
-import { useFlightStore, findCurrentFixIndex } from '../state/useFlightStore';
+import { useFlightStore } from '../state/useFlightStore';
+import { findCurrentFixIndex } from '../domain/flight';
 import { useTheme } from '../hooks/useTheme';
 import { computeEscapePath, type EscapePath } from '../domain/escapePath';
-import { reachableAltitudeAt } from '../domain/glide';
-import { haversineDistanceKm, pickAltitude } from '../domain/units';
+import { pickBestLandingZone } from '../domain/arrival';
+import { haversineDistanceM, pickAltitude } from '../domain/units';
 import { STATUS_COLORS } from '../domain/phaseColors';
-import type { LandingZone } from '../domain/landingZone';
-
-/**
- * Pick the "best" LZ from the pilot's current position: the one with the
- * highest arrival height above ground. When reachable LZs exist, this is
- * the one with the most margin over its ground; when everything is
- * out-of-local, it's the least-negative — semantically "the LZ closest to
- * being reachable", which is what a pilot debriefing wants.
- *
- * Uses the same math as the on-map arrival-height labels so the escape
- * path always points at the LZ the pilot sees as the greenest / least-red
- * (fixes an earlier mismatch where the sample-level bestLzId lagged the
- * cursor by up to `timeStepS` seconds).
- */
-function pickBestLzForEscape(
-  fromLat: number,
-  fromLon: number,
-  fromAltM: number,
-  workingLD: number,
-  landingZones: LandingZone[],
-): LandingZone | null {
-  let best: { lz: LandingZone; heightAboveGroundM: number } | null = null;
-  for (const lz of landingZones) {
-    const arrivalAltM = reachableAltitudeAt(
-      fromLat,
-      fromLon,
-      fromAltM,
-      lz.latitude,
-      lz.longitude,
-      workingLD,
-    );
-    const heightAboveGroundM = arrivalAltM - (lz.elevationM ?? 0);
-    if (!best || heightAboveGroundM > best.heightAboveGroundM) {
-      best = { lz, heightAboveGroundM };
-    }
-  }
-  return best?.lz ?? null;
-}
 
 const STATUS_COLOR_FOR_PATH: Record<EscapePath['status'], string> = {
   'in-local': STATUS_COLORS['in-local'],
@@ -89,20 +52,24 @@ export function EscapePathProfilePanel() {
     const altM = pickAltitude(fix, altitudeSource);
     if (altM === null) return null;
 
-    const lz = pickBestLzForEscape(
+    const best = pickBestLandingZone(
       fix.latitude,
       fix.longitude,
       altM,
-      localCheckParams.workingLD,
       landingZones,
+      localCheckParams.workingLD,
     );
-    if (!lz) return null;
+    if (!best) return null;
+    const lz = best.lz;
 
     // Extend the profile 20% beyond the source→LZ distance so the chart
     // always shows some post-LZ context, scaled to the escape length.
-    const targetDistM =
-      haversineDistanceKm(fix.latitude, fix.longitude, lz.latitude, lz.longitude) *
-      1000;
+    const targetDistM = haversineDistanceM(
+      fix.latitude,
+      fix.longitude,
+      lz.latitude,
+      lz.longitude,
+    );
     return computeEscapePath({
       sourceFixIndex: idx,
       sourceLat: fix.latitude,
@@ -142,7 +109,8 @@ export function EscapePathProfilePanel() {
     const { axisStroke, gridStroke } = getChartColors(theme === 'dark');
     const stroke = STATUS_COLOR_FOR_PATH[escapePath.status];
 
-    const arrivalTargetAltM = escapePath.lzElevM + localCheckParams.arrivalHeightM;
+    const arrivalTargetAltM =
+      escapePath.lzElevM + localCheckParams.arrivalHeightM;
     const lzDistKm = escapePath.totalDistanceM / 1000;
 
     const opts: uPlot.Options = {

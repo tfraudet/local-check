@@ -12,11 +12,19 @@
 
 import { fromArrayBuffer } from 'geotiff';
 import type { ElevationGrid, ElevationCrs } from '../domain/elevation';
-import { bufferBbox, ElevationApiError, type ProgressCallback } from './elevationApi';
+import { ElevationApiError, type ProgressCallback } from './elevationApi';
+import { bufferBbox } from '../domain/bbox';
 
-const OT_API_KEY = import.meta.env.VITE_OPENTOPOGRAPHY_API_KEY as string | undefined;
+const OT_API_KEY = import.meta.env.VITE_OPENTOPOGRAPHY_API_KEY as
+  string | undefined;
 
-const SUPPORTED_DEMTYPES = ['EU_DTM', 'SRTMGL1', 'SRTMGL3', 'COP30', 'COP90'] as const;
+const SUPPORTED_DEMTYPES = [
+  'EU_DTM',
+  'SRTMGL1',
+  'SRTMGL3',
+  'COP30',
+  'COP90',
+] as const;
 type Demtype = (typeof SUPPORTED_DEMTYPES)[number];
 
 const DEMTYPE: Demtype = (() => {
@@ -67,7 +75,9 @@ export async function fetchElevationGridFromOpenTopography(
   const response = await fetch(url);
 
   if (import.meta.env.DEV) {
-    console.log(`[elevationApi:ot] ← HTTP ${response.status} · ${(performance.now() - startedAt).toFixed(0)}ms`);
+    console.log(
+      `[elevationApi:ot] ← HTTP ${response.status} · ${(performance.now() - startedAt).toFixed(0)}ms`,
+    );
   }
 
   if (!response.ok) {
@@ -80,7 +90,10 @@ export async function fetchElevationGridFromOpenTopography(
   }
 
   const contentType = response.headers.get('content-type') ?? '';
-  if (!contentType.includes('image/tiff') && !contentType.includes('application/octet-stream')) {
+  if (
+    !contentType.includes('image/tiff') &&
+    !contentType.includes('application/octet-stream')
+  ) {
     const body = await response.text().catch(() => '');
     throw new ElevationApiError(
       `Unexpected content-type "${contentType}" from OpenTopography${body ? `: ${body.slice(0, 200)}` : ''}`,
@@ -114,7 +127,7 @@ export async function fetchElevationGridFromOpenTopography(
   const ySpanM =
     crs === 'EPSG:3035'
       ? maxY - minY
-      : ((maxY - minY) * Math.PI) / 180 * 6_371_000;
+      : (((maxY - minY) * Math.PI) / 180) * 6_371_000;
   const resolutionM = Math.round(ySpanM / Math.max(rows - 1, 1));
 
   onProgress?.({ loaded: 1, total: 1 });

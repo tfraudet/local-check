@@ -36,9 +36,8 @@ export function AppSidebar() {
   const [activeNav, setActiveNav] = useState<NavKey>('flight');
   const { setOpen } = useSidebar();
 
-  const primaryNavItems: { key: NavKey; label: string; icon: typeof Plane }[] = [
-    { key: 'flight', label: t('upload.menuGroup'), icon: Plane },
-  ];
+  const primaryNavItems: { key: NavKey; label: string; icon: typeof Plane }[] =
+    [{ key: 'flight', label: t('upload.menuGroup'), icon: Plane }];
   const footerNavItems: { key: NavKey; label: string; icon: typeof Plane }[] = [
     { key: 'settings', label: t('localCheck.title'), icon: Settings },
   ];
@@ -286,7 +285,9 @@ function FlightPanel() {
 }
 
 function ResetSettingsButton() {
-  const resetSettingsToDefaults = useFlightStore((s) => s.resetSettingsToDefaults);
+  const resetSettingsToDefaults = useFlightStore(
+    (s) => s.resetSettingsToDefaults,
+  );
   return (
     <Button
       variant="outline"

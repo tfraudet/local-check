@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { IgcParseError, NormalizedFlight } from '../domain/flight';
+import { findCurrentFixIndex, flightTimeBounds } from '../domain/flight';
 import type { ElevationGrid } from '../domain/elevation';
-import type { LandingZone, LandingZoneSource } from '../domain/landingZone';
+import type { LandingZone } from '../domain/landingZone';
 import {
   DEFAULT_LOCAL_CHECK_PARAMS,
   type LocalCheckParams,
@@ -18,7 +19,16 @@ import {
 import { computeFlightPhases } from '../domain/flightPhases';
 import { computeDerivedMetrics } from '../domain/derivedMetrics';
 import { detectMotorUse } from '../domain/enlDetection';
-import { haversineDistanceM, pickAltitude } from '../domain/units';
+import { pickAltitude } from '../domain/units';
+import {
+  computeActiveZones,
+  mergeZonesBySource,
+  DEFAULT_SOURCE_TOGGLES,
+  type SourceToggles,
+  type ToggleableSource,
+  type ZonesBySource,
+} from './landingZoneCatalog';
+import { createWorkerChannel } from './workerChannel';
 
 export type PlaybackSpeed = 1 | 2 | 4 | 8 | 16;
 
@@ -52,16 +62,16 @@ export interface FlightStoreState {
   elevationLoadError: string | null;
   /**
    * Effective landing zones — the union of the per-source cache, filtered
-   * by `showOutlandingFields` / `showAuvergneFields`. Rebuilt whenever a
-   * toggle flips or new zones are added.
+   * by `enabledSources`. Rebuilt whenever a toggle flips or new zones are
+   * added.
    */
   landingZones: LandingZone[];
   /** Full per-source catalog kept so we can restore zones when a toggle
    * flips back on without re-fetching. */
-  landingZonesBySource: Partial<Record<LandingZoneSource, LandingZone[]>>;
+  landingZonesBySource: ZonesBySource;
   visibleLandingZoneIds: Set<string>;
-  showOutlandingFields: boolean;
-  showAuvergneFields: boolean;
+  /** Per-source visibility switches for the optional outlanding databases. */
+  enabledSources: SourceToggles;
   /** [minLon, minLat, maxLon, maxLat] of the current map viewport, or null
    * before the map has emitted its first `moveend`. */
   visibleBounds: [number, number, number, number] | null;
@@ -101,8 +111,8 @@ export interface FlightStoreState {
   addLandingZones: (zones: LandingZone[]) => void;
   clearLandingZones: () => void;
   toggleLandingZoneVisibility: (id: string) => void;
-  setShowOutlandingFields: (show: boolean) => void;
-  setShowAuvergneFields: (show: boolean) => void;
+  /** Flip one optional landing-zone database on/off and recompute. */
+  setSourceEnabled: (source: ToggleableSource, enabled: boolean) => void;
   setVisibleBounds: (bbox: [number, number, number, number] | null) => void;
   setLocalCheckParams: (patch: Partial<LocalCheckParams>) => void;
   runLocalCheck: () => Promise<void>;
@@ -134,96 +144,58 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-/** Return true if the given source is currently enabled by its toggle. */
-function isSourceEnabled(
-  source: LandingZoneSource,
-  toggles: { showOutlandingFields: boolean; showAuvergneFields: boolean },
-): boolean {
-  if (source === 'outlanding-alps') return toggles.showOutlandingFields;
-  if (source === 'outlanding-auvergne') return toggles.showAuvergneFields;
-  return true; // 'user' imports are always on
-}
+/** State shared by every "factory defaults" reset. */
+const DEFAULT_SETTINGS = {
+  localCheckParams: DEFAULT_LOCAL_CHECK_PARAMS,
+  enabledSources: DEFAULT_SOURCE_TOGGLES,
+  showEscapePath: true,
+  showReachableZone: false,
+  showArrivalHeights: true,
+  reachableZoneParams: DEFAULT_REACHABLE_ZONE_PARAMS,
+} as const;
 
-/** Merge threshold: two zones from different sources within this distance
- * are treated as the same real-world site. 400 m comfortably covers airfield
- * center-vs-runway-threshold offsets between OpenAIP and .cup imports. */
-const DEDUP_THRESHOLD_M = 400;
+/** State cleared whenever the loaded flight changes. */
+const CLEARED_ON_FLIGHT_CHANGE = {
+  localCheckResult: null,
+  elevationGrid: null,
+  elevationLoadError: null,
+  reachableZoneResult: null,
+} as const;
 
-/**
- * Concatenate the per-source cache into a single active list.
- *
- * OpenAIP entries are authoritative: any zone from another source that lies
- * within `DEDUP_THRESHOLD_M` of an OpenAIP zone is dropped, so imported .cup
- * airfields don't shadow the canonical OpenAIP record.
- */
-function computeActiveZones(
-  bySource: Partial<Record<LandingZoneSource, LandingZone[]>>,
-  toggles: { showOutlandingFields: boolean; showAuvergneFields: boolean },
-): LandingZone[] {
-  const openaipZones = bySource['openaip'] ?? [];
-  const out: LandingZone[] = [...openaipZones];
-
-  for (const [src, arr] of Object.entries(bySource)) {
-    if (!arr || src === 'openaip') continue;
-    if (!isSourceEnabled(src as LandingZoneSource, toggles)) continue;
-    for (const z of arr) {
-      const duplicate = openaipZones.some(
-        (o) => haversineDistanceM(z.latitude, z.longitude, o.latitude, o.longitude) < DEDUP_THRESHOLD_M,
-      );
-      if (!duplicate) out.push(z);
-    }
-  }
-  return out;
-}
-
-/** Binary search for the index of the fix at/just-before `timeMs`. */
-export function findCurrentFixIndex(
-  flight: NormalizedFlight | null,
-  timeMs: number,
-): number {
-  if (!flight || flight.fixes.length === 0) return -1;
-  const { fixes } = flight;
-  let lo = 0;
-  let hi = fixes.length - 1;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (fixes[mid].timeMs <= timeMs) {
-      lo = mid;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return lo;
-}
+/** Slice of the store written to localStorage. */
+type PersistedSettings = Pick<
+  FlightStoreState,
+  | 'localCheckParams'
+  | 'enabledSources'
+  | 'showEscapePath'
+  | 'showReachableZone'
+  | 'showArrivalHeights'
+  | 'reachableZoneParams'
+>;
 
 // ---------------------------------------------------------------------------
-// Worker singleton
+// Workers
 // ---------------------------------------------------------------------------
 
-let worker: Worker | null = null;
-let currentRequestId = 0;
-
-function getWorker(): Worker {
-  if (!worker) {
-    worker = new Worker(new URL('../workers/localCheck.worker.ts', import.meta.url), {
+const localCheckChannel = createWorkerChannel<
+  LocalCheckInput,
+  LocalCheckResult
+>(
+  () =>
+    new Worker(new URL('../workers/localCheck.worker.ts', import.meta.url), {
       type: 'module',
-    });
-  }
-  return worker;
-}
+    }),
+);
 
-let rzWorker: Worker | null = null;
-let rzRequestId = 0;
-
-function getReachableZoneWorker(): Worker {
-  if (!rzWorker) {
-    rzWorker = new Worker(
-      new URL('../workers/reachableZone.worker.ts', import.meta.url),
-      { type: 'module' },
-    );
-  }
-  return rzWorker;
-}
+const reachableZoneChannel = createWorkerChannel<
+  ReachableZoneInputs,
+  ReachableZoneResult
+>(
+  () =>
+    new Worker(new URL('../workers/reachableZone.worker.ts', import.meta.url), {
+      type: 'module',
+    }),
+);
 
 // ---------------------------------------------------------------------------
 // Store
@@ -231,431 +203,347 @@ function getReachableZoneWorker(): Worker {
 
 export const useFlightStore = create<FlightStoreState>()(
   persist(
-    (set, get) => ({
-      // Phase 1 initial state
-      flight: null,
-      loadError: null,
-      currentTimeMs: 0,
-      isPlaying: false,
-      playbackSpeed: 1,
-      altitudeSource: 'pressure',
-
-      // Phase 2 initial state
-      elevationGrid: null,
-      elevationLoadError: null,
-      landingZones: [],
-      landingZonesBySource: {},
-      visibleLandingZoneIds: new Set<string>(),
-      showOutlandingFields: false,
-      showAuvergneFields: false,
-      visibleBounds: null,
-      localCheckParams: DEFAULT_LOCAL_CHECK_PARAMS,
-      localCheckResult: null,
-      isComputingLocalCheck: false,
-
-      serviceErrors: [],
-
-      // Phase 3 initial state
-      showEscapePath: true,
-      showReachableZone: false,
-      showArrivalHeights: true,
-      reachableZoneParams: DEFAULT_REACHABLE_ZONE_PARAMS,
-      reachableZoneResult: null,
-      isComputingReachableZone: false,
-
-      // Phase 1 actions (unchanged)
-      loadFlight: (flight) =>
-        set({
-          flight,
-          loadError: null,
-          currentTimeMs: flight.fixes[0]?.timeMs ?? 0,
-          isPlaying: false,
-          altitudeSource: flight.preferredAltitudeSource,
-          // Clear phase 2 results when a new flight is loaded
-          localCheckResult: null,
-          elevationGrid: null,
-          elevationLoadError: null,
-          reachableZoneResult: null,
-        }),
-
-      setLoadError: (error) => set({ loadError: error, flight: null }),
-
-      clearFlight: () =>
-        set({
-          flight: null,
-          loadError: null,
-          currentTimeMs: 0,
-          isPlaying: false,
-          localCheckResult: null,
-          elevationGrid: null,
-          elevationLoadError: null,
-          reachableZoneResult: null,
-        }),
-
-      play: () => {
-        const { flight, currentTimeMs } = get();
-        if (!flight) return;
-        const lastFixTime = flight.fixes[flight.fixes.length - 1].timeMs;
-        if (currentTimeMs >= lastFixTime) {
-          set({ currentTimeMs: flight.fixes[0].timeMs, isPlaying: true });
-        } else {
-          set({ isPlaying: true });
-        }
-      },
-
-      pause: () => set({ isPlaying: false }),
-
-      reset: () => {
-        const { flight } = get();
-        if (!flight) return;
-        set({ currentTimeMs: flight.fixes[0].timeMs, isPlaying: false });
-      },
-
-      seek: (timeMs) => {
-        const { flight } = get();
-        if (!flight) return;
-        const firstFixTime = flight.fixes[0].timeMs;
-        const lastFixTime = flight.fixes[flight.fixes.length - 1].timeMs;
-        set({ currentTimeMs: clamp(timeMs, firstFixTime, lastFixTime) });
-      },
-
-      stepForward: () => {
+    (set, get) => {
+      /** Jump `delta` fixes from the current position and pause. */
+      const stepBy = (delta: number) => {
         const { flight, currentTimeMs } = get();
         if (!flight) return;
         const index = findCurrentFixIndex(flight, currentTimeMs);
-        const nextIndex = Math.min(index + 1, flight.fixes.length - 1);
-        set({ currentTimeMs: flight.fixes[nextIndex].timeMs, isPlaying: false });
-      },
-
-      stepBackward: () => {
-        const { flight, currentTimeMs } = get();
-        if (!flight) return;
-        const index = findCurrentFixIndex(flight, currentTimeMs);
-        const prevIndex = Math.max(index - 1, 0);
-        set({ currentTimeMs: flight.fixes[prevIndex].timeMs, isPlaying: false });
-      },
-
-      setSpeed: (speed) => set({ playbackSpeed: speed }),
-
-      setAltitudeSource: (source) => set({ altitudeSource: source }),
-
-      tick: (deltaMs) => {
-        const { flight, isPlaying, currentTimeMs, playbackSpeed } = get();
-        if (!flight || !isPlaying) return;
-        const firstFixTime = flight.fixes[0].timeMs;
-        const lastFixTime = flight.fixes[flight.fixes.length - 1].timeMs;
-        const next = currentTimeMs + deltaMs * playbackSpeed;
-        if (next >= lastFixTime) {
-          set({ currentTimeMs: lastFixTime, isPlaying: false });
-        } else {
-          set({ currentTimeMs: clamp(next, firstFixTime, lastFixTime) });
-        }
-      },
-
-      // Phase 2 actions
-      setElevationGrid: (grid) => set({ elevationGrid: grid, elevationLoadError: null }),
-
-      setElevationLoadError: (message) =>
-        set({ elevationLoadError: message, elevationGrid: null }),
-
-      addLandingZones: (zones) => {
-        const {
-          landingZonesBySource,
-          visibleLandingZoneIds,
-          showOutlandingFields,
-          showAuvergneFields,
-        } = get();
-
-        // Merge new zones into the per-source cache, deduped by id.
-        const nextBySource: Partial<Record<LandingZoneSource, LandingZone[]>> = {
-          ...landingZonesBySource,
-        };
-        for (const [src, arr] of Object.entries(nextBySource)) {
-          if (arr) nextBySource[src as LandingZoneSource] = [...arr];
-        }
-        for (const z of zones) {
-          const bucket = nextBySource[z.source] ?? (nextBySource[z.source] = []);
-          const idx = bucket.findIndex((b) => b.id === z.id);
-          if (idx >= 0) bucket[idx] = z;
-          else bucket.push(z);
-        }
-
-        const newVisible = new Set(visibleLandingZoneIds);
-        for (const z of zones) newVisible.add(z.id);
-
+        const nextIndex = clamp(index + delta, 0, flight.fixes.length - 1);
         set({
-          landingZonesBySource: nextBySource,
-          landingZones: computeActiveZones(nextBySource, {
-            showOutlandingFields,
-            showAuvergneFields,
+          currentTimeMs: flight.fixes[nextIndex].timeMs,
+          isPlaying: false,
+        });
+      };
+
+      return {
+        // Phase 1 initial state
+        flight: null,
+        loadError: null,
+        currentTimeMs: 0,
+        isPlaying: false,
+        playbackSpeed: 1,
+        altitudeSource: 'pressure',
+
+        // Phase 2 initial state
+        elevationGrid: null,
+        elevationLoadError: null,
+        landingZones: [],
+        landingZonesBySource: {},
+        visibleLandingZoneIds: new Set<string>(),
+        visibleBounds: null,
+        localCheckResult: null,
+        isComputingLocalCheck: false,
+
+        serviceErrors: [],
+
+        // Phase 3 initial state
+        reachableZoneResult: null,
+        isComputingReachableZone: false,
+
+        ...DEFAULT_SETTINGS,
+
+        // Phase 1 actions
+        loadFlight: (flight) =>
+          set({
+            flight,
+            loadError: null,
+            currentTimeMs: flight.fixes[0]?.timeMs ?? 0,
+            isPlaying: false,
+            altitudeSource: flight.preferredAltitudeSource,
+            ...CLEARED_ON_FLIGHT_CHANGE,
           }),
-          visibleLandingZoneIds: newVisible,
-        });
-      },
 
-      clearLandingZones: () =>
-        set({
-          landingZones: [],
-          landingZonesBySource: {},
-          visibleLandingZoneIds: new Set(),
-          localCheckResult: null,
-        }),
+        setLoadError: (error) => set({ loadError: error, flight: null }),
 
-      toggleLandingZoneVisibility: (id) => {
-        const { visibleLandingZoneIds } = get();
-        const next = new Set(visibleLandingZoneIds);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        set({ visibleLandingZoneIds: next });
-      },
-
-      setShowOutlandingFields: (show) => {
-        const { landingZonesBySource, showAuvergneFields } = get();
-        set({
-          showOutlandingFields: show,
-          landingZones: computeActiveZones(landingZonesBySource, {
-            showOutlandingFields: show,
-            showAuvergneFields,
+        clearFlight: () =>
+          set({
+            flight: null,
+            loadError: null,
+            currentTimeMs: 0,
+            isPlaying: false,
+            ...CLEARED_ON_FLIGHT_CHANGE,
           }),
-        });
-        void get().runLocalCheck();
-      },
 
-      setVisibleBounds: (bbox) => set({ visibleBounds: bbox }),
+        play: () => {
+          const { flight, currentTimeMs } = get();
+          if (!flight) return;
+          const { firstFixTimeMs, lastFixTimeMs } = flightTimeBounds(flight);
+          // Restarting from the end replays from the top.
+          set(
+            currentTimeMs >= lastFixTimeMs
+              ? { currentTimeMs: firstFixTimeMs, isPlaying: true }
+              : { isPlaying: true },
+          );
+        },
 
-      setShowAuvergneFields: (show) => {
-        const { landingZonesBySource, showOutlandingFields } = get();
-        set({
-          showAuvergneFields: show,
-          landingZones: computeActiveZones(landingZonesBySource, {
-            showOutlandingFields,
-            showAuvergneFields: show,
+        pause: () => set({ isPlaying: false }),
+
+        reset: () => {
+          const { flight } = get();
+          if (!flight) return;
+          set({
+            currentTimeMs: flightTimeBounds(flight).firstFixTimeMs,
+            isPlaying: false,
+          });
+        },
+
+        seek: (timeMs) => {
+          const { flight } = get();
+          if (!flight) return;
+          const { firstFixTimeMs, lastFixTimeMs } = flightTimeBounds(flight);
+          set({ currentTimeMs: clamp(timeMs, firstFixTimeMs, lastFixTimeMs) });
+        },
+
+        stepForward: () => stepBy(1),
+
+        stepBackward: () => stepBy(-1),
+
+        setSpeed: (speed) => set({ playbackSpeed: speed }),
+
+        setAltitudeSource: (source) => set({ altitudeSource: source }),
+
+        tick: (deltaMs) => {
+          const { flight, isPlaying, currentTimeMs, playbackSpeed } = get();
+          if (!flight || !isPlaying) return;
+          const { firstFixTimeMs, lastFixTimeMs } = flightTimeBounds(flight);
+          const next = currentTimeMs + deltaMs * playbackSpeed;
+          if (next >= lastFixTimeMs) {
+            set({ currentTimeMs: lastFixTimeMs, isPlaying: false });
+          } else {
+            set({ currentTimeMs: clamp(next, firstFixTimeMs, lastFixTimeMs) });
+          }
+        },
+
+        // Phase 2 actions
+        setElevationGrid: (grid) =>
+          set({ elevationGrid: grid, elevationLoadError: null }),
+
+        setElevationLoadError: (message) =>
+          set({ elevationLoadError: message, elevationGrid: null }),
+
+        addLandingZones: (zones) => {
+          const {
+            landingZonesBySource,
+            visibleLandingZoneIds,
+            enabledSources,
+          } = get();
+
+          const nextBySource = mergeZonesBySource(landingZonesBySource, zones);
+          const nextVisible = new Set(visibleLandingZoneIds);
+          for (const zone of zones) nextVisible.add(zone.id);
+
+          set({
+            landingZonesBySource: nextBySource,
+            landingZones: computeActiveZones(nextBySource, enabledSources),
+            visibleLandingZoneIds: nextVisible,
+          });
+        },
+
+        clearLandingZones: () =>
+          set({
+            landingZones: [],
+            landingZonesBySource: {},
+            visibleLandingZoneIds: new Set(),
+            localCheckResult: null,
           }),
-        });
-        void get().runLocalCheck();
-      },
 
-      setLocalCheckParams: (patch) => {
-        const { localCheckParams } = get();
-        set({ localCheckParams: { ...localCheckParams, ...patch } });
-      },
+        toggleLandingZoneVisibility: (id) => {
+          const next = new Set(get().visibleLandingZoneIds);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          set({ visibleLandingZoneIds: next });
+        },
 
-      runLocalCheck: async () => {
-        const {
-          flight,
-          elevationGrid,
-          landingZones,
-          localCheckParams,
-          altitudeSource,
-        } = get();
+        setSourceEnabled: (source, enabled) => {
+          const { landingZonesBySource, enabledSources } = get();
+          const nextToggles = { ...enabledSources, [source]: enabled };
+          set({
+            enabledSources: nextToggles,
+            landingZones: computeActiveZones(landingZonesBySource, nextToggles),
+          });
+          void get().runLocalCheck();
+        },
 
-        if (!flight || !elevationGrid || landingZones.length === 0) return;
+        setVisibleBounds: (bbox) => set({ visibleBounds: bbox }),
 
-        set({ isComputingLocalCheck: true });
+        setLocalCheckParams: (patch) =>
+          set({ localCheckParams: { ...get().localCheckParams, ...patch } }),
 
-        const motorFlags = detectMotorUse(flight.fixes, localCheckParams.enlThreshold);
-        // Derived metrics stored on `flight` may lack AGL when the elevation
-        // grid loaded after IGC parsing. Re-derive with the grid so
-        // `computeFlightPhases` sees populated `aglM` for initial-climb /
-        // final-glide detection. Kept local so `flight` identity stays
-        // stable (mutating it here would loop the auto-effect hooks).
-        const derivedWithAgl = computeDerivedMetrics(
-          flight.fixes,
-          altitudeSource,
-          elevationGrid,
-        );
-        const phases = computeFlightPhases(
-          flight.fixes,
-          derivedWithAgl,
-          motorFlags,
-          altitudeSource,
-        );
+        runLocalCheck: async () => {
+          const {
+            flight,
+            elevationGrid,
+            landingZones,
+            localCheckParams,
+            altitudeSource,
+          } = get();
 
-        const input: LocalCheckInput = {
-          fixes: flight.fixes,
-          altitudeSource,
-          elevationGrid,
-          landingZones,
-          phases,
-          params: localCheckParams,
-        };
+          if (!flight || !elevationGrid || landingZones.length === 0) return;
 
-        const requestId = ++currentRequestId;
+          set({ isComputingLocalCheck: true });
 
-        return new Promise<void>((resolve) => {
-          const w = getWorker();
+          const motorFlags = detectMotorUse(
+            flight.fixes,
+            localCheckParams.enlThreshold,
+          );
+          // Derived metrics stored on `flight` may lack AGL when the elevation
+          // grid loaded after IGC parsing. Re-derive with the grid so
+          // `computeFlightPhases` sees populated `aglM` for initial-climb /
+          // final-glide detection. Kept local so `flight` identity stays
+          // stable (mutating it here would loop the auto-effect hooks).
+          const derivedWithAgl = computeDerivedMetrics(
+            flight.fixes,
+            altitudeSource,
+            elevationGrid,
+          );
+          const phases = computeFlightPhases(
+            flight.fixes,
+            derivedWithAgl,
+            motorFlags,
+            altitudeSource,
+          );
 
-          const handler = (event: MessageEvent) => {
-            const { data } = event;
-            if (data.requestId !== requestId) return; // stale response
+          const result = await localCheckChannel.run({
+            fixes: flight.fixes,
+            altitudeSource,
+            elevationGrid,
+            landingZones,
+            phases,
+            params: localCheckParams,
+          });
 
-            w.removeEventListener('message', handler);
-            set({ isComputingLocalCheck: false });
+          // `null` means a newer request superseded this one — leave both the
+          // result and the spinner to the newest request.
+          if (result === null && localCheckChannel.isLatestPending()) return;
 
-            if (data.type === 'success') {
-              set({ localCheckResult: data.result });
-            }
-            resolve();
-          };
+          set({
+            isComputingLocalCheck: false,
+            ...(result !== null ? { localCheckResult: result } : {}),
+          });
+        },
 
-          w.addEventListener('message', handler);
-          w.postMessage({ type: 'run', requestId, input });
-        });
-      },
+        pushServiceError: (err) => {
+          const id = `${err.service}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          // De-duplicate by (service + title) so a service failing repeatedly
+          // (e.g. retry attempts) doesn't stack identical banners.
+          const withoutDup = get().serviceErrors.filter(
+            (e) => !(e.service === err.service && e.title === err.title),
+          );
+          set({
+            serviceErrors: [
+              ...withoutDup,
+              { ...err, id, createdAt: Date.now() },
+            ],
+          });
+        },
 
-      pushServiceError: (err) => {
-        const id = `${err.service}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        // De-duplicate by (service + title) so a service failing repeatedly
-        // (e.g. retry attempts) doesn't stack identical banners.
-        const { serviceErrors } = get();
-        const withoutDup = serviceErrors.filter(
-          (e) => !(e.service === err.service && e.title === err.title),
-        );
-        set({
-          serviceErrors: [
-            ...withoutDup,
-            { ...err, id, createdAt: Date.now() },
-          ],
-        });
-      },
+        dismissServiceError: (id) =>
+          set({
+            serviceErrors: get().serviceErrors.filter((e) => e.id !== id),
+          }),
 
-      dismissServiceError: (id) => {
-        const { serviceErrors } = get();
-        set({ serviceErrors: serviceErrors.filter((e) => e.id !== id) });
-      },
+        // Phase 3 actions
+        setShowEscapePath: (visible) => set({ showEscapePath: visible }),
 
-      // Phase 3 actions
-      setShowEscapePath: (visible) => set({ showEscapePath: visible }),
+        setShowReachableZone: (visible) =>
+          set({
+            showReachableZone: visible,
+            ...(visible ? {} : { reachableZoneResult: null }),
+          }),
 
-      setShowReachableZone: (visible) => {
-        set({ showReachableZone: visible });
-        if (!visible) set({ reachableZoneResult: null });
-      },
+        setShowArrivalHeights: (visible) =>
+          set({ showArrivalHeights: visible }),
 
-      setShowArrivalHeights: (visible) => set({ showArrivalHeights: visible }),
+        setReachableZoneParams: (patch) =>
+          set({
+            reachableZoneParams: { ...get().reachableZoneParams, ...patch },
+          }),
 
-      setReachableZoneParams: (patch) => {
-        const { reachableZoneParams } = get();
-        set({ reachableZoneParams: { ...reachableZoneParams, ...patch } });
-      },
+        clearReachableZone: () => set({ reachableZoneResult: null }),
 
-      clearReachableZone: () => set({ reachableZoneResult: null }),
+        resetSettingsToDefaults: () => {
+          set({
+            ...DEFAULT_SETTINGS,
+            landingZones: computeActiveZones(
+              get().landingZonesBySource,
+              DEFAULT_SETTINGS.enabledSources,
+            ),
+            reachableZoneResult: null,
+          });
+          void get().runLocalCheck();
+        },
 
-      resetSettingsToDefaults: () => {
-        const { landingZonesBySource } = get();
-        const nextToggles = {
-          showOutlandingFields: false,
-          showAuvergneFields: false,
-        };
-        set({
-          localCheckParams: DEFAULT_LOCAL_CHECK_PARAMS,
-          showOutlandingFields: false,
-          showAuvergneFields: false,
-          showEscapePath: true,
-          showReachableZone: false,
-          showArrivalHeights: true,
-          reachableZoneParams: DEFAULT_REACHABLE_ZONE_PARAMS,
-          landingZones: computeActiveZones(landingZonesBySource, nextToggles),
-          reachableZoneResult: null,
-        });
-        void get().runLocalCheck();
-      },
+        runReachableZone: async () => {
+          const {
+            flight,
+            currentTimeMs,
+            elevationGrid,
+            localCheckParams,
+            reachableZoneParams,
+            altitudeSource,
+            showReachableZone,
+          } = get();
 
-      runReachableZone: async () => {
-        const {
-          flight,
-          currentTimeMs,
-          elevationGrid,
-          localCheckParams,
-          reachableZoneParams,
-          altitudeSource,
-          showReachableZone,
-        } = get();
+          if (!showReachableZone || !flight || !elevationGrid) return;
 
-        if (!showReachableZone || !flight || !elevationGrid) return;
+          // Locate the fix closest to the current replay time.
+          const idx = findCurrentFixIndex(flight, currentTimeMs);
+          if (idx < 0) return;
+          const fix = flight.fixes[idx];
+          const altM = pickAltitude(fix, altitudeSource);
+          if (altM === null) return;
 
-        const fixes = flight.fixes;
-        if (fixes.length === 0) return;
+          set({ isComputingReachableZone: true });
 
-        // Locate the fix closest to the current replay time.
-        const idx = findCurrentFixIndex(flight, currentTimeMs);
-        if (idx < 0) return;
-        const fix = fixes[idx];
-        const altM = pickAltitude(fix, altitudeSource);
-        if (altM === null) return;
+          const result = await reachableZoneChannel.run({
+            sourceLat: fix.latitude,
+            sourceLon: fix.longitude,
+            sourceAltM: altM,
+            grid: elevationGrid,
+            params: localCheckParams,
+            zoneParams: reachableZoneParams,
+          });
 
-        set({ isComputingReachableZone: true });
+          // Stale response: the newest request is still running, so neither
+          // the result nor the spinner belongs to us.
+          if (result === null && reachableZoneChannel.isLatestPending()) return;
 
-        const input: ReachableZoneInputs = {
-          sourceLat: fix.latitude,
-          sourceLon: fix.longitude,
-          sourceAltM: altM,
-          grid: elevationGrid,
-          params: localCheckParams,
-          zoneParams: reachableZoneParams,
-        };
-
-        const requestId = ++rzRequestId;
-
-        return new Promise<void>((resolve) => {
-          const w = getReachableZoneWorker();
-
-          const handler = (event: MessageEvent) => {
-            const { data } = event;
-            if (data.requestId !== requestId) return;
-
-            w.removeEventListener('message', handler);
-
-            // Only clear the "computing" flag if this response corresponds
-            // to the newest request — otherwise a stale, faster response
-            // would prematurely stop the spinner while the latest work is
-            // still in-flight.
-            if (requestId === rzRequestId) {
-              set({ isComputingReachableZone: false });
-            }
-
-            if (data.type === 'success') {
-              // Guard against a stale response overwriting a fresher one.
-              if (requestId === rzRequestId) {
-                set({ reachableZoneResult: data.result });
-              }
-            }
-            resolve();
-          };
-
-          w.addEventListener('message', handler);
-          w.postMessage({ type: 'run', requestId, input });
-        });
-      },
-    }),
+          set({
+            isComputingReachableZone: false,
+            ...(result !== null ? { reachableZoneResult: result } : {}),
+          });
+        },
+      };
+    },
     {
       name: 'local-check.params.v1',
+      version: 2,
       // Only persist the computation parameters; everything else is transient.
       partialize: (state) => ({
         localCheckParams: state.localCheckParams,
-        showOutlandingFields: state.showOutlandingFields,
-        showAuvergneFields: state.showAuvergneFields,
+        enabledSources: state.enabledSources,
         showEscapePath: state.showEscapePath,
         showReachableZone: state.showReachableZone,
         showArrivalHeights: state.showArrivalHeights,
         reachableZoneParams: state.reachableZoneParams,
       }),
+      // v1 stored the two outlanding databases as standalone booleans.
+      migrate: (persisted, version) => {
+        const legacy = (persisted ?? {}) as PersistedSettings & {
+          showOutlandingFields?: boolean;
+          showAuvergneFields?: boolean;
+        };
+        if (version >= 2) return legacy;
+        const { showOutlandingFields, showAuvergneFields, ...rest } = legacy;
+        return {
+          ...rest,
+          enabledSources: {
+            'outlanding-alps': showOutlandingFields ?? false,
+            'outlanding-auvergne': showAuvergneFields ?? false,
+          },
+        };
+      },
     },
   ),
 );
-
-// ---------------------------------------------------------------------------
-// Debug: log the landingZones slice whenever its reference changes.
-// Gated by DEV so production users don't get a console spammed with zones.
-// ---------------------------------------------------------------------------
-if (import.meta.env.DEV) {
-  let prevLandingZones: LandingZone[] | undefined;
-  useFlightStore.subscribe((state) => {
-    if (state.landingZones === prevLandingZones) return;
-    prevLandingZones = state.landingZones;
-    console.log(
-      `[flightStore] landingZones updated (${state.landingZones.length}):`,
-      state.landingZones,
-    );
-  });
-}

@@ -17,8 +17,12 @@ import type {
   LandingZone,
   LandingZoneSource,
 } from './landingZone';
-import { difficultyLevelFromTag, lzId } from './landingZone';
-import { haversineDistanceKm } from './units';
+import {
+  difficultyLevelFromTag,
+  lzId,
+  INTRA_SOURCE_DEDUP_THRESHOLD_M,
+} from './landingZone';
+import { haversineDistanceM } from './units';
 
 export interface CupParseSuccess {
   ok: true;
@@ -36,7 +40,10 @@ export type CupParseResult = CupParseSuccess | CupParseError;
 const LANDABLE_STYLES = new Set([2, 3, 4, 5]);
 const DIFFICULTY_REGEX = /\{(A|F|E|ZA|LA|M|D|TD|VD)\}/i;
 
-export function parseCup(text: string, source: LandingZoneSource = 'user'): CupParseResult {
+export function parseCup(
+  text: string,
+  source: LandingZoneSource = 'user',
+): CupParseResult {
   const lines = text.split(/\r?\n/);
   const zones: LandingZone[] = [];
   const errors: Array<{ line: number; message: string }> = [];
@@ -57,12 +64,27 @@ export function parseCup(text: string, source: LandingZoneSource = 'user'): CupP
 
     const cols = parseCsvRow(raw);
     if (cols.length < 6) {
-      errors.push({ line: i + 1, message: `Expected ≥6 columns, got ${cols.length}` });
+      errors.push({
+        line: i + 1,
+        message: `Expected ≥6 columns, got ${cols.length}`,
+      });
       continue;
     }
 
     // Columns: name, code, country, lat, lon, elev, style, rwdir, rwlen, freq, desc
-    const [nameRaw, codeRaw, countryRaw, latRaw, lonRaw, elevRaw, styleRaw, rwdirRaw, , , descRaw] = cols;
+    const [
+      nameRaw,
+      codeRaw,
+      countryRaw,
+      latRaw,
+      lonRaw,
+      elevRaw,
+      styleRaw,
+      rwdirRaw,
+      ,
+      ,
+      descRaw,
+    ] = cols;
 
     const name = nameRaw?.trim() || '?';
     const code = codeRaw?.trim() || null;
@@ -70,7 +92,10 @@ export function parseCup(text: string, source: LandingZoneSource = 'user'): CupP
     const lat = parseCupLatitude(latRaw?.trim() ?? '');
     const lon = parseCupLongitude(lonRaw?.trim() ?? '');
     if (lat === null || lon === null) {
-      errors.push({ line: i + 1, message: `Invalid coordinates: "${latRaw}" / "${lonRaw}"` });
+      errors.push({
+        line: i + 1,
+        message: `Invalid coordinates: "${latRaw}" / "${lonRaw}"`,
+      });
       continue;
     }
 
@@ -79,7 +104,8 @@ export function parseCup(text: string, source: LandingZoneSource = 'user'): CupP
     const runwayHeading = parseRunwayHeading(rwdirRaw?.trim() ?? '');
     const description = descRaw?.trim() || null;
     const tag = extractDifficulty(description);
-    const isAirfield = (style !== null && [2, 3, 5].includes(style)) || tag === 'A';
+    const isAirfield =
+      (style !== null && [2, 3, 5].includes(style)) || tag === 'A';
 
     // Only import usable LZs (drop pure waypoints / unknown)
     if (style !== null && !LANDABLE_STYLES.has(style) && style !== 0) continue;
@@ -179,12 +205,13 @@ function extractDifficulty(desc: string | null): AlpesDifficultyTag | null {
  * explicit (non-default) difficulty level over one that defaulted to green.
  */
 function deduplicateZones(zones: LandingZone[]): LandingZone[] {
-  const DEDUP_THRESHOLD_KM = 0.25;
   const kept: LandingZone[] = [];
 
   for (const z of zones) {
     const duplicate = kept.findIndex(
-      (k) => haversineDistanceKm(k.latitude, k.longitude, z.latitude, z.longitude) < DEDUP_THRESHOLD_KM,
+      (k) =>
+        haversineDistanceM(k.latitude, k.longitude, z.latitude, z.longitude) <
+        INTRA_SOURCE_DEDUP_THRESHOLD_M,
     );
     if (duplicate === -1) {
       kept.push(z);
@@ -233,4 +260,3 @@ function parseCsvRow(line: string): string[] {
   result.push(cur);
   return result;
 }
-

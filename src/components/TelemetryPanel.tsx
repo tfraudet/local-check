@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { useFlightStore, findCurrentFixIndex } from '../state/useFlightStore';
+import { useFlightStore } from '../state/useFlightStore';
+import { findCurrentFixIndex } from '../domain/flight';
 import {
   formatAltitude,
   formatSpeed,
@@ -52,10 +53,7 @@ export function TelemetryPanel() {
           label={t('telemetry.gnssAltitude')}
           value={formatAltitude(fix.gnssAltitudeM)}
         />
-        <Row
-          label={t('telemetry.agl')}
-          value={formatAltitude(aglM)}
-        />
+        <Row label={t('telemetry.agl')} value={formatAltitude(aglM)} />
         <Row
           label={t('telemetry.groundSpeed')}
           value={formatSpeed(derived?.groundSpeedKmh ?? null)}

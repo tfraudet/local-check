@@ -100,27 +100,23 @@ function App() {
                 <div className="flex-1 overflow-hidden">
                   <MapView />
                 </div>
-                {flight && !showEscapePath && <TelemetryPanel />}
-                {flight && !showEscapePath && (
-                  <div className="h-48 border-t">
-                    <Barogram />
-                  </div>
-                )}
-                {flight && showEscapePath && (
+                {flight && (
                   <div className="flex">
+                    {/* TelemetryPanel provides its own top border, so this
+                        column doesn't add one — otherwise the two would stack
+                        and offset the left column by 1 px below the escape
+                        panel's top edge. */}
                     <div className="flex min-w-0 flex-1 flex-col">
-                      {/* TelemetryPanel provides its own top border, so the
-                          outer wrapper doesn't add one — otherwise the two
-                          would stack and offset the left column by 1 px
-                          below the right panel's top edge. */}
                       <TelemetryPanel />
                       <div className="h-48 border-t">
                         <Barogram />
                       </div>
                     </div>
-                    <div className="min-w-0 basis-[30%] border-l border-t">
-                      <EscapePathProfilePanel />
-                    </div>
+                    {showEscapePath && (
+                      <div className="min-w-0 basis-[30%] border-l border-t">
+                        <EscapePathProfilePanel />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -16,7 +16,15 @@ interface ParamRowProps {
   onChange: (v: number) => void;
 }
 
-function ParamRow({ label, hint, value, min, max, step, onChange }: ParamRowProps) {
+function ParamRow({
+  label,
+  hint,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: ParamRowProps) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
@@ -57,10 +65,8 @@ export function LocalCheckSettings() {
   const setLocalCheckParams = useFlightStore((s) => s.setLocalCheckParams);
   const runLocalCheck = useFlightStore((s) => s.runLocalCheck);
   const isComputing = useFlightStore((s) => s.isComputingLocalCheck);
-  const showOutlandingFields = useFlightStore((s) => s.showOutlandingFields);
-  const setShowOutlandingFields = useFlightStore((s) => s.setShowOutlandingFields);
-  const showAuvergneFields = useFlightStore((s) => s.showAuvergneFields);
-  const setShowAuvergneFields = useFlightStore((s) => s.setShowAuvergneFields);
+  const enabledSources = useFlightStore((s) => s.enabledSources);
+  const setSourceEnabled = useFlightStore((s) => s.setSourceEnabled);
   const flight = useFlightStore((s) => s.flight);
   const elevationLoadError = useFlightStore((s) => s.elevationLoadError);
 
@@ -79,7 +85,9 @@ export function LocalCheckSettings() {
           {t('localCheck.settings.title')}
         </p>
         {isComputing && (
-          <span className="text-xs text-muted-foreground">{t('localCheck.computing')}</span>
+          <span className="text-xs text-muted-foreground">
+            {t('localCheck.computing')}
+          </span>
         )}
       </div>
 
@@ -145,8 +153,8 @@ export function LocalCheckSettings() {
           </label>
           <Switch
             id="show-outlanding-fields"
-            checked={showOutlandingFields}
-            onCheckedChange={setShowOutlandingFields}
+            checked={enabledSources['outlanding-alps']}
+            onCheckedChange={(v) => setSourceEnabled('outlanding-alps', v)}
             aria-label={t('localCheck.settings.showOutlandingFields')}
           />
         </div>
@@ -160,8 +168,8 @@ export function LocalCheckSettings() {
           </label>
           <Switch
             id="show-auvergne-fields"
-            checked={showAuvergneFields}
-            onCheckedChange={setShowAuvergneFields}
+            checked={enabledSources['outlanding-auvergne']}
+            onCheckedChange={(v) => setSourceEnabled('outlanding-auvergne', v)}
             aria-label={t('localCheck.settings.showAuvergneFields')}
           />
         </div>
@@ -170,7 +178,9 @@ export function LocalCheckSettings() {
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
             <AlertTitle>{t('errors.title')}</AlertTitle>
-            <AlertDescription>{t('errors.elevation.fetchFailed')}</AlertDescription>
+            <AlertDescription>
+              {t('errors.elevation.fetchFailed')}
+            </AlertDescription>
           </Alert>
         )}
 

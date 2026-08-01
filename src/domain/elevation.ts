@@ -85,7 +85,7 @@ export function sampleElevation(
 // Prof. Paper 1395, 1987), pp. 187–190, ellipsoidal Lambert Azimuthal
 // Equal-Area case.
 const LAEA_A = 6378137.0; // GRS80 semi-major axis (m)
-const LAEA_E2 = 0.00669438002290; // GRS80 first eccentricity squared
+const LAEA_E2 = 0.0066943800229; // GRS80 first eccentricity squared
 const LAEA_E = Math.sqrt(LAEA_E2);
 const LAEA_LAT0 = (52 * Math.PI) / 180; // latitude of natural origin
 const LAEA_LON0 = (10 * Math.PI) / 180; // longitude of natural origin
@@ -129,10 +129,7 @@ export function projectWgs84ToEpsg3035(
   const B =
     LAEA_R_Q *
     Math.sqrt(
-      2 /
-        (1 +
-          LAEA_SIN_BETA_0 * sinBeta +
-          LAEA_COS_BETA_0 * cosBeta * cosDLon),
+      2 / (1 + LAEA_SIN_BETA_0 * sinBeta + LAEA_COS_BETA_0 * cosBeta * cosDLon),
     );
   const x = LAEA_FE + B * LAEA_D * cosBeta * Math.sin(dLon);
   const y =
@@ -153,7 +150,12 @@ export function buildGridPoints(
   bbox: [number, number, number, number],
   targetResolutionM: number,
   maxSamples: number,
-): { points: { lat: number; lon: number }[]; cols: number; rows: number; resolutionM: number } {
+): {
+  points: { lat: number; lon: number }[];
+  cols: number;
+  rows: number;
+  resolutionM: number;
+} {
   const [minLon, minLat, maxLon, maxLat] = bbox;
 
   const latSpanKm = haversineDistanceKm(minLat, minLon, maxLat, minLon);

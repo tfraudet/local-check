@@ -13,7 +13,12 @@ import type { ElevationGrid } from './elevation';
 import { sampleElevation } from './elevation';
 import type { LandingZone } from './landingZone';
 import type { FlightPhase } from './flightPhases';
-import { haversineDistanceM, pickAltitude } from './units';
+import {
+  classifyArrival,
+  pickBestLandingZone,
+  type LocalStatus,
+} from './arrival';
+import { pickAltitude } from './units';
 
 export interface LocalCheckParams {
   workingLD: number; // default 20
@@ -31,7 +36,7 @@ export const DEFAULT_LOCAL_CHECK_PARAMS: LocalCheckParams = {
   enlThreshold: 500,
 };
 
-export type LocalStatus = 'in-local' | 'in-local-marginal' | 'out-of-local';
+export type { LocalStatus };
 
 export interface SampledPoint {
   timeMs: number;
@@ -44,7 +49,9 @@ export interface SampledPoint {
   phase: FlightPhase;
   status: LocalStatus;
   bestLzId: string | null;
-  missingHeightM: number; // 0 if in-local; positive if out
+  /** Height missing to reach the best LZ: 0 when reachable, positive when
+   * out-of-local, `null` when there is no LZ at all. */
+  missingHeightM: number | null;
   marginAboveGlidePlaneM: number; // positive = in-local; negative = out
 }
 
@@ -74,7 +81,8 @@ export interface LocalCheckInput {
 
 /** Entry point: run the full local-check algorithm. */
 export function runLocalCheck(input: LocalCheckInput): LocalCheckResult {
-  const { fixes, altitudeSource, elevationGrid, landingZones, phases, params } = input;
+  const { fixes, altitudeSource, elevationGrid, landingZones, phases, params } =
+    input;
   const stepMs = Math.max(10, params.timeStepS) * 1000;
 
   const samples: SampledPoint[] = [];
@@ -92,12 +100,11 @@ export function runLocalCheck(input: LocalCheckInput): LocalCheckResult {
     const terrainElevM = isNaN(terrain) ? null : terrain;
     const aglM = terrainElevM !== null ? altM - terrainElevM : null;
 
-    const { status, bestLzId, missingHeightM, marginM } = classifyFix(
+    const { status, bestLzId, missingHeightM, marginM } = classifyPosition(
       fix,
       altM,
       landingZones,
       params,
-      elevationGrid,
     );
 
     samples.push({
@@ -126,52 +133,54 @@ export function runLocalCheck(input: LocalCheckInput): LocalCheckResult {
   };
 }
 
-function classifyFix(
+interface Classification {
+  status: LocalStatus;
+  bestLzId: string | null;
+  missingHeightM: number | null;
+  marginM: number;
+}
+
+/**
+ * Classify one position against the LZ catalog.
+ *
+ * Terrain collision does NOT gate the status: the profile chart is the
+ * place to visualise a glide clipping the ground. See `arrival.ts` for the
+ * shared band definitions.
+ */
+function classifyPosition(
   fix: Fix,
   altM: number,
   landingZones: LandingZone[],
   params: LocalCheckParams,
-  _grid: ElevationGrid,
-): { status: LocalStatus; bestLzId: string | null; missingHeightM: number; marginM: number } {
-  // Pick the LZ with the highest arrival height above its own ground —
-  // same rule as the on-map arrival-height labels and the escape-path
-  // target picker. Terrain-collision does NOT gate status: the profile
-  // chart is the place to visualise a glide clipping the ground.
-  let bestLzId: string | null = null;
-  let bestArrivalAboveGroundM = -Infinity;
+): Classification {
+  const best = pickBestLandingZone(
+    fix.latitude,
+    fix.longitude,
+    altM,
+    landingZones,
+    params.workingLD,
+  );
 
-  for (const lz of landingZones) {
-    const lzElev = lz.elevationM ?? 0;
-    const distanceM =
-      haversineDistanceM(fix.latitude, fix.longitude, lz.latitude, lz.longitude);
-    const arrivalAltAtLzM = altM - distanceM / params.workingLD;
-    const arrivalAboveGroundM = arrivalAltAtLzM - lzElev;
-    if (arrivalAboveGroundM > bestArrivalAboveGroundM) {
-      bestArrivalAboveGroundM = arrivalAboveGroundM;
-      bestLzId = lz.id;
-    }
+  if (!best) {
+    return {
+      status: 'out-of-local',
+      bestLzId: null,
+      missingHeightM: null,
+      marginM: -Infinity,
+    };
   }
 
-  if (bestLzId === null) {
-    return { status: 'out-of-local', bestLzId: null, missingHeightM: 9999, marginM: -9999 };
-  }
+  const status = classifyArrival(
+    best.heightAboveGroundM,
+    params.arrivalHeightM,
+  );
 
-  // marginM is the signed distance to the safety buffer, kept in the
-  // returned shape for consumers that show it (arrivalHeightAboveGround −
-  // params.arrivalHeightM).
-  const marginM = bestArrivalAboveGroundM - params.arrivalHeightM;
-
-  if (bestArrivalAboveGroundM > params.arrivalHeightM) {
-    return { status: 'in-local', bestLzId, missingHeightM: 0, marginM };
-  }
-  if (bestArrivalAboveGroundM > 0) {
-    return { status: 'in-local-marginal', bestLzId, missingHeightM: 0, marginM };
-  }
   return {
-    status: 'out-of-local',
-    bestLzId,
-    missingHeightM: -bestArrivalAboveGroundM,
-    marginM,
+    status,
+    bestLzId: best.lz.id,
+    missingHeightM: status === 'out-of-local' ? -best.heightAboveGroundM : 0,
+    // Signed distance to the safety buffer, kept for consumers that show it.
+    marginM: best.heightAboveGroundM - params.arrivalHeightM,
   };
 }
 
@@ -191,7 +200,9 @@ function computeStats(
   const outOfLocalPercent =
     flightDurationMs > 0 ? (outOfLocalTimeMs / flightDurationMs) * 100 : 0;
 
-  const missingHeights = cruiseOutSamples.map((s) => s.missingHeightM).filter((h) => h < 9999);
+  const missingHeights = cruiseOutSamples
+    .map((s) => s.missingHeightM)
+    .filter((h): h is number => h !== null);
   const meanMissingHeightM =
     missingHeights.length > 0
       ? missingHeights.reduce((a, b) => a + b, 0) / missingHeights.length
@@ -209,4 +220,3 @@ function computeStats(
     firstOutOfLocalTimeMs,
   };
 }
-

@@ -117,11 +117,7 @@ describe('sampleElevation on an EPSG:3035 grid', () => {
 describe('buildGridPoints', () => {
   it('returns the expected number of points', () => {
     // ~50×50 km bbox at 5000 m resolution → small grid
-    const { points, cols, rows } = buildGridPoints(
-      [5, 43, 7, 45],
-      5000,
-      10000,
-    );
+    const { points, cols, rows } = buildGridPoints([5, 43, 7, 45], 5000, 10000);
     expect(points.length).toBe(cols * rows);
     expect(cols).toBeGreaterThanOrEqual(2);
     expect(rows).toBeGreaterThanOrEqual(2);

@@ -16,7 +16,8 @@
 
 import { fromUrl } from 'geotiff';
 import type { ElevationGrid } from '../domain/elevation';
-import { bufferBbox, ElevationApiError, type ProgressCallback } from './elevationApi';
+import { ElevationApiError, type ProgressCallback } from './elevationApi';
+import { bufferBbox } from '../domain/bbox';
 
 const PC_BASE = 'https://planetarycomputer.microsoft.com/api';
 const COLLECTION_ID = 'cop-dem-glo-30';
@@ -165,9 +166,15 @@ async function blitTileIntoGrid(url: string, out: GridWindow): Promise<void> {
 
   // Range of output columns/rows that fall inside this tile's geo bounds.
   const cStart = Math.max(0, Math.ceil((iMinX - out.minLon) / out.stepDeg));
-  const cEnd = Math.min(out.cols - 1, Math.floor((iMaxX - out.minLon) / out.stepDeg));
+  const cEnd = Math.min(
+    out.cols - 1,
+    Math.floor((iMaxX - out.minLon) / out.stepDeg),
+  );
   const rStart = Math.max(0, Math.ceil((iMinY - out.minLat) / out.stepDeg));
-  const rEnd = Math.min(out.rows - 1, Math.floor((iMaxY - out.minLat) / out.stepDeg));
+  const rEnd = Math.min(
+    out.rows - 1,
+    Math.floor((iMaxY - out.minLat) / out.stepDeg),
+  );
   if (cStart > cEnd || rStart > rEnd) return;
 
   // COG pixel window that just covers those output cells (inclusive on both sides).
@@ -184,7 +191,9 @@ async function blitTileIntoGrid(url: string, out: GridWindow): Promise<void> {
   const winH = cogY1 - cogY0;
   if (winW <= 0 || winH <= 0) return;
 
-  const rasters = await image.readRasters({ window: [cogX0, cogY0, cogX1, cogY1] });
+  const rasters = await image.readRasters({
+    window: [cogX0, cogY0, cogX1, cogY1],
+  });
   const band = rasters[0] as Float32Array | Int16Array;
 
   for (let r = rStart; r <= rEnd; r++) {

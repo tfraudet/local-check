@@ -37,7 +37,10 @@ export function haversineDistanceM(
   return haversineDistanceKm(lat1, lon1, lat2, lon2) * 1000;
 }
 
-export function pickAltitude(fix: Fix, source: 'pressure' | 'gnss'): number | null {
+export function pickAltitude(
+  fix: Fix,
+  source: 'pressure' | 'gnss',
+): number | null {
   return source === 'pressure' ? fix.pressureAltitudeM : fix.gnssAltitudeM;
 }
 

@@ -9,7 +9,8 @@
 import type { LandingZone } from '../domain/landingZone';
 import { lzId } from '../domain/landingZone';
 
-const OPENAIP_API_KEY = import.meta.env.VITE_OPENAIP_API_KEY as string | undefined;
+const OPENAIP_API_KEY = import.meta.env.VITE_OPENAIP_API_KEY as
+  string | undefined;
 const OPENAIP_BASE = import.meta.env.DEV
   ? '/openaip-proxy/api'
   : 'https://api.core.openaip.net/api';

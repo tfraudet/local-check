@@ -62,7 +62,11 @@ export function computeDerivedMetrics(
     let terrainElevationM: number | null = null;
     let aglM: number | null = null;
     if (elevationGrid) {
-      const terrain = sampleElevation(elevationGrid, current.latitude, current.longitude);
+      const terrain = sampleElevation(
+        elevationGrid,
+        current.latitude,
+        current.longitude,
+      );
       if (!isNaN(terrain)) {
         terrainElevationM = terrain;
         const alt = pickAltitude(current, altitudeSource);
@@ -81,4 +85,3 @@ export function computeDerivedMetrics(
 
   return derived;
 }
-

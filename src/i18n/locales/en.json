@@ -22,6 +22,31 @@
     },
     "reachableZone": {
       "failed": "Reachable zone computation failed."
+    },
+    "service": {
+      "auth": {
+        "title": "{{service}} rejected the request",
+        "message": "{{service}} returned an authorization error. {{impact}}",
+        "hint": "Check the API key in your environment configuration."
+      },
+      "rateLimit": {
+        "title": "{{service}} rate-limited",
+        "message": "{{service}} returned 429 Too Many Requests. {{impact}}",
+        "hint": "Wait a moment; the app retries automatically after a cooldown."
+      },
+      "unavailable": {
+        "title": "{{service}} is unavailable",
+        "message": "{{service}} returned HTTP {{status}}. {{impact}}",
+        "hint": "The service is likely temporarily down; try again in a few minutes."
+      },
+      "generic": {
+        "title": "Could not reach {{service}}",
+        "message": "{{message}}"
+      },
+      "impact": {
+        "elevation": "Terrain data will not be available, so the local check cannot run.",
+        "openaip": "Public airports will be missing from the map."
+      }
     }
   },
   "controls": {
@@ -74,7 +99,47 @@
     "outlanding": "Outlanding",
     "clear": "Clear all",
     "errorTitle": "Import error",
-    "errorLines": "{{count}} row(s) could not be parsed"
+    "errorLines": "{{count}} row(s) could not be parsed",
+    "difficulty": {
+      "green": "EASY",
+      "orange": "MEDIUM",
+      "red": "DIFFICULT",
+      "black": "VERY DIFFICULT"
+    },
+    "popup": {
+      "code": "Code",
+      "type": "Type",
+      "elevation": "Elevation",
+      "position": "Position",
+      "source": "Source",
+      "styleFallback": "Style {{style}}"
+    },
+    "style": {
+      "unknown": "Unknown",
+      "waypoint": "Waypoint",
+      "grassAirfield": "Grass airfield",
+      "outlandingField": "Outlanding field",
+      "glidingAirfield": "Gliding airfield",
+      "solidAirfield": "Solid airfield",
+      "mountainPass": "Mountain pass",
+      "mountainTop": "Mountain top",
+      "transmitterMast": "Transmitter mast",
+      "vor": "VOR",
+      "ndb": "NDB",
+      "coolingTower": "Cooling tower",
+      "dam": "Dam",
+      "tunnel": "Tunnel",
+      "bridge": "Bridge",
+      "powerPlant": "Power plant",
+      "castle": "Castle",
+      "intersection": "Intersection"
+    },
+    "source": {
+      "user": "User import",
+      "outlanding-alps": "Alpes outlanding DB",
+      "outlanding-auvergne": "Auvergne outlanding DB",
+      "openaip": "OpenAIP"
+    }
   },
   "localCheck": {
     "computing": "Computing…",

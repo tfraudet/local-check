@@ -12,6 +12,7 @@
  */
 
 import type { ElevationGrid } from '../domain/elevation';
+import type { Bbox } from '../domain/bbox';
 import { fetchElevationGridFromOpenTopography } from './openTopographyElevationApi';
 import { fetchElevationGridFromPlanetaryComputer } from './planetaryComputerElevationApi';
 
@@ -35,26 +36,13 @@ export interface ElevationFetchProgress {
 export type ProgressCallback = (progress: ElevationFetchProgress) => void;
 
 export async function fetchElevationGrid(
-  bbox: [number, number, number, number],
+  bbox: Bbox,
   onProgress?: ProgressCallback,
 ): Promise<ElevationGrid> {
   if (ELEVATION_SOURCE === 'planetary-computer') {
     return fetchElevationGridFromPlanetaryComputer(bbox, onProgress);
   }
   return fetchElevationGridFromOpenTopography(bbox, onProgress);
-}
-
-/** Expand a bbox by `deg` on every side, clamped to lat/lon bounds. */
-export function bufferBbox(
-  bbox: [number, number, number, number],
-  deg: number,
-): [number, number, number, number] {
-  return [
-    Math.max(-180, bbox[0] - deg),
-    Math.max(-90, bbox[1] - deg),
-    Math.min(180, bbox[2] + deg),
-    Math.min(90, bbox[3] + deg),
-  ];
 }
 
 export class ElevationApiError extends Error {

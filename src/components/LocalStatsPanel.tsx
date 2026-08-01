@@ -11,20 +11,26 @@ export function LocalStatsPanel() {
 
   if (landingZones.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">{t('localCheck.stats.noResult')}</p>
+      <p className="text-xs text-muted-foreground">
+        {t('localCheck.stats.noResult')}
+      </p>
     );
   }
 
   if (isComputing || !result) {
     return (
-      <p className="animate-pulse text-xs text-muted-foreground">{t('localCheck.computing')}</p>
+      <p className="animate-pulse text-xs text-muted-foreground">
+        {t('localCheck.computing')}
+      </p>
     );
   }
 
   const { stats } = result;
 
   if (stats.outOfLocalTimeMs === 0) {
-    return <p className="text-xs text-green-500">{t('localCheck.stats.allGood')}</p>;
+    return (
+      <p className="text-xs text-green-500">{t('localCheck.stats.allGood')}</p>
+    );
   }
 
   return (
@@ -49,7 +55,9 @@ export function LocalStatsPanel() {
       />
       {stats.firstOutOfLocalTimeMs !== null && (
         <div className="flex items-center justify-between pt-1">
-          <dt className="text-muted-foreground">{t('localCheck.stats.firstOutOfLocal')}</dt>
+          <dt className="text-muted-foreground">
+            {t('localCheck.stats.firstOutOfLocal')}
+          </dt>
           <button
             onClick={() => seek(stats.firstOutOfLocalTimeMs!)}
             className="rounded bg-destructive/10 px-2 py-0.5 text-xs text-destructive hover:bg-destructive/20"

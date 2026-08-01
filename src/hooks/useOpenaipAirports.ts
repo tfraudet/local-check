@@ -1,50 +1,9 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFlightStore } from '../state/useFlightStore';
 import { fetchOpenAipAirports, OpenAipApiError } from '../services/openaipApi';
-
-/** Translate an OpenAipApiError (or arbitrary throw) into a friendly
- * user-facing payload for the service-error banner. */
-function toServiceError(err: unknown): {
-  title: string;
-  message: string;
-  hint?: string;
-} {
-  if (err instanceof OpenAipApiError) {
-    if (err.statusCode === 401 || err.statusCode === 403) {
-      return {
-        title: 'OpenAIP rejected the request',
-        message:
-          'OpenAIP returned an authorization error. The public airport catalog will not be available on the map.',
-        hint: 'If this persists, check the OpenAIP status page or your proxy configuration.',
-      };
-    }
-    if (err.statusCode === 429) {
-      return {
-        title: 'OpenAIP rate-limited',
-        message:
-          'OpenAIP is throttling requests. New airports will not appear on the map for a short cooldown.',
-        hint: 'The app will automatically retry after the cooldown; you can also pan the map to trigger a fresh fetch later.',
-      };
-    }
-    if (err.statusCode && err.statusCode >= 500) {
-      return {
-        title: 'OpenAIP is unavailable',
-        message: `OpenAIP returned HTTP ${err.statusCode}. Airports may be missing from the map.`,
-        hint: 'The service is likely temporarily down; try again in a few minutes.',
-      };
-    }
-    return {
-      title: 'Could not load airports from OpenAIP',
-      message: err.message,
-    };
-  }
-  return {
-    title: 'Could not load airports from OpenAIP',
-    message: err instanceof Error ? err.message : String(err),
-  };
-}
-
-type Bbox = [number, number, number, number];
+import { describeServiceFailure } from '../services/serviceErrors';
+import { bboxContains, bufferBbox, type Bbox } from '../domain/bbox';
 
 /** Debounce window applied to `moveend` bursts. Long enough that a pan
  * through several intermediate viewports only triggers one fetch. */
@@ -77,6 +36,7 @@ const RATE_LIMIT_BACKOFF_MS = 30_000;
  * don't compound the rate-limit hit.
  */
 export function useOpenaipAirports() {
+  const { t } = useTranslation();
   const visibleBounds = useFlightStore((s) => s.visibleBounds);
   const addLandingZones = useFlightStore((s) => s.addLandingZones);
   const pushServiceError = useFlightStore((s) => s.pushServiceError);
@@ -90,14 +50,16 @@ export function useOpenaipAirports() {
   useEffect(() => {
     if (!visibleBounds) return;
     const [minLon, minLat, maxLon, maxLat] = visibleBounds;
-    if (maxLon - minLon > MAX_SPAN_DEG || maxLat - minLat > MAX_SPAN_DEG) return;
+    if (maxLon - minLon > MAX_SPAN_DEG || maxLat - minLat > MAX_SPAN_DEG)
+      return;
 
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       if (Date.now() < cooldownUntilRef.current) return;
-      if (isContained(visibleBounds, fetchedRegionsRef.current)) return;
+      if (fetchedRegionsRef.current.some((r) => bboxContains(r, visibleBounds)))
+        return;
 
-      const padded = padBbox(visibleBounds, FETCH_PAD_DEG);
+      const padded = bufferBbox(visibleBounds, FETCH_PAD_DEG);
 
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -113,14 +75,19 @@ export function useOpenaipAirports() {
         .catch((err: unknown) => {
           if ((err as { name?: string })?.name === 'AbortError') return;
           if (err instanceof OpenAipApiError && err.statusCode === 429) {
-            const wait = RATE_LIMIT_BACKOFF_MS * 2 ** rateLimitStrikesRef.current;
+            const wait =
+              RATE_LIMIT_BACKOFF_MS * 2 ** rateLimitStrikesRef.current;
             cooldownUntilRef.current = Date.now() + wait;
             rateLimitStrikesRef.current += 1;
             console.warn(`[openaip] rate limited — cooling down for ${wait}ms`);
           } else {
             console.warn('[openaip] fetch failed:', err);
           }
-          const friendly = toServiceError(err);
+          const friendly = describeServiceFailure(err, {
+            t,
+            serviceName: 'OpenAIP',
+            impactKey: 'openaip',
+          });
           pushServiceError({
             service: 'openaip',
             title: friendly.title,
@@ -133,20 +100,5 @@ export function useOpenaipAirports() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [visibleBounds, addLandingZones, pushServiceError]);
-}
-
-function isContained(view: Bbox, regions: Bbox[]): boolean {
-  return regions.some(
-    (r) => view[0] >= r[0] && view[1] >= r[1] && view[2] <= r[2] && view[3] <= r[3],
-  );
-}
-
-function padBbox(b: Bbox, deg: number): Bbox {
-  return [
-    Math.max(-180, b[0] - deg),
-    Math.max(-90, b[1] - deg),
-    Math.min(180, b[2] + deg),
-    Math.min(90, b[3] + deg),
-  ];
+  }, [visibleBounds, addLandingZones, pushServiceError, t]);
 }

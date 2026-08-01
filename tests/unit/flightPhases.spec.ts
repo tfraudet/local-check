@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { computeFlightPhases } from '../../src/domain/flightPhases';
 import type { Fix, DerivedPoint } from '../../src/domain/flight';
 
-function fix(timeMs: number, pressureAltitudeM: number, lat = 43, lon = 6): Fix {
+function fix(
+  timeMs: number,
+  pressureAltitudeM: number,
+  lat = 43,
+  lon = 6,
+): Fix {
   return {
     timeMs,
     latitude: lat,
@@ -17,7 +22,13 @@ function derived(
   agl: number | null = null,
   groundSpeedKmh = 80,
 ): DerivedPoint {
-  return { groundSpeedKmh, verticalSpeedMs: vario, cumulativeDistanceKm: 0, terrainElevationM: null, aglM: agl };
+  return {
+    groundSpeedKmh,
+    verticalSpeedMs: vario,
+    cumulativeDistanceKm: 0,
+    terrainElevationM: null,
+    aglM: agl,
+  };
 }
 
 /** Synthetic launch: 5 stationary fixes, then takeoff, then a sustained tow
@@ -72,7 +83,8 @@ describe('computeFlightPhases', () => {
 
     // Pre-takeoff ground fixes fold into initial-climb so they aren't
     // scored as out-of-local by the local check.
-    for (let i = 0; i < takeoffIdx; i++) expect(phases[i]).toBe('initial-climb');
+    for (let i = 0; i < takeoffIdx; i++)
+      expect(phases[i]).toBe('initial-climb');
     // Takeoff through peak → initial-climb
     expect(phases[takeoffIdx]).toBe('initial-climb');
     expect(phases[peakIdx]).toBe('initial-climb');
@@ -132,7 +144,12 @@ describe('computeFlightPhases', () => {
       derived(3.0, null, 80),
       derived(3.0, null, 80),
     ];
-    const phases = computeFlightPhases(fixes, derivedArr, [false, false, false], 'pressure');
+    const phases = computeFlightPhases(
+      fixes,
+      derivedArr,
+      [false, false, false],
+      'pressure',
+    );
     expect(phases.every((p) => p === 'cruise')).toBe(true);
   });
 
@@ -152,7 +169,12 @@ describe('computeFlightPhases', () => {
       derived(2.0, null, 40),
       derived(0.0, null, 40),
     ];
-    const phases = computeFlightPhases(fixes, derivedArr, new Array(5).fill(false), 'pressure');
+    const phases = computeFlightPhases(
+      fixes,
+      derivedArr,
+      new Array(5).fill(false),
+      'pressure',
+    );
     expect(phases.every((p) => p === 'cruise')).toBe(true);
   });
 
@@ -192,9 +214,18 @@ describe('computeFlightPhases', () => {
 
   it('marks motor phases via motorFlags', () => {
     const fixes = [fix(0, 400), fix(1000, 400), fix(2000, 400)];
-    const derivedArr = [derived(0, null, 80), derived(0, null, 80), derived(0, null, 80)];
+    const derivedArr = [
+      derived(0, null, 80),
+      derived(0, null, 80),
+      derived(0, null, 80),
+    ];
     const motorFlags = [false, true, false];
-    const phases = computeFlightPhases(fixes, derivedArr, motorFlags, 'pressure');
+    const phases = computeFlightPhases(
+      fixes,
+      derivedArr,
+      motorFlags,
+      'pressure',
+    );
     expect(phases[1]).toBe('motor');
     expect(phases[0]).toBe('cruise');
     expect(phases[2]).toBe('cruise');
@@ -217,7 +248,12 @@ describe('computeFlightPhases', () => {
       derived(-1, 100, 80),
       derived(-0.5, 50, 80),
     ];
-    const phases = computeFlightPhases(fixes, derivedArr, new Array(5).fill(false), 'pressure');
+    const phases = computeFlightPhases(
+      fixes,
+      derivedArr,
+      new Array(5).fill(false),
+      'pressure',
+    );
     expect(phases[4]).toBe('final-glide');
     expect(phases[3]).toBe('final-glide');
   });
@@ -249,7 +285,12 @@ describe('computeFlightPhases', () => {
       derived(-2.0, 250, 80),
       derived(-2.0, 200, 80),
     ];
-    const phases = computeFlightPhases(fixes, derivedArr, new Array(10).fill(false), 'pressure');
+    const phases = computeFlightPhases(
+      fixes,
+      derivedArr,
+      new Array(10).fill(false),
+      'pressure',
+    );
     expect(phases[0]).toBe('cruise');
     expect(phases[1]).toBe('cruise');
     expect(phases[2]).toBe('final-glide');
@@ -281,7 +322,12 @@ describe('computeFlightPhases', () => {
       derived(-3.0, 500, 80),
       derived(-3.0, 250, 80),
     ];
-    const phases = computeFlightPhases(fixes, derivedArr, new Array(8).fill(false), 'pressure');
+    const phases = computeFlightPhases(
+      fixes,
+      derivedArr,
+      new Array(8).fill(false),
+      'pressure',
+    );
     expect(phases[0]).toBe('cruise');
     expect(phases[2]).toBe('cruise');
     expect(phases[3]).toBe('final-glide');
@@ -302,7 +348,12 @@ describe('computeFlightPhases', () => {
       derived(0, 805, 80),
       derived(0, 815, 80),
     ];
-    const phases = computeFlightPhases(fixes, derivedArr, new Array(4).fill(false), 'pressure');
+    const phases = computeFlightPhases(
+      fixes,
+      derivedArr,
+      new Array(4).fill(false),
+      'pressure',
+    );
     expect(phases.every((p) => p === 'cruise')).toBe(true);
   });
 });

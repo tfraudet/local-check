@@ -29,10 +29,7 @@ export function useAutoReachableZone() {
     if (timeoutRef.current !== null) return;
 
     const THROTTLE_MS = 250;
-    const delay = Math.max(
-      0,
-      THROTTLE_MS - (Date.now() - lastRunRef.current),
-    );
+    const delay = Math.max(0, THROTTLE_MS - (Date.now() - lastRunRef.current));
     timeoutRef.current = window.setTimeout(() => {
       timeoutRef.current = null;
       lastRunRef.current = Date.now();

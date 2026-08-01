@@ -25,7 +25,9 @@ export function LandingZonesPanel() {
   return (
     <div className="space-y-2 max-w-56">
       {landingZones.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t('landingZones.empty')}</p>
+        <p className="text-xs text-muted-foreground">
+          {t('landingZones.empty')}
+        </p>
       ) : (
         <>
           <span className="mr-auto text-xs text-muted-foreground">
@@ -58,13 +60,19 @@ export function LandingZonesPanel() {
                       LEVEL_TEXT_CLASS[lz.difficulty_level],
                     )}
                   />
-                  <span className="min-w-0 flex-1 truncate text-xs">{lz.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs">
+                    {lz.name}
+                  </span>
                   <button
                     onClick={() => toggleVisibility(lz.id)}
                     className="shrink-0 text-muted-foreground hover:text-foreground"
                     aria-label={visible ? 'Hide' : 'Show'}
                   >
-                    {visible ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+                    {visible ? (
+                      <Eye className="size-3" />
+                    ) : (
+                      <EyeOff className="size-3" />
+                    )}
                   </button>
                 </li>
               );

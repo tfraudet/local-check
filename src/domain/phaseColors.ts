@@ -16,7 +16,10 @@ export const STATUS_COLORS = {
   default: '#2563eb', // blue-600 (no local check result)
 } as const;
 
-export function getSegmentColor(phase: FlightPhase, status: LocalStatus): string {
+export function getSegmentColor(
+  phase: FlightPhase,
+  status: LocalStatus,
+): string {
   if (phase === 'initial-climb') return STATUS_COLORS['initial-climb'];
   if (phase === 'motor') return STATUS_COLORS['motor'];
   if (phase === 'final-glide') return STATUS_COLORS['final-glide'];
