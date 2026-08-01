@@ -1,10 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { AlertCircle } from 'lucide-react';
 import { useFlightStore } from '../state/useFlightStore';
-import { DEFAULT_LOCAL_CHECK_PARAMS } from '../domain/localCheck';
 import { LandingZonesPanel } from './LandingZonesPanel';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { Button } from './ui/button';
 import { Separator } from './ui/separator';
 import { Switch } from './ui/switch';
 
@@ -130,18 +128,6 @@ export function LocalCheckSettings() {
         step={50}
         onChange={(v) => update({ enlThreshold: v })}
       />
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full"
-        onClick={() => {
-          setLocalCheckParams(DEFAULT_LOCAL_CHECK_PARAMS);
-          void runLocalCheck();
-        }}
-      >
-        Reset to defaults
-      </Button>
 
       <Separator />
 

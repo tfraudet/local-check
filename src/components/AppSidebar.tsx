@@ -24,6 +24,7 @@ import {
 } from './ui/sidebar';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Skeleton } from './ui/skeleton';
 import { Separator } from './ui/separator';
@@ -119,6 +120,12 @@ export function AppSidebar() {
               <SidebarGroup>
                 <SidebarGroupContent className="px-2">
                   <ReachableZoneSettings />
+                </SidebarGroupContent>
+              </SidebarGroup>
+              <Separator />
+              <SidebarGroup>
+                <SidebarGroupContent className="px-2">
+                  <ResetSettingsButton />
                 </SidebarGroupContent>
               </SidebarGroup>
             </>
@@ -275,5 +282,19 @@ function FlightPanel() {
         </>
       )}
     </>
+  );
+}
+
+function ResetSettingsButton() {
+  const resetSettingsToDefaults = useFlightStore((s) => s.resetSettingsToDefaults);
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="w-full"
+      onClick={resetSettingsToDefaults}
+    >
+      Reset to defaults
+    </Button>
   );
 }

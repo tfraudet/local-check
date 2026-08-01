@@ -118,6 +118,12 @@ export interface FlightStoreState {
   setReachableZoneParams: (patch: Partial<ReachableZoneParams>) => void;
   runReachableZone: () => Promise<void>;
   clearReachableZone: () => void;
+
+  /** Reset all sidebar settings (Parameters, Landing zones data, Escape path
+   * & Reachable zone) back to their factory defaults and re-run the local
+   * check. Does not touch the loaded flight or cached elevation/landing-zone
+   * data. */
+  resetSettingsToDefaults: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -240,8 +246,8 @@ export const useFlightStore = create<FlightStoreState>()(
       landingZones: [],
       landingZonesBySource: {},
       visibleLandingZoneIds: new Set<string>(),
-      showOutlandingFields: true,
-      showAuvergneFields: true,
+      showOutlandingFields: false,
+      showAuvergneFields: false,
       visibleBounds: null,
       localCheckParams: DEFAULT_LOCAL_CHECK_PARAMS,
       localCheckResult: null,
@@ -250,9 +256,9 @@ export const useFlightStore = create<FlightStoreState>()(
       serviceErrors: [],
 
       // Phase 3 initial state
-      showEscapePath: false,
+      showEscapePath: true,
       showReachableZone: false,
-      showArrivalHeights: false,
+      showArrivalHeights: true,
       reachableZoneParams: DEFAULT_REACHABLE_ZONE_PARAMS,
       reachableZoneResult: null,
       isComputingReachableZone: false,
@@ -534,6 +540,26 @@ export const useFlightStore = create<FlightStoreState>()(
       },
 
       clearReachableZone: () => set({ reachableZoneResult: null }),
+
+      resetSettingsToDefaults: () => {
+        const { landingZonesBySource } = get();
+        const nextToggles = {
+          showOutlandingFields: false,
+          showAuvergneFields: false,
+        };
+        set({
+          localCheckParams: DEFAULT_LOCAL_CHECK_PARAMS,
+          showOutlandingFields: false,
+          showAuvergneFields: false,
+          showEscapePath: true,
+          showReachableZone: false,
+          showArrivalHeights: true,
+          reachableZoneParams: DEFAULT_REACHABLE_ZONE_PARAMS,
+          landingZones: computeActiveZones(landingZonesBySource, nextToggles),
+          reachableZoneResult: null,
+        });
+        void get().runLocalCheck();
+      },
 
       runReachableZone: async () => {
         const {
