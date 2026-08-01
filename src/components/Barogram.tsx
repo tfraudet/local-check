@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import uPlot from 'uplot';
-import 'uplot/dist/uPlot.min.css';
 import { useFlightStore } from '../state/useFlightStore';
 import { useTheme } from '../hooks/useTheme';
 import type { SampledPoint } from '../domain/localCheck';

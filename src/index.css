@@ -2,6 +2,7 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist';
+@import 'uplot/dist/uPlot.min.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -141,4 +142,49 @@ body {
   html {
     @apply font-sans;
   }
+}
+
+/* Barogram uPlot cursor: solid blue vertical line with inward-pointing
+ * triangles at the top and bottom extremities (playhead-style marker).
+ * Horizontal crosshair is hidden. */
+.uplot .u-cursor-y {
+  display: none;
+}
+
+.uplot .u-cursor-x {
+  border-right: none !important;
+  background-color: #2563eb;
+  width: 2px !important;
+  left: -1px !important; /* center the 2px line on the cursor x */
+}
+.dark .uplot .u-cursor-x {
+  background-color: #60a5fa;
+}
+
+.uplot .u-cursor-x::before,
+.uplot .u-cursor-x::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+}
+
+.uplot .u-cursor-x::before {
+  top: 0;
+  border-top: 7px solid #2563eb;
+}
+.uplot .u-cursor-x::after {
+  bottom: 0;
+  border-bottom: 7px solid #2563eb;
+}
+
+.dark .uplot .u-cursor-x::before {
+  border-top-color: #60a5fa;
+}
+.dark .uplot .u-cursor-x::after {
+  border-bottom-color: #60a5fa;
 }
