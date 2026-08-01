@@ -396,6 +396,14 @@ function buildLzGeoJSON(
   };
 }
 
+/**
+ * Auto-pan trigger: fraction of the viewport width/height that acts as a
+ * "safe band" margin. When the glider's projected screen position enters
+ * this outer band on any side, the map centre is nudged by the same
+ * fraction of the corresponding dimension to re-centre the glider.
+ */
+const AUTO_PAN_MARGIN_FRACTION = 0.2;
+
 export function MapView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -1017,6 +1025,40 @@ export function MapView() {
     if (!flight || !markerRef.current) return;
     const position = interpolatePosition(flight, currentTimeMs);
     if (position) markerRef.current.setLngLat(position);
+  }, [flight, currentTimeMs]);
+
+  // Auto-pan: when the glider enters the outer AUTO_PAN_MARGIN_FRACTION
+  // margin of the viewport, nudge the map centre by the same fraction of
+  // that dimension in the same direction (world position of the glider
+  // is untouched — only the view centre moves, so the glider ends up
+  // back inside the safe band). Skipped while the map is already
+  // animating to avoid stacking pans.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !flight || !mapReadyRef.current) return;
+    if (map.isMoving()) return;
+
+    const position = interpolatePosition(flight, currentTimeMs);
+    if (!position) return;
+
+    const canvas = map.getCanvas();
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (w === 0 || h === 0) return;
+
+    const p = map.project(position);
+    const marginX = w * AUTO_PAN_MARGIN_FRACTION;
+    const marginY = h * AUTO_PAN_MARGIN_FRACTION;
+    let dx = 0;
+    let dy = 0;
+    if (p.x < marginX) dx = -marginX;
+    else if (p.x > w - marginX) dx = marginX;
+    if (p.y < marginY) dy = -marginY;
+    else if (p.y > h - marginY) dy = marginY;
+
+    if (dx !== 0 || dy !== 0) {
+      map.panBy([dx, dy], { duration: 300 });
+    }
   }, [flight, currentTimeMs]);
 
   return <div ref={containerRef} className="h-full w-full" />;
