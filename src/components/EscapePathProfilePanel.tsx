@@ -164,7 +164,7 @@ export function EscapePathProfilePanel() {
           points: { show: false },
         },
       ],
-      cursor: { points: { show: true }, sync: undefined },
+      cursor: { show: false },
       hooks: {
         // Overlay two guide lines: the arrival-height target and the LZ
         // marker at the terminal distance. Drawn after the base chart so
