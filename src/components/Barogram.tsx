@@ -72,6 +72,11 @@ export function Barogram() {
   // setCursor hook below and call seek() on our own update.
   const isProgrammaticCursorUpdateRef = useRef(false);
 
+  // While the pointer is over the plot, uPlot's own mouse-driven cursor is
+  // authoritative — skipping the programmatic sync avoids the snap-back
+  // that otherwise fights the mouse and shows up as visible lag.
+  const isPointerOverRef = useRef(false);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !flight) return;
@@ -232,6 +237,15 @@ export function Barogram() {
     const plot = new uPlot(opts, data, container);
     uplotRef.current = plot;
 
+    const onPointerEnter = () => {
+      isPointerOverRef.current = true;
+    };
+    const onPointerLeave = () => {
+      isPointerOverRef.current = false;
+    };
+    plot.over.addEventListener('pointerenter', onPointerEnter);
+    plot.over.addEventListener('pointerleave', onPointerLeave);
+
     // Use a ResizeObserver (not just the window `resize` event) so the
     // chart also re-flows when its container changes size without the
     // viewport changing — e.g. toggling the sidebar, which animates via
@@ -246,6 +260,8 @@ export function Barogram() {
 
     return () => {
       resizeObserver.disconnect();
+      plot.over.removeEventListener('pointerenter', onPointerEnter);
+      plot.over.removeEventListener('pointerleave', onPointerLeave);
       plot.destroy();
       uplotRef.current = null;
     };
@@ -257,6 +273,10 @@ export function Barogram() {
   useEffect(() => {
     const plot = uplotRef.current;
     if (!plot || !flight) return;
+    // Pointer is over the plot → uPlot already tracks it. Overriding here
+    // would snap the cursor to the closest fix a frame later and fight
+    // the mouse, showing up as visible lag.
+    if (isPointerOverRef.current) return;
     const timeSec = currentTimeMs / 1000;
     const xData = plot.data[0] as number[];
     let closestIdx = 0;

@@ -162,6 +162,7 @@ export function MapView() {
   const landingZones = useFlightStore((s) => s.landingZones);
   const visibleLandingZoneIds = useFlightStore((s) => s.visibleLandingZoneIds);
   const setVisibleBounds = useFlightStore((s) => s.setVisibleBounds);
+  const showEscapePath = useFlightStore((s) => s.showEscapePath);
   const showReachableZone = useFlightStore((s) => s.showReachableZone);
   const reachableZoneResult = useFlightStore((s) => s.reachableZoneResult);
 
@@ -512,8 +513,8 @@ export function MapView() {
   });
 
   const escapeGeoJSON = useMemo(
-    () => buildEscapePathGeoJSON(escapePath),
-    [escapePath],
+    () => buildEscapePathGeoJSON(showEscapePath ? escapePath : null),
+    [showEscapePath, escapePath],
   );
 
   useGeoJsonLayer(mapRef, {
@@ -542,6 +543,35 @@ export function MapView() {
       });
     },
   });
+
+  // Belt-and-suspenders: also hide the layers via `visibility` when the
+  // toggle is off. `setData` alone leaves the last-rendered features
+  // visible on some MapLibre setups until the next tick.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const applyVisibility = () => {
+      const v = showEscapePath ? 'visible' : 'none';
+      if (map.getLayer(ESCAPE_HALO_LAYER)) {
+        map.setLayoutProperty(ESCAPE_HALO_LAYER, 'visibility', v);
+      }
+      if (map.getLayer(ESCAPE_LINE_LAYER)) {
+        map.setLayoutProperty(ESCAPE_LINE_LAYER, 'visibility', v);
+      }
+    };
+    if (map.isStyleLoaded()) {
+      applyVisibility();
+      return;
+    }
+    const onIdle = () => {
+      map.off('idle', onIdle);
+      applyVisibility();
+    };
+    map.on('idle', onIdle);
+    return () => {
+      map.off('idle', onIdle);
+    };
+  }, [showEscapePath]);
 
   const reachableZoneGeoJSON = useMemo(
     () =>
