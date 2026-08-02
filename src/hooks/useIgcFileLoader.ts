@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFlightStore } from '../state/useFlightStore';
 import type {
@@ -11,13 +11,19 @@ import type {
  * main thread via a dedicated Web Worker, and writes the result (or error)
  * into the flight store. Used by both the sidebar upload menu and the
  * empty-state upload zone (FR-M-1, FR-M-2, FR-M-6).
+ *
+ * The "is parsing" flag lives in the flight store (`isParsingIgc`) rather
+ * than local component state so `IgcLoadProgressDialog` can observe it from
+ * anywhere in the tree, regardless of which component actually calls
+ * `loadFile`.
  */
 export function useIgcFileLoader() {
   const { t } = useTranslation();
   const loadFlight = useFlightStore((s) => s.loadFlight);
   const setLoadError = useFlightStore((s) => s.setLoadError);
   const loadError = useFlightStore((s) => s.loadError);
-  const [isParsing, setIsParsing] = useState(false);
+  const isParsing = useFlightStore((s) => s.isParsingIgc);
+  const setIsParsingIgc = useFlightStore((s) => s.setIsParsingIgc);
   const workerRef = useRef<Worker | null>(null);
 
   const loadFile = useCallback(
@@ -30,7 +36,7 @@ export function useIgcFileLoader() {
         return;
       }
 
-      setIsParsing(true);
+      setIsParsingIgc(true);
       file
         .text()
         .then((fileText) => {
@@ -43,7 +49,7 @@ export function useIgcFileLoader() {
           const worker = workerRef.current;
 
           const handleMessage = (event: MessageEvent<IgcWorkerResponse>) => {
-            setIsParsing(false);
+            setIsParsingIgc(false);
             if (event.data.type === 'success') {
               loadFlight(event.data.flight);
             } else {
@@ -57,11 +63,11 @@ export function useIgcFileLoader() {
           worker.postMessage(request);
         })
         .catch(() => {
-          setIsParsing(false);
+          setIsParsingIgc(false);
           setLoadError({ kind: 'unknown', message: t('errors.unknown') });
         });
     },
-    [loadFlight, setLoadError, t],
+    [loadFlight, setLoadError, setIsParsingIgc, t],
   );
 
   return { loadFile, isParsing, loadError };

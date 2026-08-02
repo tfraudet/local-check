@@ -15,6 +15,7 @@ import { useAutoLocalCheck } from '../hooks/useAutoLocalCheck';
 import { useAutoReachableZone } from '../hooks/useAutoReachableZone';
 import { AppSidebar } from '../components/AppSidebar';
 import { ServiceErrorBanner } from '../components/ServiceErrorBanner';
+import { IgcLoadProgressDialog } from '../components/IgcLoadProgressDialog';
 import { MapView } from '../components/MapView';
 import { Barogram } from '../components/Barogram';
 import { EscapePathProfilePanel } from '../components/EscapePathProfilePanel';
@@ -92,6 +93,7 @@ function App() {
         </header>
 
         <ServiceErrorBanner />
+        <IgcLoadProgressDialog />
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <AppSidebar />
           <SidebarInset className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">

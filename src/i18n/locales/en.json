@@ -9,7 +9,18 @@
     "howItWorks": "Load a glider flight recorded in IGC format to replay its track, altitude, and telemetry.",
     "menuGroup": "Flight Replay",
     "menuItem": "Upload flight",
-    "parsing": "Parsing…"
+    "parsing": "Parsing…",
+    "progress": {
+      "title": "Loading flight",
+      "description": "Please wait while your flight is processed.",
+      "parsing": "Parsing IGC file…",
+      "elevation": "Loading terrain elevation data…",
+      "landingZones": "Loading landing zone database…",
+      "computing": "Computing local check…",
+      "ready": "Local check ready",
+      "errorTitle": "Loading failed",
+      "close": "Close"
+    }
   },
   "errors": {
     "title": "Error",

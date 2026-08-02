@@ -52,6 +52,10 @@ export interface FlightStoreState {
   // Phase 1
   flight: NormalizedFlight | null;
   loadError: IgcParseError | null;
+  /** True while `useIgcFileLoader` is parsing an uploaded IGC file off the
+   * main thread. Lifted into the store (rather than local hook state) so
+   * `IgcLoadProgressDialog` can observe it from anywhere in the tree. */
+  isParsingIgc: boolean;
   currentTimeMs: number;
   isPlaying: boolean;
   playbackSpeed: PlaybackSpeed;
@@ -93,6 +97,7 @@ export interface FlightStoreState {
   // Phase 1 actions
   loadFlight: (flight: NormalizedFlight) => void;
   setLoadError: (error: IgcParseError) => void;
+  setIsParsingIgc: (parsing: boolean) => void;
   clearFlight: () => void;
   play: () => void;
   pause: () => void;
@@ -220,6 +225,7 @@ export const useFlightStore = create<FlightStoreState>()(
         // Phase 1 initial state
         flight: null,
         loadError: null,
+        isParsingIgc: false,
         currentTimeMs: 0,
         isPlaying: false,
         playbackSpeed: 1,
@@ -255,6 +261,8 @@ export const useFlightStore = create<FlightStoreState>()(
           }),
 
         setLoadError: (error) => set({ loadError: error, flight: null }),
+
+        setIsParsingIgc: (parsing) => set({ isParsingIgc: parsing }),
 
         clearFlight: () =>
           set({
