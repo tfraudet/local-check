@@ -1,13 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useFlightStore } from '../state/useFlightStore';
 import { formatDistance, formatDuration, formatSpeed } from '../domain/units';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from './ui/card';
 import { Separator } from './ui/separator';
 import { LocalStatsPanel } from './LocalStatsPanel';
 
@@ -23,56 +16,53 @@ export function FlightSummaryPanel() {
 
   const { summary, fileName } = flight;
 
-  const pilotGliderValue =
-    summary.pilotName || summary.gliderType
-      ? [summary.pilotName, summary.gliderType].filter(Boolean).join(' · ')
-      : t('summary.notInFile');
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{summary.date ?? '—'}</CardTitle>
+    <div className="w-full space-y-3">
+      <div>
+        <p className="text-base font-medium">{summary.date ?? '—'}</p>
         {fileName && (
-          <CardDescription className="truncate">{fileName}</CardDescription>
+          <p className="truncate text-xs text-muted-foreground">{fileName}</p>
         )}
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <section className="space-y-2">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            {t('summary.title')}
-          </p>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-            <Row
-              label={t('summary.duration')}
-              value={formatDuration(summary.durationMs)}
-            />
-            <Row
-              label={t('summary.distance')}
-              value={formatDistance(summary.totalDistanceKm)}
-            />
-            <Row
-              label={t('summary.altitude')}
-              value={`${Math.round(summary.minAltitudeM)} – ${Math.round(summary.maxAltitudeM)} m`}
-            />
-            <Row
-              label={t('summary.maxSpeed')}
-              value={formatSpeed(summary.maxGroundSpeedKmh)}
-            />
-            <Row label={t('summary.pilotGlider')} value={pilotGliderValue} />
-          </dl>
-        </section>
-        <Separator />
-        <LocalStatsPanel />
-      </CardContent>
-    </Card>
+      </div>
+      <Separator />
+      <section className="space-y-2">
+        <p className=" text-xs font-medium text-muted-foreground uppercase">
+         
+          {t('summary.title')}
+        </p>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1.5 text-sm">
+          <Row label={t('summary.pilot')} value={summary.pilotName ?? t('summary.notInFile')} />
+          <Row label={t('summary.glider')} value={summary.gliderType ?? t('summary.notInFile')} />
+          <Row label={t('summary.date')} value={summary.date ?? t('summary.notInFile')} />
+          <Row
+            label={t('summary.duration')}
+            value={formatDuration(summary.durationMs)}
+          />
+          <Row
+            label={t('summary.distance')}
+            value={formatDistance(summary.totalDistanceKm)}
+          />
+          <Row
+            label={t('summary.altitude')}
+            value={`${Math.round(summary.minAltitudeM)} – ${Math.round(summary.maxAltitudeM)} m`}
+          />
+          <Row
+            label={t('summary.maxSpeed')}
+            value={formatSpeed(summary.maxGroundSpeedKmh)}
+          />
+        </dl>
+      </section>
+      <Separator />
+      <LocalStatsPanel />
+    </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right font-mono tabular-nums">{value}</dd>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-xs text-right font-mono whitespace-nowrap truncate">{value}</dd>
     </>
   );
 }

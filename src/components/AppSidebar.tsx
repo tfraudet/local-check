@@ -14,7 +14,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -22,7 +21,6 @@ import {
   useSidebar,
 } from './ui/sidebar';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Skeleton } from './ui/skeleton';
@@ -177,7 +175,7 @@ function FlightPanel() {
   return (
     <>
       <SidebarGroup>
-        <SidebarGroupLabel>{t('upload.menuGroup')}</SidebarGroupLabel>
+        {/* <SidebarGroupLabel>{t('upload.menuGroup')}</SidebarGroupLabel> */}
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -229,7 +227,7 @@ function FlightPanel() {
               {t('upload.dragHint')}
             </p>
           </div>
-          {flight && (
+          {/* {flight && (
             <div className="mt-2 flex flex-wrap items-center gap-1 px-2">
               {flight.header.gliderType && (
                 <Badge variant="secondary">{flight.header.gliderType}</Badge>
@@ -238,7 +236,7 @@ function FlightPanel() {
                 <Badge variant="outline">{flight.header.date}</Badge>
               )}
             </div>
-          )}
+          )} */}
           {loadError && (
             <Alert variant="destructive" className="mt-2">
               <AlertCircle />
@@ -254,7 +252,7 @@ function FlightPanel() {
             </div>
           )}
           {flight && (
-            <div className="mt-3 px-2">
+            <div className="my-3 px-2">
               <FlightSummaryPanel />
             </div>
           )}

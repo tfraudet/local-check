@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useFlightStore } from '../state/useFlightStore';
 
 const LEGEND_ITEMS = [
   { color: 'bg-cyan-400', key: 'initialClimb' },
@@ -11,6 +12,7 @@ const LEGEND_ITEMS = [
 
 export function ColorLegend() {
   const { t } = useTranslation();
+  const arrivalHeightM = useFlightStore((s) => s.localCheckParams.arrivalHeightM);
 
   return (
     <div className="space-y-1">
@@ -24,7 +26,11 @@ export function ColorLegend() {
               className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm ${color}`}
               aria-hidden="true"
             />
-            {t(`localCheck.legend.${key}`)}
+            {key === 'marginal'
+              ? t(`localCheck.legend.${key}`, {
+                  height: Math.round(arrivalHeightM),
+                })
+              : t(`localCheck.legend.${key}`)}
           </li>
         ))}
       </ul>

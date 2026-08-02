@@ -90,7 +90,8 @@
   "summary": {
     "title": "Flight summary",
     "date": "Date",
-    "pilotGlider": "Pilot / glider",
+    "pilot": "Pilot",
+    "glider": "Glider",
     "notInFile": "not in file",
     "duration": "Duration",
     "altitude": "Altitude",
@@ -158,7 +159,7 @@
       "title": "Parameters",
       "workingLD": "Working L/D",
       "workingLDHint": "Glide ratio used for local computation (default 20)",
-      "arrivalHeight": "Arrival height (m)",
+      "arrivalHeight": "Safety arrival height (m)",
       "arrivalHeightHint": "Minimum height above LZ on arrival (default 300 m)",
       "groundClearance": "Ground clearance (m)",
       "groundClearanceHint": "Minimum height above terrain along glide path (default 150 m)",
@@ -195,7 +196,7 @@
       "initialClimb": "Initial climb (tow/winch)",
       "motor": "Motor running",
       "inLocal": "In local",
-      "marginal": "Marginal (< 100 m margin)",
+      "marginal": "Marginal (< {{height}}m)",
       "outOfLocal": "Out of local",
       "finalGlide": "Final glide"
     }

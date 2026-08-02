@@ -14,6 +14,7 @@ export function LocalStatsPanel() {
   const isComputing = useFlightStore((s) => s.isComputingLocalCheck);
   const landingZones = useFlightStore((s) => s.landingZones);
   const seek = useFlightStore((s) => s.seek);
+  const arrivalHeightM = useFlightStore((s) => s.localCheckParams.arrivalHeightM);
 
   if (landingZones.length === 0) {
     return (
@@ -80,7 +81,7 @@ export function LocalStatsPanel() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="text-xs font-medium text-muted-foreground uppercase">
           {t('localCheck.stats.title')}
         </p>
         <Badge variant={badge.variant} className={badge.className}>
@@ -128,7 +129,7 @@ export function LocalStatsPanel() {
         <Progress
           value={100}
           variant="success"
-          className="w-full [&_[data-slot=progress-track]]:h-1.5"
+          className="w-full **:data-[slot=progress-track]:h-1.5"
         />
       )}
 
@@ -136,7 +137,9 @@ export function LocalStatsPanel() {
         <div className="space-y-1 text-xs">
           <LegendRow
             color={STATUS_COLORS['in-local-marginal']}
-            label={t('localCheck.legend.marginal')}
+            label={t('localCheck.legend.marginal', {
+              height: Math.round(arrivalHeightM),
+            })}
             percent={stats.inLocalMarginalPercent}
             count={stats.inLocalMarginalExits}
           />
