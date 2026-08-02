@@ -7,8 +7,13 @@ import {
   pickBestLandingZone,
 } from '../domain/arrival';
 import { computeEscapePath, type EscapePath } from '../domain/escapePath';
-import { pickAltitude } from '../domain/units';
+import { haversineDistanceM, pickAltitude } from '../domain/units';
 import type { ArrivalHeightFeature } from '../components/map/geojson';
+
+/** Skip arrival-height labels for LZs beyond this range — far LZs are
+ * never reachable and only clutter the map. */
+const ARRIVAL_HEIGHT_MAX_DISTANCE_KM = 60;
+const ARRIVAL_HEIGHT_MAX_DISTANCE_M = ARRIVAL_HEIGHT_MAX_DISTANCE_KM * 1000;
 
 /** Position + altitude of the fix under the replay cursor. */
 function useCurrentPosition() {
@@ -45,6 +50,13 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
     const features: ArrivalHeightFeature[] = [];
     for (const lz of landingZones) {
       if (!visibleLandingZoneIds.has(lz.id)) continue;
+      const distM = haversineDistanceM(
+        fix.latitude,
+        fix.longitude,
+        lz.latitude,
+        lz.longitude,
+      );
+      if (distM > ARRIVAL_HEIGHT_MAX_DISTANCE_M) continue;
       const heightM = arrivalHeightAboveGroundM(
         fix.latitude,
         fix.longitude,
