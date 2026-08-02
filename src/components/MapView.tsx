@@ -681,10 +681,9 @@ export function MapView() {
   }, [flight, currentTimeMs]);
 
   // Auto-pan: when the glider enters the outer AUTO_PAN_MARGIN_FRACTION
-  // margin of the viewport, nudge the map centre by the same fraction of
-  // that dimension in the same direction (the glider's world position is
-  // untouched — only the view centre moves, so the glider ends up back
-  // inside the safe band). Skipped while the map is already animating to
+  // margin of the viewport, nudge the map centre so the glider marker is
+  // re-centred on screen. The glider's world position is unchanged; only
+  // the camera centre moves. Skipped while the map is already animating to
   // avoid stacking pans.
   useEffect(() => {
     const map = mapRef.current;
@@ -702,14 +701,12 @@ export function MapView() {
     const p = map.project(position);
     const marginX = w * AUTO_PAN_MARGIN_FRACTION;
     const marginY = h * AUTO_PAN_MARGIN_FRACTION;
-    let dx = 0;
-    let dy = 0;
-    if (p.x < marginX) dx = -marginX;
-    else if (p.x > w - marginX) dx = marginX;
-    if (p.y < marginY) dy = -marginY;
-    else if (p.y > h - marginY) dy = marginY;
+    const outsideSafeBandX = p.x < marginX || p.x > w - marginX;
+    const outsideSafeBandY = p.y < marginY || p.y > h - marginY;
 
-    if (dx !== 0 || dy !== 0) {
+    if (outsideSafeBandX || outsideSafeBandY) {
+      const dx = p.x - w / 2;
+      const dy = p.y - h / 2;
       map.panBy([dx, dy], { duration: 300 });
     }
   }, [flight, currentTimeMs]);
