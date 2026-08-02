@@ -174,7 +174,7 @@
       "dataGroup": "Landing zones data"
     },
     "stats": {
-      "title": "Local check results",
+      "title": "Results",
       "outOfLocalTime": "Out of local",
       "outOfLocalPercent": "% of flight",
       "minMissingHeight": "Min missing",
@@ -182,7 +182,7 @@
       "lowestMargin": "Lowest margin",
       "seekToFirstBreach": "Seek to first breach",
       "noResult": "Import a .cup file to run the local check",
-      "badgeBreach": "Breach",
+      "badgeBreach": "Out of Local",
       "badgeMarginal": "Marginal",
       "badgeAlwaysInLocal": "Always in local",
       "captionOutOfLocal": "out of local",
