@@ -51,7 +51,10 @@ export function useIgcFileLoader() {
           const handleMessage = (event: MessageEvent<IgcWorkerResponse>) => {
             setIsParsingIgc(false);
             if (event.data.type === 'success') {
-              loadFlight(event.data.flight);
+              // `fileName` comes from the browser File object, not the IGC
+              // content, so it's attached here rather than inside the
+              // (framework-agnostic) parser/worker.
+              loadFlight({ ...event.data.flight, fileName: file.name });
             } else {
               setLoadError(event.data.error);
             }

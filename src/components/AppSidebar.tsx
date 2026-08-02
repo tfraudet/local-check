@@ -6,7 +6,6 @@ import { useIgcFileLoader } from '../hooks/useIgcFileLoader';
 import { useFlightStore } from '../state/useFlightStore';
 import { FlightSummaryPanel } from './FlightSummaryPanel';
 import { LocalCheckSettings } from './LocalCheckSettings';
-import { LocalStatsPanel } from './LocalStatsPanel';
 import { ColorLegend } from './ColorLegend';
 import { ReachableZoneSettings } from './ReachableZoneSettings';
 import {
@@ -264,14 +263,6 @@ function FlightPanel() {
 
       {flight && (
         <>
-          <Separator />
-          <SidebarGroup>
-            <SidebarGroupLabel>{t('localCheck.stats.title')}</SidebarGroupLabel>
-            <SidebarGroupContent className="px-2">
-              <LocalStatsPanel />
-            </SidebarGroupContent>
-          </SidebarGroup>
-
           <Separator />
           <SidebarGroup>
             <SidebarGroupContent className="px-2">
