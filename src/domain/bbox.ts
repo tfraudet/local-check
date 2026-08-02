@@ -16,6 +16,27 @@ export function bufferBbox(bbox: Bbox, deg: number): Bbox {
   ];
 }
 
+/** Degrees of latitude per kilometre (mean Earth radius approximation). */
+const KM_PER_DEGREE_LAT = 111.32;
+
+/**
+ * Expand a bbox by `km` on every side. Longitude degrees are widened by
+ * `km / (KM_PER_DEGREE_LAT * cos(latitude))` so the margin stays roughly
+ * `km` wide in real distance regardless of latitude.
+ */
+export function bufferBboxByKm(bbox: Bbox, km: number): Bbox {
+  const midLat = (bbox[1] + bbox[3]) / 2;
+  const latDeg = km / KM_PER_DEGREE_LAT;
+  const lonDeg =
+    km / (KM_PER_DEGREE_LAT * Math.max(Math.cos((midLat * Math.PI) / 180), 1e-6));
+  return [
+    Math.max(-180, bbox[0] - lonDeg),
+    Math.max(-90, bbox[1] - latDeg),
+    Math.min(180, bbox[2] + lonDeg),
+    Math.min(90, bbox[3] + latDeg),
+  ];
+}
+
 /** True when `inner` lies entirely inside `outer`. */
 export function bboxContains(outer: Bbox, inner: Bbox): boolean {
   return (

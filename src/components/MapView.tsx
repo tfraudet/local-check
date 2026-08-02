@@ -14,6 +14,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useTranslation } from 'react-i18next';
 import { useFlightStore } from '../state/useFlightStore';
 import { STATUS_COLORS } from '../domain/phaseColors';
+import { boundingBoxOf, bufferBboxByKm } from '../domain/bbox';
 import {
   useArrivalHeightFeatures,
   useCurrentEscapePath,
@@ -98,6 +99,13 @@ const CHECK_SVG = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="
 
 const DEFAULT_CENTER: [number, number] = [3.2489, 45.5401];
 const DEFAULT_ZOOM = 11;
+
+/**
+ * Margin (in kilometres) added around the flight track's bounding box when
+ * the map first fits the viewport to a newly-loaded flight, so the whole
+ * trace is visible with breathing room on every side.
+ */
+const TRACE_FIT_MARGIN_KM = 20;
 
 /**
  * Auto-pan trigger: fraction of the viewport width/height that acts as a
@@ -635,16 +643,17 @@ export function MapView() {
     if (!map || !flight || flight.fixes.length === 0) return;
 
     const first = flight.fixes[0];
-    const bounds = new LngLatBounds(
-      [first.longitude, first.latitude],
-      [first.longitude, first.latitude],
+    const trackBbox = bufferBboxByKm(
+      boundingBoxOf(flight.fixes),
+      TRACE_FIT_MARGIN_KM,
     );
-    for (const fix of flight.fixes) {
-      bounds.extend([fix.longitude, fix.latitude]);
-    }
+    const bounds = new LngLatBounds(
+      [trackBbox[0], trackBbox[1]],
+      [trackBbox[2], trackBbox[3]],
+    );
 
     const apply = () => {
-      map.fitBounds(bounds, { padding: 40, duration: 0 });
+      map.fitBounds(bounds, { padding: 0, duration: 0 });
       if (!markerRef.current) {
         const markerRoot = document.createElement('div');
         markerRoot.className = 'h-16 w-16';
