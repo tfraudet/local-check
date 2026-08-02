@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  type IControl,
   Map as MaplibreMap,
   Marker,
   NavigationControl,
@@ -7,6 +8,7 @@ import {
   LngLatBounds,
   type ExpressionSpecification,
   type MapLayerMouseEvent,
+  type StyleSpecification,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useTranslation } from 'react-i18next';
@@ -54,9 +56,45 @@ import {
   nearestFixTimeMs,
 } from './map/trackGeometry';
 
-const DEFAULT_MAP_STYLE_URL =
+type MapStyleId = 'liberty' | 'satellite';
+
+const DEFAULT_LIBERTY_STYLE_URL =
   (import.meta.env.VITE_MAP_STYLE_URL as string | undefined) ??
   'https://tiles.openfreemap.org/styles/liberty';
+const SATELLITE_STYLE: StyleSpecification = {
+  version: 8,
+  sources: {
+    'esri-world-imagery': {
+      type: 'raster',
+      tiles: [
+        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      attribution: 'Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    },
+  },
+  layers: [
+    {
+      id: 'esri-world-imagery',
+      type: 'raster',
+      source: 'esri-world-imagery',
+      minzoom: 0,
+      maxzoom: 19,
+    },
+  ],
+};
+
+const MAP_STYLES: Record<MapStyleId, string | StyleSpecification> = {
+  liberty: DEFAULT_LIBERTY_STYLE_URL,
+  satellite: SATELLITE_STYLE,
+};
+
+const LAYERS_BUTTON_SVG = `<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
+  <path fill="currentColor" d="M10 2 2.5 5.75 10 9.5l7.5-3.75Zm0 8.85L2.5 7.1V10L10 13.75 17.5 10V7.1Zm0 4.25L2.5 11.35V14.25L10 18l7.5-3.75v-2.9Z"/>
+</svg>`;
+const CHECK_SVG = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
+  <path fill="currentColor" d="M10.3 3.2 5 8.5 1.7 5.2l.9-.9L5 6.7l4.4-4.4Z"/>
+</svg>`;
 
 const DEFAULT_CENTER: [number, number] = [3.2489, 45.5401];
 const DEFAULT_ZOOM = 11;
@@ -96,8 +134,18 @@ export function MapView() {
   const markerRef = useRef<Marker | null>(null);
   const markerGlyphRef = useRef<HTMLDivElement | null>(null);
   const mapReadyRef = useRef(false);
+  const styleControlRef = useRef<{
+    button: HTMLButtonElement;
+    menu: HTMLDivElement;
+    optionButtons: Record<MapStyleId, HTMLButtonElement>;
+    optionLabels: Record<MapStyleId, HTMLSpanElement>;
+    optionChecks: Record<MapStyleId, HTMLSpanElement>;
+    setOpen: (open: boolean) => void;
+  } | null>(null);
+  const styleControlCleanupRef = useRef<(() => void) | null>(null);
 
   const [iconsReady, setIconsReady] = useState(false);
+  const [mapStyleId, setMapStyleId] = useState<MapStyleId>('liberty');
 
   const flight = useFlightStore((s) => s.flight);
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
@@ -112,6 +160,43 @@ export function MapView() {
   const escapePath = useCurrentEscapePath();
   const arrivalHeightFeatures = useArrivalHeightFeatures();
 
+  const syncStyleControlUi = () => {
+    const control = styleControlRef.current;
+    if (!control) return;
+    const openLabel = t('map.baseLayer.openSelector');
+    control.button.title = openLabel;
+    control.button.setAttribute('aria-label', openLabel);
+    for (const styleId of Object.keys(control.optionButtons) as MapStyleId[]) {
+      const isActive = styleId === mapStyleId;
+      const optionButton = control.optionButtons[styleId];
+      optionButton.setAttribute('aria-checked', String(isActive));
+      optionButton.classList.toggle('bg-accent', isActive);
+      optionButton.classList.toggle('font-medium', isActive);
+      optionButton.style.borderTop = 'none';
+      control.optionChecks[styleId].classList.toggle('bg-primary', isActive);
+      control.optionChecks[styleId].classList.toggle(
+        'border-primary',
+        isActive,
+      );
+      control.optionChecks[styleId].classList.toggle('text-primary-foreground', isActive);
+      control.optionChecks[styleId].classList.toggle('text-transparent', !isActive);
+      control.optionLabels[styleId].textContent = t(`map.baseLayer.${styleId}`);
+    }
+  };
+
+  const setBaseLayer = (styleId: MapStyleId) => {
+    setMapStyleId(styleId);
+    const map = mapRef.current;
+    if (!map) return;
+    setIconsReady(false);
+    map.setStyle(MAP_STYLES[styleId]);
+    map.once('styledata', () => {
+      void preloadMapIcons(map)
+        .then(() => setIconsReady(true))
+        .catch((err) => console.warn('[map] icon preload failed:', err));
+    });
+  };
+
   // ---- Map lifecycle ----
 
   useEffect(() => {
@@ -119,12 +204,118 @@ export function MapView() {
 
     const map = new MaplibreMap({
       container: containerRef.current,
-      style: DEFAULT_MAP_STYLE_URL,
+      style: MAP_STYLES.liberty,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       attributionControl: { compact: true },
     });
     map.addControl(new NavigationControl(), 'top-right');
+
+    const styleControl: IControl = {
+      onAdd: () => {
+        const root = document.createElement('div');
+        root.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+        root.style.position = 'relative';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'maplibregl-ctrl-icon';
+        button.style.display = 'flex';
+        button.style.alignItems = 'center';
+        button.style.justifyContent = 'center';
+        // Keep the same fixed icon contrast as built-in MapLibre controls.
+        button.style.color = '#333';
+        button.innerHTML = LAYERS_BUTTON_SVG;
+
+        const menu = document.createElement('div');
+        menu.className =
+          'absolute right-0 top-9 z-20 hidden min-w-40 overflow-hidden rounded-md border border-border bg-background p-1 shadow-md';
+
+        const optionButtons = {
+          liberty: document.createElement('button'),
+          satellite: document.createElement('button'),
+        } as Record<MapStyleId, HTMLButtonElement>;
+        const optionLabels = {
+          liberty: document.createElement('span'),
+          satellite: document.createElement('span'),
+        } as Record<MapStyleId, HTMLSpanElement>;
+        const optionChecks = {
+          liberty: document.createElement('span'),
+          satellite: document.createElement('span'),
+        } as Record<MapStyleId, HTMLSpanElement>;
+        const optionClass =
+          'flex w-full items-center gap-2 rounded px-2 py-2 text-left text-xs transition-colors hover:bg-accent';
+        for (const styleId of Object.keys(optionButtons) as MapStyleId[]) {
+          const optionButton = optionButtons[styleId];
+          optionButton.type = 'button';
+          optionButton.setAttribute('role', 'menuitemcheckbox');
+          optionButton.className = optionClass;
+          optionButton.style.display = 'flex';
+          optionButton.style.alignItems = 'center';
+          optionButton.style.width = '100%';
+          optionButton.style.lineHeight = '1.1';
+
+          const checkbox = optionChecks[styleId];
+          checkbox.className =
+            'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-muted-foreground/40 text-transparent';
+          checkbox.style.alignSelf = 'center';
+          checkbox.innerHTML = CHECK_SVG;
+
+          const label = optionLabels[styleId];
+          label.className = 'text-foreground';
+          label.style.display = 'block';
+          label.style.lineHeight = '1.1';
+
+          optionButton.append(checkbox, label);
+          optionButton.addEventListener('click', () => {
+            setBaseLayer(styleId);
+            setOpen(false);
+          });
+          menu.appendChild(optionButton);
+        }
+
+        const setOpen = (open: boolean) => {
+          menu.classList.toggle('hidden', !open);
+        };
+
+        const onToggleClick = (event: MouseEvent) => {
+          event.stopPropagation();
+          setOpen(menu.classList.contains('hidden'));
+        };
+        const onDocumentPointerDown = (event: PointerEvent) => {
+          if (!(event.target instanceof Node) || root.contains(event.target)) return;
+          setOpen(false);
+        };
+
+        button.addEventListener('click', onToggleClick);
+        document.addEventListener('pointerdown', onDocumentPointerDown);
+
+        root.append(button, menu);
+        styleControlRef.current = {
+          button,
+          menu,
+          optionButtons,
+          optionLabels,
+          optionChecks,
+          setOpen,
+        };
+        styleControlCleanupRef.current = () => {
+          button.removeEventListener('click', onToggleClick);
+          document.removeEventListener('pointerdown', onDocumentPointerDown);
+        };
+        syncStyleControlUi();
+
+        return root;
+      },
+      onRemove: () => {
+        styleControlCleanupRef.current?.();
+        styleControlCleanupRef.current = null;
+        const container = styleControlRef.current?.button.parentElement;
+        container?.remove();
+        styleControlRef.current = null;
+      },
+    };
+    map.addControl(styleControl, 'top-right');
     mapRef.current = map;
 
     const publishBounds = () => {
@@ -150,9 +341,15 @@ export function MapView() {
       markerRef.current = null;
       markerGlyphRef.current = null;
       mapReadyRef.current = false;
+      styleControlCleanupRef.current = null;
+      styleControlRef.current = null;
       setIconsReady(false);
     };
   }, [setVisibleBounds]);
+
+  useEffect(() => {
+    syncStyleControlUi();
+  }, [mapStyleId, t]);
 
   // ---- Overlays ----
 

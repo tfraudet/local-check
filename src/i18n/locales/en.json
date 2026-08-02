@@ -229,5 +229,12 @@
   "theme": {
     "switchToLight": "Switch to light theme",
     "switchToDark": "Switch to dark theme"
+  },
+  "map": {
+    "baseLayer": {
+      "openSelector": "Choose map style",
+      "liberty": "Liberty",
+      "satellite": "Satellite"
+    }
   }
 }
