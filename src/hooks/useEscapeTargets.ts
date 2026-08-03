@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useFlightStore } from '../state/useFlightStore';
 import { findCurrentFixIndex } from '../domain/flight';
 import {
@@ -15,31 +15,21 @@ import type { ArrivalHeightFeature } from '../components/map/geojson';
 const ARRIVAL_HEIGHT_MAX_DISTANCE_KM = 60;
 const ARRIVAL_HEIGHT_MAX_DISTANCE_M = ARRIVAL_HEIGHT_MAX_DISTANCE_KM * 1000;
 
-/**
- * Position + altitude of the fix under the replay cursor.
- *
- * Uses `useDeferredValue` on `currentTimeMs` so downstream consumers
- * (`useCurrentEscapePath`, `useArrivalHeightFeatures`) recompute at
- * background priority. During rapid scrubbing (barogram hover), the cursor
- * paints at full FPS while escape-path/arrival-height recomputation lags
- * one paint behind — good enough visually, and keeps the main thread
- * responsive.
- */
+/** Position + altitude of the fix under the replay cursor. */
 function useCurrentPosition() {
   const flight = useFlightStore((s) => s.flight);
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
-  const deferredTimeMs = useDeferredValue(currentTimeMs);
 
   return useMemo(() => {
     if (!flight) return null;
-    const index = findCurrentFixIndex(flight, deferredTimeMs);
+    const index = findCurrentFixIndex(flight, currentTimeMs);
     if (index < 0) return null;
     const fix = flight.fixes[index];
     const altM = pickAltitude(fix, altitudeSource);
     if (altM === null) return null;
     return { index, fix, altM };
-  }, [flight, deferredTimeMs, altitudeSource]);
+  }, [flight, currentTimeMs, altitudeSource]);
 }
 
 /**
@@ -56,6 +46,7 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
   return useMemo<ArrivalHeightFeature[]>(() => {
     if (!showArrivalHeights || !position) return [];
     const { fix, altM } = position;
+    const startedAt = import.meta.env.DEV ? performance.now() : 0;
 
     const features: ArrivalHeightFeature[] = [];
     for (const lz of landingZones) {
@@ -81,6 +72,12 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
         arrivalHeightM: heightM,
         status: classifyArrival(heightM, localCheckParams.arrivalHeightM),
       });
+    }
+
+    if (import.meta.env.DEV) {
+      console.log(
+        `[arrivalHeights] ${features.length} labels in ${(performance.now() - startedAt).toFixed(2)} ms`,
+      );
     }
     return features;
   }, [
@@ -109,6 +106,7 @@ export function useCurrentEscapePath(): EscapePath | null {
     if (!elevationGrid || !localCheckResult) return null;
 
     const { index, fix, altM } = position;
+    const startedAt = import.meta.env.DEV ? performance.now() : 0;
     const best = pickBestLandingZone(
       fix.latitude,
       fix.longitude,
@@ -118,7 +116,7 @@ export function useCurrentEscapePath(): EscapePath | null {
     );
     if (!best) return null;
 
-    return computeEscapePath({
+    const path = computeEscapePath({
       sourceFixIndex: index,
       sourceLat: fix.latitude,
       sourceLon: fix.longitude,
@@ -127,6 +125,13 @@ export function useCurrentEscapePath(): EscapePath | null {
       grid: elevationGrid,
       params: localCheckParams,
     });
+
+    if (import.meta.env.DEV) {
+      console.log(
+        `[escapePath] ${path?.profile.length ?? 0} profile pts in ${(performance.now() - startedAt).toFixed(2)} ms`,
+      );
+    }
+    return path;
   }, [
     showEscapePath,
     position,
