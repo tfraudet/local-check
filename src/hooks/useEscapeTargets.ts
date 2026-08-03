@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFlightStore } from '../state/useFlightStore';
 import { findCurrentFixIndex } from '../domain/flight';
 import {
@@ -14,6 +14,30 @@ import type { ArrivalHeightFeature } from '../components/map/geojson';
  * never reachable and only clutter the map. */
 const ARRIVAL_HEIGHT_MAX_DISTANCE_KM = 60;
 const ARRIVAL_HEIGHT_MAX_DISTANCE_M = ARRIVAL_HEIGHT_MAX_DISTANCE_KM * 1000;
+
+/**
+ * Compare two feature arrays at the granularity of what actually renders:
+ * id, status, and arrival height rounded to whole metres (the label is
+ * `Math.round(arrivalHeightM)`, so sub-metre wobble is invisible). Equal
+ * arrays let the caller reuse the previous reference and skip a MapLibre
+ * `setData` — the expensive part of the update.
+ */
+function arrivalHeightFeaturesEqual(
+  a: ArrivalHeightFeature[],
+  b: ArrivalHeightFeature[],
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x.id !== y.id) return false;
+    if (x.status !== y.status) return false;
+    if (Math.round(x.arrivalHeightM) !== Math.round(y.arrivalHeightM))
+      return false;
+  }
+  return true;
+}
 
 /** Position + altitude of the fix under the replay cursor. */
 function useCurrentPosition() {
@@ -43,7 +67,7 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
   const localCheckParams = useFlightStore((s) => s.localCheckParams);
   const position = useCurrentPosition();
 
-  return useMemo<ArrivalHeightFeature[]>(() => {
+  const nextFeatures = useMemo<ArrivalHeightFeature[]>(() => {
     if (!showArrivalHeights || !position) return [];
     const { fix, altM } = position;
     const startedAt = import.meta.env.DEV ? performance.now() : 0;
@@ -87,6 +111,17 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
     visibleLandingZoneIds,
     localCheckParams,
   ]);
+
+  // Preserve the previous array identity when nothing changed at label
+  // granularity, so downstream memos (`buildArrivalHeightsGeoJSON`) bail out
+  // and MapLibre `setData` doesn't fire. This is where the perceived lag
+  // lives — the compute above takes <1 ms; the symbol-layer re-tile is
+  // orders of magnitude more expensive.
+  const stableFeaturesRef = useRef(nextFeatures);
+  if (!arrivalHeightFeaturesEqual(stableFeaturesRef.current, nextFeatures)) {
+    stableFeaturesRef.current = nextFeatures;
+  }
+  return stableFeaturesRef.current;
 }
 
 /**
