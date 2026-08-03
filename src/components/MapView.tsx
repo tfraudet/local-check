@@ -157,6 +157,7 @@ export function MapView() {
 
   const flight = useFlightStore((s) => s.flight);
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
+  const isPlaying = useFlightStore((s) => s.isPlaying);
   const seek = useFlightStore((s) => s.seek);
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
   const landingZones = useFlightStore((s) => s.landingZones);
@@ -723,8 +724,12 @@ export function MapView() {
   // margin of the viewport, nudge the map centre so the glider marker is
   // re-centred on screen. The glider's world position is unchanged; only
   // the camera centre moves. Skipped while the map is already animating to
-  // avoid stacking pans.
+  // avoid stacking pans. Only active during playback — scrubbing (barogram
+  // hover, slider drag, map click) fires seek() at up to 60 Hz, and each
+  // resulting 300 ms panBy animation keeps the camera in permanent motion,
+  // showing up as visible lag on the barogram cursor.
   useEffect(() => {
+    if (!isPlaying) return;
     const map = mapRef.current;
     if (!map || !flight || !mapReadyRef.current) return;
     if (map.isMoving()) return;
@@ -748,7 +753,7 @@ export function MapView() {
       const dy = p.y - h / 2;
       map.panBy([dx, dy], { duration: 300 });
     }
-  }, [flight, currentTimeMs]);
+  }, [flight, currentTimeMs, isPlaying]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }

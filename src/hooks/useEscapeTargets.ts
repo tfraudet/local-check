@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useDeferredValue, useMemo } from 'react';
 import { useFlightStore } from '../state/useFlightStore';
 import { findCurrentFixIndex } from '../domain/flight';
 import {
@@ -15,21 +15,31 @@ import type { ArrivalHeightFeature } from '../components/map/geojson';
 const ARRIVAL_HEIGHT_MAX_DISTANCE_KM = 60;
 const ARRIVAL_HEIGHT_MAX_DISTANCE_M = ARRIVAL_HEIGHT_MAX_DISTANCE_KM * 1000;
 
-/** Position + altitude of the fix under the replay cursor. */
+/**
+ * Position + altitude of the fix under the replay cursor.
+ *
+ * Uses `useDeferredValue` on `currentTimeMs` so downstream consumers
+ * (`useCurrentEscapePath`, `useArrivalHeightFeatures`) recompute at
+ * background priority. During rapid scrubbing (barogram hover), the cursor
+ * paints at full FPS while escape-path/arrival-height recomputation lags
+ * one paint behind — good enough visually, and keeps the main thread
+ * responsive.
+ */
 function useCurrentPosition() {
   const flight = useFlightStore((s) => s.flight);
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
+  const deferredTimeMs = useDeferredValue(currentTimeMs);
 
   return useMemo(() => {
     if (!flight) return null;
-    const index = findCurrentFixIndex(flight, currentTimeMs);
+    const index = findCurrentFixIndex(flight, deferredTimeMs);
     if (index < 0) return null;
     const fix = flight.fixes[index];
     const altM = pickAltitude(fix, altitudeSource);
     if (altM === null) return null;
     return { index, fix, altM };
-  }, [flight, currentTimeMs, altitudeSource]);
+  }, [flight, deferredTimeMs, altitudeSource]);
 }
 
 /**

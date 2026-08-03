@@ -389,6 +389,8 @@ export const useFlightStore = create<FlightStoreState>()(
 
           if (!flight || !elevationGrid || landingZones.length === 0) return;
 
+          const startedAt = import.meta.env.DEV ? performance.now() : 0;
+
           set({ isComputingLocalCheck: true });
 
           const motorFlags = detectMotorUse(
@@ -429,6 +431,12 @@ export const useFlightStore = create<FlightStoreState>()(
             isComputingLocalCheck: false,
             ...(result !== null ? { localCheckResult: result } : {}),
           });
+
+          if (import.meta.env.DEV) {
+            console.log(
+              `[runLocalCheck] ${(performance.now() - startedAt).toFixed(1)} ms`,
+            );
+          }
         },
 
         pushServiceError: (err) => {

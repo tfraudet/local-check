@@ -90,28 +90,31 @@ export function EscapePathProfilePanel() {
     localCheckParams,
   ]);
 
-  // (Re)build the uPlot chart when the escape path changes.
+  // Read the latest escape path (and arrival buffer) from refs inside
+  // uPlot's option closures so the chart can be created ONCE and updated
+  // via `setData` — recreating uPlot on every replay tick (as the memo
+  // above changes each frame) saturates the main thread and starves the
+  // MapLibre paint that keeps the arrival-height labels in sync.
+  const escapePathRef = useRef<EscapePath | null>(escapePath);
+  escapePathRef.current = escapePath;
+  const arrivalHeightMRef = useRef(localCheckParams.arrivalHeightM);
+  arrivalHeightMRef.current = localCheckParams.arrivalHeightM;
+
+  // Build the uPlot chart when it first has data or when the theme /
+  // translations change; recreated only on those (rare) transitions.
+  const hasEscapePath = escapePath !== null;
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const initial = escapePathRef.current;
+    if (!initial) return;
 
-    if (uplotRef.current) {
-      uplotRef.current.destroy();
-      uplotRef.current = null;
-    }
-    if (!escapePath) return;
-
-    const distanceKm = escapePath.profile.map((p) => p.distFromSourceM / 1000);
-    const terrain = escapePath.profile.map((p) => p.terrainM);
-    const glide = escapePath.profile.map((p) => p.glideAltM);
+    const distanceKm = initial.profile.map((p) => p.distFromSourceM / 1000);
+    const terrain = initial.profile.map((p) => p.terrainM);
+    const glide = initial.profile.map((p) => p.glideAltM);
     const data: uPlot.AlignedData = [distanceKm, terrain, glide];
 
     const { axisStroke, gridStroke } = getChartColors(theme === 'dark');
-    const stroke = STATUS_COLOR_FOR_PATH[escapePath.status];
-
-    const arrivalTargetAltM =
-      escapePath.lzElevM + localCheckParams.arrivalHeightM;
-    const lzDistKm = escapePath.totalDistanceM / 1000;
 
     const opts: uPlot.Options = {
       width: container.clientWidth || 300,
@@ -127,7 +130,10 @@ export function EscapePathProfilePanel() {
         },
         {
           label: t('escapePath.glideSeries'),
-          stroke,
+          stroke: () =>
+            STATUS_COLOR_FOR_PATH[
+              escapePathRef.current?.status ?? 'in-local'
+            ],
           width: 2,
           points: { show: false },
         },
@@ -139,12 +145,17 @@ export function EscapePathProfilePanel() {
         // they sit on top of the series.
         draw: [
           (u: uPlot) => {
+            const ep = escapePathRef.current;
+            if (!ep) return;
             const ctx = u.ctx;
             const { left, top, width: bw, height: bh } = u.bbox;
             ctx.save();
             ctx.beginPath();
             ctx.rect(left, top, bw, bh);
             ctx.clip();
+
+            const arrivalTargetAltM = ep.lzElevM + arrivalHeightMRef.current;
+            const lzDistKm = ep.totalDistanceM / 1000;
 
             // Horizontal dashed line: arrival target altitude.
             const yTarget = u.valToPos(arrivalTargetAltM, 'y', true);
@@ -167,7 +178,7 @@ export function EscapePathProfilePanel() {
 
             // Filled square marker at the LZ ground position — same look
             // as an airfield on the map.
-            const yLzGround = u.valToPos(escapePath.lzElevM, 'y', true);
+            const yLzGround = u.valToPos(ep.lzElevM, 'y', true);
             const size = 9 * uPlot.pxRatio;
             ctx.fillStyle = '#3E6FC4';
             ctx.strokeStyle = '#ffffff';
@@ -200,7 +211,10 @@ export function EscapePathProfilePanel() {
           // Force the x-axis to always span 120 % of the source→LZ
           // distance, so the pilot sees some post-LZ context proportional
           // to the escape length.
-          range: () => [0, (escapePath.totalDistanceM / 1000) * 1.2],
+          range: () => [
+            0,
+            ((escapePathRef.current?.totalDistanceM ?? 0) / 1000) * 1.2,
+          ],
         },
       },
       legend: { show: false },
@@ -222,7 +236,19 @@ export function EscapePathProfilePanel() {
       plot.destroy();
       uplotRef.current = null;
     };
-  }, [escapePath, theme, t, localCheckParams.arrivalHeightM]);
+  }, [theme, t, hasEscapePath]);
+
+  // Every replay tick, push the new profile into the existing chart with
+  // `setData` — no destroy/recreate, so the main thread stays free for
+  // MapLibre.
+  useEffect(() => {
+    const plot = uplotRef.current;
+    if (!plot || !escapePath) return;
+    const distanceKm = escapePath.profile.map((p) => p.distFromSourceM / 1000);
+    const terrain = escapePath.profile.map((p) => p.terrainM);
+    const glide = escapePath.profile.map((p) => p.glideAltM);
+    plot.setData([distanceKm, terrain, glide]);
+  }, [escapePath]);
 
   if (!flight || !localCheckResult || landingZones.length === 0) {
     return (

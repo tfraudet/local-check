@@ -39,10 +39,19 @@ export async function fetchElevationGrid(
   bbox: Bbox,
   onProgress?: ProgressCallback,
 ): Promise<ElevationGrid> {
-  if (ELEVATION_SOURCE === 'planetary-computer') {
-    return fetchElevationGridFromPlanetaryComputer(bbox, onProgress);
+  const startedAt = import.meta.env.DEV ? performance.now() : 0;
+  try {
+    if (ELEVATION_SOURCE === 'planetary-computer') {
+      return await fetchElevationGridFromPlanetaryComputer(bbox, onProgress);
+    }
+    return await fetchElevationGridFromOpenTopography(bbox, onProgress);
+  } finally {
+    if (import.meta.env.DEV) {
+      console.log(
+        `[fetchElevationGrid] ${(performance.now() - startedAt).toFixed(1)} ms`,
+      );
+    }
   }
-  return fetchElevationGridFromOpenTopography(bbox, onProgress);
 }
 
 export class ElevationApiError extends Error {

@@ -111,7 +111,6 @@ async function stacSearch(
   const url =
     `${PC_BASE}/stac/v1/search?bbox=${minLon},${minLat},${maxLon},${maxLat}` +
     `&collections=${COLLECTION_ID}&limit=100`;
-  if (import.meta.env.DEV) console.log('[elevationApi:pc] GET', url);
   const res = await fetch(url);
   if (!res.ok) {
     const body = await res.text().catch(() => '');

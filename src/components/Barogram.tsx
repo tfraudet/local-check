@@ -77,6 +77,14 @@ export function Barogram() {
   // that otherwise fights the mouse and shows up as visible lag.
   const isPointerOverRef = useRef(false);
 
+  // Coalesce hover-driven seeks to one per animation frame. uPlot's
+  // setCursor hook fires on every mousemove (60+ Hz); each seek triggers
+  // heavy downstream work (escape-path/arrival-height recomputation), so
+  // firing them synchronously blocks the event loop and the cursor lags
+  // behind the pointer.
+  const pendingSeekTimeMsRef = useRef<number | null>(null);
+  const seekRafRef = useRef<number | null>(null);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !flight) return;
@@ -171,9 +179,16 @@ export function Barogram() {
             const { idx } = u.cursor;
             if (idx == null || idx < 0) return;
             const timeMs = u.data[0][idx] * 1000;
-            if (Math.abs(timeMs - currentTimeMsRef.current) > 500) {
-              seek(timeMs);
-            }
+            pendingSeekTimeMsRef.current = timeMs;
+            if (seekRafRef.current != null) return;
+            seekRafRef.current = requestAnimationFrame(() => {
+              seekRafRef.current = null;
+              const pending = pendingSeekTimeMsRef.current;
+              pendingSeekTimeMsRef.current = null;
+              if (pending == null) return;
+              if (pending === currentTimeMsRef.current) return;
+              seek(pending);
+            });
           },
         ],
         ...(colors
@@ -262,6 +277,11 @@ export function Barogram() {
       resizeObserver.disconnect();
       plot.over.removeEventListener('pointerenter', onPointerEnter);
       plot.over.removeEventListener('pointerleave', onPointerLeave);
+      if (seekRafRef.current != null) {
+        cancelAnimationFrame(seekRafRef.current);
+        seekRafRef.current = null;
+      }
+      pendingSeekTimeMsRef.current = null;
       plot.destroy();
       uplotRef.current = null;
     };
