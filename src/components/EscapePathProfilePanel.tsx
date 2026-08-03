@@ -41,14 +41,16 @@ export function EscapePathProfilePanel() {
   const landingZones = useFlightStore((s) => s.landingZones);
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
   const localCheckParams = useFlightStore((s) => s.localCheckParams);
+  const currentFixIndex = useMemo(
+    () => (flight ? findCurrentFixIndex(flight, currentTimeMs) : -1),
+    [flight, currentTimeMs],
+  );
 
   const escapePath = useMemo<EscapePath | null>(() => {
     if (!flight || !elevationGrid || !localCheckResult) return null;
     if (landingZones.length === 0) return null;
-
-    const idx = findCurrentFixIndex(flight, currentTimeMs);
-    if (idx < 0) return null;
-    const fix = flight.fixes[idx];
+    if (currentFixIndex < 0) return null;
+    const fix = flight.fixes[currentFixIndex];
     const altM = pickAltitude(fix, altitudeSource);
     if (altM === null) return null;
 
@@ -71,7 +73,7 @@ export function EscapePathProfilePanel() {
       lz.longitude,
     );
     return computeEscapePath({
-      sourceFixIndex: idx,
+      sourceFixIndex: currentFixIndex,
       sourceLat: fix.latitude,
       sourceLon: fix.longitude,
       sourceAltM: altM,
@@ -82,7 +84,7 @@ export function EscapePathProfilePanel() {
     });
   }, [
     flight,
-    currentTimeMs,
+    currentFixIndex,
     altitudeSource,
     elevationGrid,
     landingZones,
@@ -96,9 +98,13 @@ export function EscapePathProfilePanel() {
   // above changes each frame) saturates the main thread and starves the
   // MapLibre paint that keeps the arrival-height labels in sync.
   const escapePathRef = useRef<EscapePath | null>(escapePath);
-  escapePathRef.current = escapePath;
   const arrivalHeightMRef = useRef(localCheckParams.arrivalHeightM);
-  arrivalHeightMRef.current = localCheckParams.arrivalHeightM;
+  // Sync refs in a layout effect so they are updated before the `setData`
+  // effect below fires uPlot's `draw` hook.
+  useEffect(() => {
+    escapePathRef.current = escapePath;
+    arrivalHeightMRef.current = localCheckParams.arrivalHeightM;
+  });
 
   // Build the uPlot chart when it first has data or when the theme /
   // translations change; recreated only on those (rare) transitions.

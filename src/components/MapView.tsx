@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type IControl,
   Map as MaplibreMap,
@@ -170,7 +170,7 @@ export function MapView() {
   const escapePath = useCurrentEscapePath();
   const arrivalHeightFeatures = useArrivalHeightFeatures();
 
-  const syncStyleControlUi = () => {
+  const syncStyleControlUi = useCallback(() => {
     const control = styleControlRef.current;
     if (!control) return;
     const openLabel = t('map.baseLayer.openSelector');
@@ -192,7 +192,14 @@ export function MapView() {
       control.optionChecks[styleId].classList.toggle('text-transparent', !isActive);
       control.optionLabels[styleId].textContent = t(`map.baseLayer.${styleId}`);
     }
-  };
+  }, [mapStyleId, t]);
+
+  // Latest-callback ref so the mount-only effect (which adds the style
+  // control once) can call the current version without depending on it.
+  const syncStyleControlUiRef = useRef(syncStyleControlUi);
+  useEffect(() => {
+    syncStyleControlUiRef.current = syncStyleControlUi;
+  }, [syncStyleControlUi]);
 
   const setBaseLayer = (styleId: MapStyleId) => {
     setMapStyleId(styleId);
@@ -313,7 +320,7 @@ export function MapView() {
           button.removeEventListener('click', onToggleClick);
           document.removeEventListener('pointerdown', onDocumentPointerDown);
         };
-        syncStyleControlUi();
+        syncStyleControlUiRef.current();
 
         return root;
       },
@@ -359,7 +366,7 @@ export function MapView() {
 
   useEffect(() => {
     syncStyleControlUi();
-  }, [mapStyleId, t]);
+  }, [syncStyleControlUi]);
 
   // ---- Overlays ----
 
