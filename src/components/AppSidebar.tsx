@@ -58,15 +58,6 @@ export function AppSidebar() {
 
   return (
     <>
-
-    {isPanelOpen && (
-      <button
-        aria-label="Close sidebar panel"
-        className="fixed inset-0 z-20 bg-transparent"
-        onClick={() => setIsPanelOpen(false)}
-      />
-    )}
-
     {/* ── Panel 1: icon-only navigation ─────────────────────────────── */}
     <Sidebar
       collapsible="none"
