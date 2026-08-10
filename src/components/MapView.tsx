@@ -20,14 +20,15 @@ import { useGeoJsonLayer } from './map/useGeoJsonLayer';
 import { buildArrivalHeightsGeoJSON, buildColoredTrackGeoJSON, buildEscapePathGeoJSON, buildLzGeoJSON } from './map/geojson';
 import { useFlightStore } from '@/state/useFlightStore';
 import { ARRIVAL_LABEL_LAYER, ARRIVAL_SOURCE_ID, ESCAPE_HALO_LAYER, ESCAPE_LINE_LAYER, ESCAPE_SOURCE_ID, LZ_LAYER_ICON, LZ_SOURCE_ID, TRACK_LAYER_ID, TRACK_SOURCE_ID } from './map/layerIds';
-import { interpolateTrackState, nearestFixTimeMs } from './map/trackGeometry';
+import { interpolatePosition, interpolateTrackState, nearestFixTimeMs } from './map/trackGeometry';
 import { boundingBoxOf, bufferBboxProportionally } from '@/domain/bbox';
 import throttle from 'lodash/throttle';
 import { buildLzPopupHtml } from './map/lzPopup';
 import { ARRIVAL_PILL_ICON, LZ_ICON_GRASS, LZ_ICON_RECT, LZ_ICON_SOLID, preloadMapIcons } from './map/icons';
 import { useLatestRef } from '@/hooks/useLatestRef';
 import { useTranslation } from 'react-i18next';
-import { useArrivalHeightFeatures, useCurrentEscapePath } from '@/hooks/useEscapeTargets';
+import { useArrivalHeightFeatures } from '@/hooks/useEscapeTargets';
+import type { EscapePath } from '@/domain/escapePath';
 import { STATUS_COLORS } from '@/domain/phaseColors';
 
 
@@ -44,6 +45,14 @@ const THROTLLE_DELAY_MS = 50;
  */
 const TRACE_FIT_MARGIN_KM_PERCENTAGE = 0.10; // 10% margin on each side
 
+/**
+ * Auto-pan trigger: fraction of the viewport width/height that acts as a
+ * "safe band" margin. When the glider's projected screen position enters
+ * this outer band on any side, the map centre is nudged by the same
+ * fraction of the corresponding dimension to re-centre the glider.
+ */
+const AUTO_PAN_MARGIN_FRACTION = 0.2;
+
 const EMPTY_FEATURE_COLLECTION: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
   features: [],
@@ -55,7 +64,6 @@ const AIRFIELD_STYLE_MATCH: ExpressionSpecification = [
   ['==', ['get', 'style'], 5],
   ['==', ['get', 'style'], 2],
 ];
-
 
 const GLIDER_MARKER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" class="h-full w-full">
   <g fill="currentColor" stroke="#fff" stroke-width="2.2" stroke-linejoin="round" paint-order="stroke">
@@ -250,7 +258,11 @@ class MapStyleControl implements IControl {
   }
 }
 
-export function MapView() {
+interface MapViewProps {
+  escapePath: EscapePath | null;
+}
+
+export function MapView({ escapePath }: MapViewProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -260,7 +272,7 @@ export function MapView() {
 
   const flight = useFlightStore((s) => s.flight);
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
-  // const isPlaying = useFlightStore((s) => s.isPlaying);
+  const isPlaying = useFlightStore((s) => s.isPlaying);
   const seek = useFlightStore((s) => s.seek);
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
 
@@ -269,10 +281,7 @@ export function MapView() {
   const setVisibleBounds = useFlightStore((s) => s.setVisibleBounds);
 
   const arrivalHeightFeatures = useArrivalHeightFeatures();
-
   const showEscapePath = useFlightStore((s) => s.showEscapePath);
-  const escapePath = useCurrentEscapePath();
-
 
   // ---- Map lifecycle ----
   useEffect(() => {
@@ -707,19 +716,51 @@ export function MapView() {
 
     // Move the glider marker on every currentTimeMs change.
   useEffect(() => {
-      if (!flight || !markerRef.current) return;
-      const state = interpolateTrackState(flight, currentTimeMs);
-      if (!state) return;
+    if (!flight || !markerRef.current) return;
+    const state = interpolateTrackState(flight, currentTimeMs);
+    if (!state) return;
 
-      //Update the coordinate of te glider mrker 
-      markerRef.current.setLngLat(state.position);
+    //Update the coordinate of te glider mrker 
+    markerRef.current.setLngLat(state.position);
 
-      // and rotate it according to the heading
-      // if (markerRef.current) {
-      //   markerRef.current.style.transform = `rotate(${state.headingDeg}deg)`;
-      markerRef.current.setRotation(state.headingDeg);
-   
-    }, [flight, currentTimeMs]);
+    // and rotate it according to the heading
+    // if (markerRef.current) {
+    //   markerRef.current.style.transform = `rotate(${state.headingDeg}deg)`;
+    markerRef.current.setRotation(state.headingDeg);
+  
+  }, [flight, currentTimeMs]);
+
+  // Auto-pan: when the glider enters the outer AUTO_PAN_MARGIN_FRACTION
+  // margin of the viewport, nudge the map centre so the glider marker is
+  // re-centred on screen. The glider's world position is unchanged; only
+  // the camera centre moves. Skipped while the map is already animating to
+  // avoid stacking pans. Only active during playback
+  useEffect(() => {
+    // if (!isPlaying) return;
+    const map = mapRef.current;
+    if (!map || !flight || !mapReadyRef.current) return;
+    if (map.isMoving()) return;
+
+    const position = interpolatePosition(flight, currentTimeMs);
+    if (!position) return;
+
+    const canvas = map.getCanvas();
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (w === 0 || h === 0) return;
+
+    const p = map.project(position);
+    const marginX = w * AUTO_PAN_MARGIN_FRACTION;
+    const marginY = h * AUTO_PAN_MARGIN_FRACTION;
+    const outsideSafeBandX = p.x < marginX || p.x > w - marginX;
+    const outsideSafeBandY = p.y < marginY || p.y > h - marginY;
+
+    if (outsideSafeBandX || outsideSafeBandY) {
+      const dx = p.x - w / 2;
+      const dy = p.y - h / 2;
+      map.panBy([dx, dy], { duration: 200 });
+    }
+  }, [flight, currentTimeMs, isPlaying]);    
 
   return (
     <>

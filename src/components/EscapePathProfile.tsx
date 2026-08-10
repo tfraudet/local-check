@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { useFlightStore } from '../state/useFlightStore';
-import { findCurrentFixIndex } from '../domain/flight';
 import { useTheme } from "./theme-provider";
-import { computeEscapePath, type EscapePath } from '../domain/escapePath';
-import { pickBestLandingZone } from '../domain/arrival';
-import { haversineDistanceM, pickAltitude } from '../domain/units';
+import type { EscapePath } from '../domain/escapePath';
 import { STATUS_COLORS } from '../domain/phaseColors';
 
 const STATUS_COLOR_FOR_PATH: Record<EscapePath['status'], string> = {
@@ -28,69 +25,20 @@ function getChartColors(isDark: boolean) {
  * along the current escape path (source fix → best reachable LZ).
  * Rendered as the left pane (30 % width) of the barogram row.
  */
-export function EscapePathProfile() {
+interface EscapePathProfileProps {
+  escapePath: EscapePath | null;
+}
+
+export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const uplotRef = useRef<uPlot | null>(null);
   const { theme } = useTheme();
 
   const flight = useFlightStore((s) => s.flight);
-  const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
-  const altitudeSource = useFlightStore((s) => s.altitudeSource);
-  const elevationGrid = useFlightStore((s) => s.elevationGrid);
   const landingZones = useFlightStore((s) => s.landingZones);
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
   const localCheckParams = useFlightStore((s) => s.settings);
-  const currentFixIndex = useMemo(
-    () => (flight ? findCurrentFixIndex(flight, currentTimeMs) : -1),
-    [flight, currentTimeMs],
-  );
-
-  const escapePath = useMemo<EscapePath | null>(() => {
-    if (!flight || !elevationGrid || !localCheckResult) return null;
-    if (landingZones.length === 0) return null;
-    if (currentFixIndex < 0) return null;
-    const fix = flight.fixes[currentFixIndex];
-    const altM = pickAltitude(fix, altitudeSource);
-    if (altM === null) return null;
-
-    const best = pickBestLandingZone(
-      fix.latitude,
-      fix.longitude,
-      altM,
-      landingZones,
-      localCheckParams.workingLD,
-    );
-    if (!best) return null;
-    const lz = best.lz;
-
-    // Extend the profile 20% beyond the source→LZ distance so the chart
-    // always shows some post-LZ context, scaled to the escape length.
-    const targetDistM = haversineDistanceM(
-      fix.latitude,
-      fix.longitude,
-      lz.latitude,
-      lz.longitude,
-    );
-    return computeEscapePath({
-      sourceFixIndex: currentFixIndex,
-      sourceLat: fix.latitude,
-      sourceLon: fix.longitude,
-      sourceAltM: altM,
-      lz,
-      grid: elevationGrid,
-      params: localCheckParams,
-      extraDistanceM: targetDistM * 0.2,
-    });
-  }, [
-    flight,
-    currentFixIndex,
-    altitudeSource,
-    elevationGrid,
-    landingZones,
-    localCheckResult,
-    localCheckParams,
-  ]);
 
   // Read the latest escape path (and arrival buffer) from refs inside
   // uPlot's option closures so the chart can be created ONCE and updated

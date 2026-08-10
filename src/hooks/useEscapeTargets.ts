@@ -73,7 +73,6 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
  * LZ the greenest arrival-height label points at (Phase 3, FR-3-1).
  */
 export function useCurrentEscapePath(): EscapePath | null {
-  const showEscapePath = useFlightStore((s) => s.showEscapePath);
   const elevationGrid = useFlightStore((s) => s.elevationGrid);
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
   const landingZones = useFlightStore((s) => s.landingZones);
@@ -83,8 +82,11 @@ export function useCurrentEscapePath(): EscapePath | null {
   const flight = useFlightStore((s) => s.flight);
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
 
+
   const nextPath = useMemo<EscapePath | null>(() => {       
-    if (!showEscapePath || !flight) return null;
+    const startedAt = import.meta.env.DEV ? performance.now() : 0;
+
+    if ( !flight) return null;
     if (!elevationGrid || !localCheckResult) return null;
 
     const index = findCurrentFixIndex(flight, currentTimeMs);
@@ -103,8 +105,18 @@ export function useCurrentEscapePath(): EscapePath | null {
       settings.workingLD,
     );
     if (!best) return null;
+    const lz = best.lz;
 
-    return computeEscapePath({
+    // Extend the profile 20% beyond the source→LZ distance so the chart
+    // always shows some post-LZ context, scaled to the escape length.
+    const targetDistM = haversineDistanceM(
+      position.latitude,
+      position.longitude,
+      lz.latitude,
+      lz.longitude,
+    );
+
+    const path = computeEscapePath({
       sourceFixIndex: index,
       sourceLat: latitude,
       sourceLon: longitude,
@@ -112,14 +124,18 @@ export function useCurrentEscapePath(): EscapePath | null {
       lz: best.lz,
       grid: elevationGrid,
       params: settings,
+      extraDistanceM: targetDistM * 0.2,
     });
-  }, [showEscapePath, elevationGrid, localCheckResult, landingZones, settings, flight, currentTimeMs, altitudeSource]);
 
-  useEffect(() => {
     if (import.meta.env.DEV) {
-      console.log('[useMemo<EscapePath | null>()]', nextPath);
+      console.log(
+        `[useCurrentEscapePath()] ${(performance.now() - startedAt).toFixed(2)} ms`,path
+      );
     }
-  }, [nextPath]);
+
+    return path;
+  }, [elevationGrid, localCheckResult, landingZones, settings, flight, currentTimeMs, altitudeSource]);
+
 
   return nextPath;
 

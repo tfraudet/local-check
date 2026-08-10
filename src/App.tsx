@@ -16,6 +16,7 @@ import { ErrorBanner } from "./components/ErrorBanner"
 import { useOpenaipAirports } from "./hooks/useOpenaipAirports"
 import { useAutoLocalCheck } from "./hooks/useAutoLocalCheck"
 import { EscapePathProfile } from "./components/EscapePathProfile"
+import { useCurrentEscapePath } from "./hooks/useEscapeTargets"
 
 export function App() {
   const flight = useFlightStore((s) => s.flight);
@@ -27,6 +28,7 @@ export function App() {
   useElevationLoader();
   useOpenaipAirports();
   useAutoLocalCheck();
+  const escapePath = useCurrentEscapePath();
   
   return (
     <SidebarProvider defaultOpen={false} className="h-screen flex-col overflow-hidden">
@@ -45,7 +47,7 @@ export function App() {
             {/* <SidebarTrigger /> */}
             {/* <!-- Premiere div : 70% de hauteur, 100% de largeur --> */}
             {/* <div className="h-[70%] w-full bg-blue-500"> */}
-            <MapView />
+            <MapView escapePath={escapePath} />
 
             {/* <!-- Deuxieme div : h-48 + h-12 de hauteur, 100% de largeur --> */}
             <div className="h-60 w-full shrink-0 flex flex-col">
@@ -53,7 +55,7 @@ export function App() {
                 {flight && (
                   <>
                     <Barogram />
-                    <EscapePathProfile />
+                    <EscapePathProfile escapePath={escapePath} />
                   </>
                 )}
                 {!flight &&  (
