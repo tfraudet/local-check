@@ -1,0 +1,174 @@
+{
+  "app": {
+    "title": "Local Check",
+    "disclaimer": "Indicative only — not for in-flight use. Always rely on official navigation and safety procedures."
+  },
+  "upload": {
+    "title": "Upload Flight Plan",
+    "description": "Upload your flight plan file to check for local restrictions and advisories.",
+    "dragHint": "Drag and drop a .igc file here, or click to browse",
+    "menuItem": "Upload flight",
+    "parsing": "Parsing…",
+    "computing": "Computing…"
+  },
+  "settings": {
+    "title": "Settings",
+    "subTitle": "Parameters",
+    "workingLD": "Working L/D",
+    "workingLDHint": "Glide ratio used for local computation (default 20)",
+    "arrivalHeight": "Safety arrival height (m)",
+    "arrivalHeightHint": "Minimum height above LZ on arrival (default 300 m)",
+    "groundClearance": "Ground clearance (m)",
+    "groundClearanceHint": "Minimum height above terrain along glide path (default 150 m)",
+    "detectFinalGlide": "Detect final glide",
+    "detectFinalGlidedHint": "Enabling this option automatically detects and marks final glides to landing zones on the track.",
+    "timeStep": "Time step (s)",
+    "timeStepHint": "Sampling interval for local check (min 10 s, default 20 s)",
+    "enlThreshold": "ENL threshold",
+    "enlThresholdHint": "Engine noise level above which motor is considered running (default 500)",
+    "lzData": "Landing zones data",
+    "showOutlandingFields": "Alpes outlanding fields",
+    "showOutlandingFieldsHint": "Include the shared alpine outlanding-fields database on the map and in local-check computation",
+    "showAuvergneFields": "Auvergne outlanding fields",
+    "showAuvergneFieldsHint": "Include the ACHh Auvergne outlanding-fields database on the map and in local-check computation",
+    "resetToDefaults": "Reset to defaults"
+
+  },
+  "escapePath": {
+    "title": "Escape path",
+    "toggle": "Show escape path",
+    "toggleHint": "Show the straight-line escape trajectory from the current position to the best reachable landing zone",
+
+    "profileTitle": "Escape path profile",
+    "profileSubtitle": "Straight glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
+    "terrainSeries": "Terrain",
+    "glideSeries": "Glide plane",
+    "arrivalTarget": "Arrival target",
+    "lzMarker": "Landing zone",
+    "arrivalHeight": "Arrival height",
+    "minMargin": "Min margin",
+    "distance": "Distance",
+    "status": {
+      "inLocal": "In local",
+      "marginal": "Marginal",
+      "outOfLocal": "Out of local"
+    }
+},
+  "reachableZone": {
+    "title": "Reachable zone",
+    "toggle": "Show reachable zone",
+    "toggleHint": "Overlay the area reachable in a glide from the current replay position, given L/D and terrain"
+  },
+  "arrivalHeights": {
+    "toggle": "Show arrival heights on LZs",
+    "toggleHint": "Display, next to each visible landing zone, the height at which the glider would arrive from the current position"
+  },
+  "noFlight": {
+    "title": "No flight data.",
+    "description": "Please upload an IGC file to visualize the flight path and related information."
+  },
+  "errors": {
+    "title": "Upload failed",
+    "invalidFormat": "Please select a valid .igc file.",
+    "unknown": "Unable to read this IGC file.",
+    "service": {
+        "rateLimit": {
+        "title": "{{service}} rate-limited",
+        "message": "{{service}} returned 429 Too Many Requests. {{impact}}",
+        "hint": "Wait a moment; the app retries automatically after a cooldown."
+      }
+    }
+
+  },
+  "summary": {
+    "title": "Flight summary",
+    "date": "Date",
+    "pilot": "Pilot",
+    "glider": "Glider",
+    "notInFile": "not in file",
+    "duration": "Duration",
+    "altitude": "Altitude",
+    "maxSpeed": "Max ground speed",
+    "distance": "Total distance"
+  },
+  "progress": {
+    "title": "Loading flight",
+    "description": "Please wait while your flight is processed.",
+    "parsing": "Parsing IGC file…",
+    "elevation": "Loading terrain elevation data…",
+    "landingZones": "Loading landing zone database…",
+    "computing": "Computing local check…",
+    "ready": "Local check ready",
+    "errorTitle": "Loading failed",
+    "close": "Close"
+  },
+  "landingZones": {
+      "airfield": "Airfield",
+    "outlanding": "Outlanding",
+    "popup": {
+      "code": "Code",
+      "type": "Type",
+      "elevation": "Elevation",
+      "position": "Position",
+      "source": "Source",
+      "styleFallback": "Style {{style}}"
+    },
+    "style": {
+      "unknown": "Unknown",
+      "waypoint": "Waypoint",
+      "grassAirfield": "Grass airfield",
+      "outlandingField": "Outlanding field",
+      "glidingAirfield": "Gliding airfield",
+      "solidAirfield": "Solid airfield",
+      "mountainPass": "Mountain pass",
+      "mountainTop": "Mountain top",
+      "transmitterMast": "Transmitter mast",
+      "vor": "VOR",
+      "ndb": "NDB",
+      "coolingTower": "Cooling tower",
+      "dam": "Dam",
+      "tunnel": "Tunnel",
+      "bridge": "Bridge",
+      "powerPlant": "Power plant",
+      "castle": "Castle",
+      "intersection": "Intersection"
+    }
+  },
+  "telemetry": {
+    "title": "Telemetry",
+    "time": "Time",
+    "pressureAltitude": "Pressure altitude",
+    "gnssAltitude": "GNSS altitude",
+    "groundSpeed": "Ground speed",
+    "vario": "Vario",
+    "agl": "AGL"
+  },
+  "stats": {
+    "title": "Results",
+    "outOfLocalTime": "Out of local",
+    "outOfLocalPercent": "% of flight",
+    "minMissingHeight": "Min missing",
+    "maxMissingHeight": "Max missing",
+    "lowestMargin": "Lowest margin",
+    "seekToFirstBreach": "Seek to first breach",
+    "noResult": "Import a .cup file to run the local check",
+    "badgeBreach": "Out of Local",
+    "badgeMarginal": "Marginal",
+    "badgeAlwaysInLocal": "Always in local",
+    "captionOutOfLocal": "out of local",
+    "captionMarginal": "marginal",
+    "captionAlwaysInLocal": "of the flight within local",
+    "exits_one": "{{count}} exit",
+    "exits_other": "{{count}} exits"
+  },
+  "legend": {
+    "title": "Track colors",
+    "initialClimb": "Initial climb (tow/winch)",
+    "motor": "Motor running",
+    "inLocal": "In local",
+    "marginal": "Marginal (< {{height}}m)",
+    "outOfLocal": "Out of local",
+    "finalGlide": "Final glide"
+  }
+  
+}

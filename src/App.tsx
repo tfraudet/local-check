@@ -1,20 +1,99 @@
-import { Button } from "@/components/ui/button"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { AppSidebar } from "@/components/AppSidebar"
+import { MapView } from "@/components/MapView"
+import { ReplayControls } from "@/components/ReplayControls"
+import { Barogram } from "@/components/Barogram"
+import { LoaderProgressDialog } from "@/components/LoaderProgressDialog"
+import { FileText } from 'lucide-react';
+
+import './i18n';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./components/ui/empty"
+import { useTranslation } from "react-i18next"
+import { useFlightStore } from "./state/useFlightStore"
+import { useReplayEngine, useReplayKeyboardShortcuts } from "./replay/replayEngine"
+import { useElevationLoader } from "./hooks/useElevationLoader"
+import { ErrorBanner } from "./components/ErrorBanner"
+import { useOpenaipAirports } from "./hooks/useOpenaipAirports"
+import { useAutoLocalCheck } from "./hooks/useAutoLocalCheck"
+import { EscapePathProfile } from "./components/EscapePathProfile"
 
 export function App() {
+  const flight = useFlightStore((s) => s.flight);
+  const exception = useFlightStore((s) => s.exception);
+  const setException = useFlightStore((s) => s.setException);
+
+  useReplayEngine();
+  useReplayKeyboardShortcuts();
+  useElevationLoader();
+  useOpenaipAirports();
+  useAutoLocalCheck();
+  
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
+    <SidebarProvider defaultOpen={false} className="h-screen flex-col overflow-hidden">
+
+      <ErrorBanner
+            error={exception}
+            title="Une erreur est survenue"
+            onDismiss={() => setException(null)}
+         />
+      <LoaderProgressDialog />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <AppSidebar />
+        <SidebarInset className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
+
+          <main className="flex flex-1 flex-col min-h-0  overflow-hidden">
+            {/* <SidebarTrigger /> */}
+            {/* <!-- Premiere div : 70% de hauteur, 100% de largeur --> */}
+            {/* <div className="h-[70%] w-full bg-blue-500"> */}
+            <MapView />
+
+            {/* <!-- Deuxieme div : h-48 + h-12 de hauteur, 100% de largeur --> */}
+            <div className="h-60 w-full shrink-0 flex flex-col">
+              <div className="h-48 shrink-0 flex border-b">
+                {flight && (
+                  <>
+                    <Barogram />
+                    <EscapePathProfile />
+                  </>
+                )}
+                {!flight &&  (
+                  <NoFlight />
+                )}
+              </div>
+              <ReplayControls />
+            </div>
+          </main>
+
+        </SidebarInset>
+
+
       </div>
-    </div>
+    </SidebarProvider>
+  )
+}
+
+ function NoFlight() {
+  const { t } = useTranslation();
+  
+  return (
+    <>
+        <Empty className="border border-solid bg-muted/40 m-3 ">
+          <EmptyHeader>
+            <EmptyMedia>
+              <FileText />
+            </EmptyMedia>
+            <EmptyTitle>
+              {t('noFlight.title')}
+            </EmptyTitle>
+            <EmptyDescription>
+              {t('noFlight.description')}
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            {/* <Button size="sm">Upload an IGC flight</Button> */}
+          </EmptyContent>
+        </Empty>
+    </>
   )
 }
 

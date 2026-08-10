@@ -2,6 +2,76 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
+@import "uplot/dist/uPlot.min.css";
+
+.map-style-control {
+  padding: 0;
+}
+
+.map-style-menu {
+  position: relative;
+}
+
+.map-style-control .map-style-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 4px;
+  border: 0;
+  background: white;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.map-style-control .map-style-button svg {
+  display: block;
+}
+
+.map-style-button:hover,
+.map-style-button[aria-expanded="true"] {
+  background: #f1f5f9;
+}
+
+.map-style-control .map-style-options {
+  position: absolute;
+  top: 33px;
+  right: 0;
+  z-index: 1;
+  display: grid;
+  width: 160px;
+  padding: 4px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 20%);
+}
+
+.map-style-control .map-style-options button {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: #1f2937;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.map-style-control .map-style-options button:hover {
+  background: #f1f5f9;
+}
+
+.glider-marker {
+  @apply h-16 w-16 text-blue-600;
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -127,4 +197,66 @@
   html {
     @apply font-sans;
     }
+}
+
+/* ---------------------------------------------------------------------------
+   Landing-zone map popup. Styles live here (rather than inline in the popup
+   HTML) so the popup follows the light/dark theme tokens like the rest of
+   the UI.
+   --------------------------------------------------------------------------- */
+
+.lz-popup .maplibregl-popup-content {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+.lz-popup .maplibregl-popup-tip {
+  border-top-color: var(--popover);
+  border-bottom-color: var(--popover);
+}
+
+.lz-popup__body {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.lz-popup__title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.lz-popup__chips {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.lz-popup__chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lz-popup__rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+}
+
+.lz-popup__label {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.lz-popup__description {
+  margin-top: 6px;
+  color: var(--muted-foreground);
 }
