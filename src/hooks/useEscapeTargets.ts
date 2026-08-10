@@ -3,7 +3,8 @@ import type { ArrivalHeightFeature } from '../components/map/geojson';
 import { useFlightStore } from '@/state/useFlightStore';
 import { findCurrentFixIndex } from '@/domain/flight';
 import { haversineDistanceM, pickAltitude } from '@/domain/units';
-import { arrivalHeightAboveGroundM, classifyArrival } from '@/domain/arrival';
+import { arrivalHeightAboveGroundM, classifyArrival, pickBestLandingZone } from '@/domain/arrival';
+import { computeEscapePath, type EscapePath } from '@/domain/escapePath';
 
 /** Skip arrival-height labels for LZs beyond this range — far LZs are
  * never reachable and only clutter the map. */
@@ -65,4 +66,61 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
   }, [nextFeatures]);
 
   return nextFeatures;
+}
+
+/**
+ * Escape path from the current position to the best-arrival LZ — the same
+ * LZ the greenest arrival-height label points at (Phase 3, FR-3-1).
+ */
+export function useCurrentEscapePath(): EscapePath | null {
+  const showEscapePath = useFlightStore((s) => s.showEscapePath);
+  const elevationGrid = useFlightStore((s) => s.elevationGrid);
+  const localCheckResult = useFlightStore((s) => s.localCheckResult);
+  const landingZones = useFlightStore((s) => s.landingZones);
+  const settings = useFlightStore((s) => s.settings);
+
+  const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
+  const flight = useFlightStore((s) => s.flight);
+  const altitudeSource = useFlightStore((s) => s.altitudeSource);
+
+  const nextPath = useMemo<EscapePath | null>(() => {       
+    if (!showEscapePath || !flight) return null;
+    if (!elevationGrid || !localCheckResult) return null;
+
+    const index = findCurrentFixIndex(flight, currentTimeMs);
+    if (index < 0) return null;
+    const position = flight.fixes[index];
+    const latitude = position.latitude;
+    const longitude = position.longitude;
+    const altM = pickAltitude(position, altitudeSource);
+    if (altM === null) return null;   
+
+    const best = pickBestLandingZone(
+      latitude,
+      longitude,
+      altM,
+      landingZones,
+      settings.workingLD,
+    );
+    if (!best) return null;
+
+    return computeEscapePath({
+      sourceFixIndex: index,
+      sourceLat: latitude,
+      sourceLon: longitude,
+      sourceAltM: altM,
+      lz: best.lz,
+      grid: elevationGrid,
+      params: settings,
+    });
+  }, [showEscapePath, elevationGrid, localCheckResult, landingZones, settings, flight, currentTimeMs, altitudeSource]);
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[useMemo<EscapePath | null>()]', nextPath);
+    }
+  }, [nextPath]);
+
+  return nextPath;
+
 }

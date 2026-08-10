@@ -17,9 +17,9 @@ import { Layers } from 'lucide-react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGeoJsonLayer } from './map/useGeoJsonLayer';
-import { buildArrivalHeightsGeoJSON, buildColoredTrackGeoJSON, buildLzGeoJSON } from './map/geojson';
+import { buildArrivalHeightsGeoJSON, buildColoredTrackGeoJSON, buildEscapePathGeoJSON, buildLzGeoJSON } from './map/geojson';
 import { useFlightStore } from '@/state/useFlightStore';
-import { ARRIVAL_LABEL_LAYER, ARRIVAL_SOURCE_ID, LZ_LAYER_ICON, LZ_SOURCE_ID, TRACK_LAYER_ID, TRACK_SOURCE_ID } from './map/layerIds';
+import { ARRIVAL_LABEL_LAYER, ARRIVAL_SOURCE_ID, ESCAPE_HALO_LAYER, ESCAPE_LINE_LAYER, ESCAPE_SOURCE_ID, LZ_LAYER_ICON, LZ_SOURCE_ID, TRACK_LAYER_ID, TRACK_SOURCE_ID } from './map/layerIds';
 import { interpolateTrackState, nearestFixTimeMs } from './map/trackGeometry';
 import { boundingBoxOf, bufferBboxProportionally } from '@/domain/bbox';
 import throttle from 'lodash/throttle';
@@ -27,7 +27,7 @@ import { buildLzPopupHtml } from './map/lzPopup';
 import { ARRIVAL_PILL_ICON, LZ_ICON_GRASS, LZ_ICON_RECT, LZ_ICON_SOLID, preloadMapIcons } from './map/icons';
 import { useLatestRef } from '@/hooks/useLatestRef';
 import { useTranslation } from 'react-i18next';
-import { useArrivalHeightFeatures } from '@/hooks/useEscapeTargets';
+import { useArrivalHeightFeatures, useCurrentEscapePath } from '@/hooks/useEscapeTargets';
 import { STATUS_COLORS } from '@/domain/phaseColors';
 
 
@@ -269,6 +269,10 @@ export function MapView() {
   const setVisibleBounds = useFlightStore((s) => s.setVisibleBounds);
 
   const arrivalHeightFeatures = useArrivalHeightFeatures();
+
+  const showEscapePath = useFlightStore((s) => s.showEscapePath);
+  const escapePath = useCurrentEscapePath();
+
 
   // ---- Map lifecycle ----
   useEffect(() => {
@@ -626,6 +630,40 @@ export function MapView() {
         },
         
       });      
+    },
+  });
+
+  // --- Overlay escape path ---
+
+  const escapeGeoJSON = useMemo(
+    () => buildEscapePathGeoJSON(showEscapePath ? escapePath : null),
+    [showEscapePath, escapePath],
+  );
+
+  useGeoJsonLayer(mapRef, {
+    sourceId: ESCAPE_SOURCE_ID,
+    data: escapeGeoJSON,
+    addLayers: (map) => {
+      map.addLayer({
+        id: ESCAPE_HALO_LAYER,
+        type: 'line',
+        source: ESCAPE_SOURCE_ID,
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 8,
+          'line-opacity': 0.25,
+        },
+      });
+      map.addLayer({
+        id: ESCAPE_LINE_LAYER,
+        type: 'line',
+        source: ESCAPE_SOURCE_ID,
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 3,
+          'line-dasharray': [2, 1.5],
+        },
+      });
     },
   });
 

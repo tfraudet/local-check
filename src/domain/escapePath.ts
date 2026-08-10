@@ -76,7 +76,7 @@ export interface EscapePathInputs {
  * are conservatively excluded from the min-margin computation.
  */
 export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
-  const computeStartMs = performance.now();
+  const startedAt = performance.now();
 
   const {
     sourceFixIndex,
@@ -170,14 +170,9 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
   };
 
   if (import.meta.env.DEV) {
-    const durationMs = performance.now() - computeStartMs;
-    console.log('[escapePath] computeEscapePath', {
-      sourceFixIndex,
-      lzId: lz.id,
-      totalDistanceM,
-      profilePoints: profile.length,
-      durationMs: Number(durationMs.toFixed(5)),
-    });
+    console.log(
+      `[computeEscapePath] ${(performance.now() - startedAt).toFixed(2)} ms`,
+    );
   }
 
   return path;

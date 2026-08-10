@@ -10,13 +10,13 @@ import type { LandingZone } from '../../domain/landingZone';
 import { DIFFICULTY_LEVEL_COLOR } from '../../domain/landingZone';
 
 import type { LocalStatus } from '../../domain/arrival';
-// import type { EscapePath } from '../../domain/escapePath';
+import type { EscapePath } from '@/domain/escapePath';
 // import type { ReachableZoneResult } from '../../domain/reachableZone';
 
-// const EMPTY: GeoJSON.FeatureCollection = {
-//   type: 'FeatureCollection',
-//   features: [],
-// };
+const EMPTY: GeoJSON.FeatureCollection = {
+  type: 'FeatureCollection',
+  features: [],
+};
 
 /**
  * Build a FeatureCollection of colored line segments from the fixes and
@@ -169,7 +169,6 @@ export function buildArrivalHeightsGeoJSON(
   };
 }
 
-/*
 export function buildEscapePathGeoJSON(
   escapePath: EscapePath | null,
 ): GeoJSON.FeatureCollection {
@@ -194,6 +193,9 @@ export function buildEscapePathGeoJSON(
     ],
   };
 }
+
+/*
+
 
 export function buildReachableZoneGeoJSON(
   result: ReachableZoneResult | null,
