@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { ArrivalHeightFeature } from '../components/map/geojson';
 import { useFlightStore } from '@/state/useFlightStore';
 import { findCurrentFixIndex } from '@/domain/flight';
@@ -29,8 +29,6 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
     const altM = pickAltitude(position, altitudeSource);
     if (altM === null) return [];   
 
-    const startedAt = import.meta.env.DEV ? performance.now() : 0;
-
     const features: ArrivalHeightFeature[] = [];
     for (const lz of landingZones) {
       if (!visibleLandingZoneIds.has(lz.id)) continue;
@@ -57,14 +55,14 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
       });
     }
 
-    if (import.meta.env.DEV) {
-        console.log(
-            `[useMemo<ArrivalHeightFeature[]>()] ${(performance.now() - startedAt).toFixed(2)} ms`,features
-        );
-    }
-
     return features;
   }, [showArrivalHeights, landingZones, visibleLandingZoneIds, settings, flight, currentTimeMs, altitudeSource]);
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[useMemo<ArrivalHeightFeature[]>()]', nextFeatures);
+    }
+  }, [nextFeatures]);
 
   return nextFeatures;
 }

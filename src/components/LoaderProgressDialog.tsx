@@ -159,5 +159,3 @@ export function LoaderProgressDialog() {
     </Dialog>
   );
 }
-
-{}

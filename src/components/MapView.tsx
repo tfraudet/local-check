@@ -269,7 +269,6 @@ export function MapView() {
   const setVisibleBounds = useFlightStore((s) => s.setVisibleBounds);
 
   const arrivalHeightFeatures = useArrivalHeightFeatures();
-  const showArrivalHeights = useFlightStore((s) => s.showArrivalHeights);
 
   // ---- Map lifecycle ----
   useEffect(() => {
@@ -530,7 +529,7 @@ export function MapView() {
 
   const arrivalGeoJSON = useMemo(
     () => buildArrivalHeightsGeoJSON(arrivalHeightFeatures),   
-    [showArrivalHeights, arrivalHeightFeatures],
+    [arrivalHeightFeatures],
   );
 
   useGeoJsonLayer(mapRef, {

@@ -6,10 +6,7 @@ import { findCurrentFixIndex, flightTimeBounds, type IgcParseError, type Normali
 import type { ElevationGrid } from '@/domain/elevation';
 import type { LandingZone } from '../domain/landingZone';
 import { computeActiveZones, mergeZonesBySource, type ZonesBySource, DEFAULT_SOURCE_TOGGLES } from './landingZoneCatalog';
-import { computeDerivedMetrics } from '@/domain/derivedMetrics';
 import type { LocalCheckInput, LocalCheckResult } from '@/domain/localCheck';
-import { detectMotorUse } from '@/domain/enlDetection';
-import { computeFlightPhases } from '@/domain/flightPhases';
 
 import { createWorkerChannel } from './workerChannel';
 
