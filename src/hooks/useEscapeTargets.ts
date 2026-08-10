@@ -83,8 +83,8 @@ export function useCurrentEscapePath(): EscapePath | null {
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
 
 
-  const nextPath = useMemo<EscapePath | null>(() => {       
-    const startedAt = import.meta.env.DEV ? performance.now() : 0;
+  const nextPath = useMemo<EscapePath | null>(() => {
+    // const startTime = import.meta.env.DEV ? performance.now() : 0;
 
     if ( !flight) return null;
     if (!elevationGrid || !localCheckResult) return null;
@@ -127,15 +127,20 @@ export function useCurrentEscapePath(): EscapePath | null {
       extraDistanceM: targetDistM * 0.2,
     });
 
-    if (import.meta.env.DEV) {
-      console.log(
-        `[useCurrentEscapePath()] ${(performance.now() - startedAt).toFixed(2)} ms`,path
-      );
-    }
+    // if (import.meta.env.DEV) {
+    //   console.debug(
+    //     `[useCurrentEscapePath()] ${Math.round(performance.now() - startTime)} ms`,
+    //   );
+    // }
 
     return path;
   }, [elevationGrid, localCheckResult, landingZones, settings, flight, currentTimeMs, altitudeSource]);
 
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[useCurrentEscapePath()]', nextPath);
+    }
+  }, [nextPath]);
 
   return nextPath;
 

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFlightStore } from '../state/useFlightStore';
 import { fetchOpenAipAirports, OpenAipApiError } from '../services/openaipApi';
-import { describeServiceFailure } from '../services/serviceErrors';
+// import { describeServiceFailure } from '../services/serviceErrors';
 import { bboxContains, bufferBbox, type Bbox } from '../domain/bbox';
 
 /** Debounce window applied to `moveend` bursts. Long enough that a pan
@@ -78,11 +78,11 @@ export function useOpenaipAirports() {
           } else {
             console.warn('[openaip] fetch failed:', err);
           }
-          const friendly = describeServiceFailure(err, {
-            t,
-            serviceName: 'OpenAIP',
-            impactKey: 'openaip',
-          });
+          // const friendly = describeServiceFailure(err, {
+          //   t,
+          //   serviceName: 'OpenAIP',
+          //   impactKey: 'openaip',
+          // });
           // pushServiceError({
           //   service: 'openaip',
           //   title: friendly.title,
