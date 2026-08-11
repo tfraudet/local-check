@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { House, Plane, Settings } from 'lucide-react';
+import { Plane, Settings, Sun, Moon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -15,13 +15,17 @@ import {
 
 import { SettingsPanel } from './SettingsPanel';
 import { FlightPanel } from './FlightPanel';
+import { useTheme } from './theme-provider';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import logoAcph from '@/assets/logo-acph.jpg';
 
-type NavKey = 'flight' | 'settings';
+type NavKey = 'flight' | 'theme' | 'settings';
  
 export function AppSidebar() {
   const { t } = useTranslation();
   const [activeNav, setActiveNav] = useState<NavKey>('flight');
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     if (!isPanelOpen) {
@@ -40,9 +44,6 @@ export function AppSidebar() {
 
   const navItems: { key: NavKey; label: string, icon: typeof Plane }[] = [
     { key: 'flight', label:  t('upload.title') , icon: Plane},
-  ];
-
-   const footerItems: { key: NavKey; label: string, icon: typeof Plane }[] = [
     { key: 'settings', label: t('settings.title'), icon: Settings },
   ];
 
@@ -61,11 +62,24 @@ export function AppSidebar() {
     {/* ── Panel 1: icon-only navigation ─────────────────────────────── */}
     <Sidebar
       collapsible="none"
-      className="relative z-30 h-[calc(100svh)] w-[calc(var(--sidebar-width-icon)+1px)]! border-r"
+      className="relative z-30 h-[calc(100svh)] w-[calc(var(--sidebar-width-icon)+6px)]! border-r"
       onClick={(event) => event.stopPropagation()}
     >
       <SidebarHeader>
-        <House />
+        {/* <House /> */}
+        <a
+          href="https://aeroclub-issoire.fr"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Visit Aero Club Issoire website"
+          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <Avatar size="lg">
+            <AvatarImage src={logoAcph} alt="ACPH logo" />
+            <AvatarFallback>ACPH Logo</AvatarFallback>
+          </Avatar>
+        </a>
+
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -76,7 +90,6 @@ export function AppSidebar() {
                   tooltip={{ children: item.label, hidden: false }}
                   onClick={() => handleNavClick(item.key)}
                   isActive={activeNav === item.key}
-                  className="pl-2!"
                 >
                   <item.icon />
                 </SidebarMenuButton>
@@ -88,18 +101,19 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-          {footerItems.map((item) => (
-            <SidebarMenuItem key={item.key}>
-              <SidebarMenuButton
-                tooltip={{ children: item.label, hidden: false }}
-                onClick={() => handleNavClick(item.key)}
-                isActive={activeNav === item.key}
-                className="pl-2!"
-              >
-                <item.icon />
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              // className="ml-auto"
+              size="default"
+              onClick={toggleTheme}
+            >
+            {theme === 'dark' ? (
+              <Sun  />
+            ) : (
+              <Moon  />
+            )}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
@@ -113,7 +127,7 @@ export function AppSidebar() {
       >
         <SidebarHeader className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">
-            {navItems.find((item) => item.key === activeNav)?.label ?? footerItems.find((item) => item.key === activeNav)?.label}
+            {navItems.find((item) => item.key === activeNav)?.label ?? ''}
           </h2>
         </SidebarHeader>
         <SidebarContent>

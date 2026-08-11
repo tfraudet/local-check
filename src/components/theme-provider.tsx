@@ -14,6 +14,7 @@ type ThemeProviderProps = {
 type ThemeProviderState = {
   theme: Theme
   setTheme: (theme: Theme) => void
+  toggleTheme: () => void
 }
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)"
@@ -100,6 +101,19 @@ export function ThemeProvider({
     },
     [storageKey]
   )
+
+  const toggleTheme = React.useCallback(() => {
+    const nextTheme =
+      theme === "dark"
+        ? "light"
+        : theme === "light"
+          ? "dark"
+          : getSystemTheme() === "dark"
+            ? "light"
+            : "dark"
+
+    setTheme(nextTheme)
+  }, [setTheme, theme])
 
   const applyTheme = React.useCallback(
     (nextTheme: Theme) => {
@@ -208,8 +222,9 @@ export function ThemeProvider({
     () => ({
       theme,
       setTheme,
+      toggleTheme,
     }),
-    [theme, setTheme]
+    [theme, setTheme, toggleTheme]
   )
 
   return (
