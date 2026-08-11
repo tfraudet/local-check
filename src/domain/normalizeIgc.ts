@@ -25,7 +25,7 @@ export function normalizeIgc(parsed: IGCParser.IGCFile): NormalizedFlight {
     throw makeError('empty-file', 'This IGC file contains no flight fixes.');
   }
 
-  console.log('Igc parsed file (not normalized)', parsed);
+   if (import.meta.env.DEV) console.log('Igc parsed file (not normalized)', parsed);
   const rawFixes: Fix[] = parsed.fixes
     .filter((f) => f.valid !== false)
     .map((f) => ({

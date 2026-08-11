@@ -59,7 +59,7 @@ export function useOpenaipAirports() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      console.log('Fetching airports for bbox:', padded);
+      if (import.meta.env.DEV) console.log('Fetching airports for bbox:', padded);
       fetchOpenAipAirports(padded, controller.signal)
         .then((zones) => {
           if (controller.signal.aborted) return;

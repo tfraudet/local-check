@@ -56,7 +56,6 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
     if (key === 'help') {
       setIsPanelOpen(false);
       setActiveNav(key);
-      console.log('Help clicked'); // Replace with your help action  
       onOpenHelp();
       return;
     }

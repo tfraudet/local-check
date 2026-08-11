@@ -34,7 +34,7 @@ export function HelpPanel({ open, onOpenChange }: HelpPanelProps) {
         </SheetHeader>
 
         {/* Zone de contenu défilable avec stylisation automatique `prose` */}
-        <div className="flex-1 overflow-y-auto py-4 pr-2">
+        <div className="flex-1 overflow-y-auto py-4 px-4">
           <div className="prose prose-slate dark:prose-invert max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {helpDocumentation}
