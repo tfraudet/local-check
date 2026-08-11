@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plane, Settings, Sun, Moon } from 'lucide-react';
+import { Plane, Settings, Sun, Moon, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -19,9 +19,13 @@ import { useTheme } from './theme-provider';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import logoAcph from '@/assets/logo-acph.jpg';
 
-type NavKey = 'flight' | 'theme' | 'settings';
+type NavKey = 'flight' | 'theme' | 'settings' | 'help';
+
+interface AppSidebarProps {
+  onOpenHelp: () => void
+}
  
-export function AppSidebar() {
+export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
   const { t } = useTranslation();
   const [activeNav, setActiveNav] = useState<NavKey>('flight');
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -45,9 +49,18 @@ export function AppSidebar() {
   const navItems: { key: NavKey; label: string, icon: typeof Plane }[] = [
     { key: 'flight', label:  t('upload.title') , icon: Plane},
     { key: 'settings', label: t('settings.title'), icon: Settings },
+    { key: 'help', label: t('help.title'), icon: Info },
   ];
 
   function handleNavClick(key: NavKey): void {
+    if (key === 'help') {
+      setIsPanelOpen(false);
+      setActiveNav(key);
+      console.log('Help clicked'); // Replace with your help action  
+      onOpenHelp();
+      return;
+    }
+
     if (key === activeNav) {
       setIsPanelOpen((open) => !open);
       return;
@@ -103,7 +116,14 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              // className="ml-auto"
+              tooltip={{
+                children: t(
+                  theme === 'dark'
+                    ? 'theme.switchToLight'
+                    : 'theme.switchToDark',
+                ),
+                hidden: false,
+              }}
               size="default"
               onClick={toggleTheme}
             >

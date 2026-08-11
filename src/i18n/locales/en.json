@@ -174,6 +174,10 @@
     "marginal": "Marginal (< {{height}}m)",
     "outOfLocal": "Out of local",
     "finalGlide": "Final glide"
+  },
+  "theme": {
+    "switchToLight": "Switch to light theme",
+    "switchToDark": "Switch to dark theme"
   }
   
 }

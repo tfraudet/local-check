@@ -4,6 +4,8 @@
 @import "@fontsource-variable/inter";
 @import "uplot/dist/uPlot.min.css";
 
+@plugin "@tailwindcss/typography";
+
 .map-style-control {
   padding: 0;
 }

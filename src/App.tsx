@@ -18,11 +18,15 @@ import { useAutoLocalCheck } from "./hooks/useAutoLocalCheck"
 import { EscapePathProfile } from "./components/EscapePathProfile"
 import { useCurrentEscapePath } from "./hooks/useEscapeTargets"
 import { useAutoReachableZone } from "./hooks/useAutoReachableZone"
+import { HelpPanel } from "./components/HelpPanel"
+import { useState } from "react"
 
 export function App() {
   const flight = useFlightStore((s) => s.flight);
   const exception = useFlightStore((s) => s.exception);
   const setException = useFlightStore((s) => s.setException);
+  
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
 
   useReplayEngine();
   useReplayKeyboardShortcuts();
@@ -42,36 +46,33 @@ export function App() {
          />
       <LoaderProgressDialog />
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <AppSidebar />
+        <AppSidebar onOpenHelp={() => setIsHelpOpen(true)} />
 
         {/* CONTENU PRINCIPAL */}
         <SidebarInset className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
 
-          <main className="flex flex-1 flex-col min-h-0  overflow-hidden">
-            {/* <SidebarTrigger /> */}
-            {/* <!-- Premiere div : 70% de hauteur, 100% de largeur --> */}
-            {/* <div className="h-[70%] w-full bg-blue-500"> */}
-            <MapView escapePath={escapePath} />
+          {/* <SidebarTrigger /> */}
+          {/* <!-- Premiere div : 70% de hauteur, 100% de largeur --> */}
+          <MapView escapePath={escapePath} />
 
-            {/* <!-- Deuxieme div : h-48 + h-12 de hauteur, 100% de largeur --> */}
-            <div className="h-60 w-full shrink-0 flex flex-col">
-              <div className="h-48 shrink-0 flex border-b">
-                {flight && (
-                  <>
-                    <Barogram />
-                    <EscapePathProfile escapePath={escapePath} />
-                  </>
-                )}
-                {!flight &&  (
-                  <NoFlight />
-                )}
-              </div>
-              <ReplayControls />
+          {/* <!-- Deuxieme div : h-48 + h-12 de hauteur, 100% de largeur --> */}
+          <div className="h-60 w-full shrink-0 flex flex-col">
+            <div className="h-48 shrink-0 flex border-b">
+              {flight && (
+                <>
+                  <Barogram />
+                  <EscapePathProfile escapePath={escapePath} />
+                </>
+              )}
+              {!flight &&  (
+                <NoFlight />
+              )}
             </div>
-          </main>
+            <ReplayControls />
+          </div>
+      </SidebarInset>
 
-        </SidebarInset>
-
+      <HelpPanel open={isHelpOpen} onOpenChange={setIsHelpOpen} />
 
       </div>
     </SidebarProvider>
