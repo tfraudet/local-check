@@ -20,6 +20,7 @@ self.onmessage = (event: MessageEvent<ReachableZoneWorkerRequest>) => {
   const { data } = event;
   if (data.type !== 'run') return;
 
+  const startedAt = import.meta.env.DEV ? performance.now() : 0;
   try {
     const result = computeReachableZone(data.input);
     const response: ReachableZoneWorkerResponse = {
@@ -35,5 +36,11 @@ self.onmessage = (event: MessageEvent<ReachableZoneWorkerRequest>) => {
       message: err instanceof Error ? err.message : String(err),
     };
     (self as unknown as Worker).postMessage(response);
+  } finally {
+    if (import.meta.env.DEV) {
+      console.log(
+        `[computeReachableZone] ${(performance.now() - startedAt).toFixed(2)} ms`,
+      );
+    }
   }
 };

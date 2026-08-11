@@ -38,7 +38,7 @@
     "title": "Escape path",
     "toggle": "Show escape path",
     "toggleHint": "Show the straight-line escape trajectory from the current position to the best reachable landing zone",
-
+    "waiting": "Need landing zones to see the escape path.",
     "profileTitle": "Escape path profile",
     "profileSubtitle": "Straight glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
     "terrainSeries": "Terrain",

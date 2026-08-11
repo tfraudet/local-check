@@ -9,7 +9,8 @@ import { computeActiveZones, mergeZonesBySource, type ZonesBySource, DEFAULT_SOU
 import type { LocalCheckInput, LocalCheckResult } from '@/domain/localCheck';
 
 import { createWorkerChannel } from './workerChannel';
-import { DEFAULT_REACHABLE_ZONE_PARAMS, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
+import { DEFAULT_REACHABLE_ZONE_PARAMS, type ReachableZoneInputs, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
+import { pickAltitude } from '@/domain/units';
 
 
 export type PlaybackSpeed = 1 | 2 | 4 | 8 | 16 | 32;
@@ -121,6 +122,16 @@ const localCheckChannel = createWorkerChannel<
     }),
 );
 
+const reachableZoneChannel = createWorkerChannel<
+  ReachableZoneInputs,
+  ReachableZoneResult
+>(
+  () =>
+    new Worker(new URL('../workers/reachableZone.worker.ts', import.meta.url), {
+      type: 'module',
+    }),
+);
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
@@ -148,6 +159,7 @@ export interface FlightStoreState {
   isComputingLocalCheck: boolean;
 
   reachableZoneResult: ReachableZoneResult | null;
+  isComputingReachableZone: boolean;
 
   loadFlight: (flight: NormalizedFlight) => void;
   clearFlight: () => void;
@@ -178,6 +190,7 @@ export interface FlightStoreState {
   setVisibleBounds: (bbox: [number, number, number, number] | null) => void;
 
   runLocalCheck: () => Promise<void>;
+  runReachableZone: () => Promise<void>;
   clearReachableZone: () => void;
 }
 
@@ -221,6 +234,7 @@ export const useFlightStore = create<FlightStoreState>()(
         localCheckResult: null,
         isComputingLocalCheck: false,
         reachableZoneResult: null,
+        isComputingReachableZone: false,
 
         // Replay Controler
         play: () => {
@@ -313,8 +327,12 @@ export const useFlightStore = create<FlightStoreState>()(
             currentTimeMs: 0,
             elevationGrid: null,
             elevationLoadError: null,
+            
             localCheckResult: null,
+            isComputingLocalCheck: false,
+            
             reachableZoneResult: null,
+            isComputingReachableZone: false,
            
             exception: null,
           }),
@@ -371,7 +389,7 @@ export const useFlightStore = create<FlightStoreState>()(
 
           set({ isComputingLocalCheck: true });
 
-          console.log('BEFORE running runLocalCheckFull() in a worker');
+          // console.log('BEFORE running runLocalCheckFull() in a worker');
           const result = await localCheckChannel.run({
             fixes: flight.fixes,
             altitudeSource,
@@ -380,7 +398,7 @@ export const useFlightStore = create<FlightStoreState>()(
             // phases,
             params: localCheckParams,
           });
-          console.log('AFTER running runLocalCheckFull() in a worker');
+          // console.log('AFTER running runLocalCheckFull() in a worker');
 
           // `null` means a newer request superseded this one — leave both the
           // result and the spinner to the newest request.
@@ -396,6 +414,51 @@ export const useFlightStore = create<FlightStoreState>()(
               `[runLocalCheck] ${(performance.now() - startedAt).toFixed(2)} ms`,
             );
           }
+        },
+
+        runReachableZone: async () => {
+          const {
+            flight,
+            currentTimeMs,
+            elevationGrid,
+            settings: {
+              reachableZoneParams,
+              showReachableZone,
+              ...localCheckParams
+            },
+            altitudeSource,
+          } = get();
+
+          if (!showReachableZone || !flight || !elevationGrid) return;
+
+          // Locate the fix closest to the current replay time.
+          const idx = findCurrentFixIndex(flight, currentTimeMs);
+          if (idx < 0) return;
+          const fix = flight.fixes[idx];
+          const altM = pickAltitude(fix, altitudeSource);
+          if (altM === null) return;
+
+          set({ isComputingReachableZone: true });
+
+          // console.log('BEFORE running reachableZoneChannel() in a worker');
+          const result = await reachableZoneChannel.run({
+            sourceLat: fix.latitude,
+            sourceLon: fix.longitude,
+            sourceAltM: altM,
+            grid: elevationGrid,
+            params: localCheckParams,
+            zoneParams: reachableZoneParams,
+          });
+          // console.log('AFTER running reachableZoneChannel() in a worker');
+
+          // Stale response: the newest request is still running, so neither
+          // the result nor the spinner belongs to us.
+          if (result === null && reachableZoneChannel.isLatestPending()) return;
+
+          set({
+            isComputingReachableZone: false,
+            ...(result !== null ? { reachableZoneResult: result } : {}),
+          });
         },
 
         setException: (error) => set({ exception: error }),

@@ -17,9 +17,9 @@ import { Layers } from 'lucide-react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGeoJsonLayer } from './map/useGeoJsonLayer';
-import { buildArrivalHeightsGeoJSON, buildColoredTrackGeoJSON, buildEscapePathGeoJSON, buildLzGeoJSON } from './map/geojson';
+import { buildArrivalHeightsGeoJSON, buildColoredTrackGeoJSON, buildEscapePathGeoJSON, buildLzGeoJSON, buildReachableZoneGeoJSON } from './map/geojson';
 import { useFlightStore } from '@/state/useFlightStore';
-import { ARRIVAL_LABEL_LAYER, ARRIVAL_SOURCE_ID, ESCAPE_HALO_LAYER, ESCAPE_LINE_LAYER, ESCAPE_SOURCE_ID, LZ_LAYER_ICON, LZ_SOURCE_ID, TRACK_LAYER_ID, TRACK_SOURCE_ID } from './map/layerIds';
+import { ARRIVAL_LABEL_LAYER, ARRIVAL_SOURCE_ID, ESCAPE_HALO_LAYER, ESCAPE_LINE_LAYER, ESCAPE_SOURCE_ID, LZ_LAYER_ICON, LZ_SOURCE_ID, RZ_FILL_LAYER, RZ_OUTLINE_LAYER, RZ_SOURCE_ID, TRACK_LAYER_ID, TRACK_SOURCE_ID } from './map/layerIds';
 import { interpolatePosition, interpolateTrackState, nearestFixTimeMs } from './map/trackGeometry';
 import { boundingBoxOf, bufferBboxProportionally } from '@/domain/bbox';
 import throttle from 'lodash/throttle';
@@ -282,6 +282,9 @@ export function MapView({ escapePath }: MapViewProps) {
 
   const arrivalHeightFeatures = useArrivalHeightFeatures();
   const showEscapePath = useFlightStore((s) => s.settings.showEscapePath);
+
+  const showReachableZone = useFlightStore((s) => s.settings.showReachableZone);
+  const reachableZoneResult = useFlightStore((s) => s.reachableZoneResult);
 
   // ---- Map lifecycle ----
   useEffect(() => {
@@ -675,6 +678,53 @@ export function MapView({ escapePath }: MapViewProps) {
       });
     },
   });
+
+  // --- Overlay reachable zones ---
+
+    const reachableZoneGeoJSON = useMemo(
+      () =>
+        buildReachableZoneGeoJSON(showReachableZone ? reachableZoneResult : null),
+      [showReachableZone, reachableZoneResult],
+    );
+
+    useGeoJsonLayer(mapRef, {
+      sourceId: RZ_SOURCE_ID,
+      data: reachableZoneGeoJSON,
+      addLayers: (map) => {
+        // Insert the reachable-zone layers UNDER the track so the
+        // interactive layers stay on top.
+        const beforeId = map.getLayer(TRACK_LAYER_ID)
+          ? TRACK_LAYER_ID
+          : undefined;
+        map.addLayer(
+          {
+            id: RZ_FILL_LAYER,
+            type: 'fill',
+            source: RZ_SOURCE_ID,
+            paint: {
+              'fill-color': STATUS_COLORS['in-local'],
+              'fill-opacity': 0.18,
+              'fill-antialias': false,
+            },
+          },
+          beforeId,
+        );
+        map.addLayer(
+          {
+            id: RZ_OUTLINE_LAYER,
+            type: 'line',
+            source: RZ_SOURCE_ID,
+            paint: {
+              'line-color': STATUS_COLORS['in-local'],
+              'line-opacity': 0.35,
+              'line-width': 0.5,
+            },
+          },
+          beforeId,
+        );
+      },
+    });
+
 
   // ---- Glider marker & camera ----
   // Fit the viewport to the whole track whenever a new flight is loaded,

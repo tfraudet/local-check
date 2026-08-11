@@ -11,7 +11,7 @@ import { DIFFICULTY_LEVEL_COLOR } from '../../domain/landingZone';
 
 import type { LocalStatus } from '../../domain/arrival';
 import type { EscapePath } from '@/domain/escapePath';
-// import type { ReachableZoneResult } from '../../domain/reachableZone';
+import type { ReachableZoneResult } from '../../domain/reachableZone';
 
 const EMPTY: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
@@ -194,9 +194,6 @@ export function buildEscapePathGeoJSON(
   };
 }
 
-/*
-
-
 export function buildReachableZoneGeoJSON(
   result: ReachableZoneResult | null,
 ): GeoJSON.FeatureCollection {
@@ -214,5 +211,3 @@ export function buildReachableZoneGeoJSON(
   };
 }
 
-
-*/

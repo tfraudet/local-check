@@ -17,6 +17,7 @@ import { useOpenaipAirports } from "./hooks/useOpenaipAirports"
 import { useAutoLocalCheck } from "./hooks/useAutoLocalCheck"
 import { EscapePathProfile } from "./components/EscapePathProfile"
 import { useCurrentEscapePath } from "./hooks/useEscapeTargets"
+import { useAutoReachableZone } from "./hooks/useAutoReachableZone"
 
 export function App() {
   const flight = useFlightStore((s) => s.flight);
@@ -28,6 +29,7 @@ export function App() {
   useElevationLoader();
   useOpenaipAirports();
   useAutoLocalCheck();
+  useAutoReachableZone();
   const escapePath = useCurrentEscapePath();
   
   return (
