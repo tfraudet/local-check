@@ -31,8 +31,9 @@ import { useArrivalHeightFeatures } from '@/hooks/useEscapeTargets';
 import type { EscapePath } from '@/domain/escapePath';
 import { STATUS_COLORS } from '@/domain/phaseColors';
 
-
-setWorkerUrl(new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url).toString());
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+setWorkerUrl(workerUrl);
+// console.log('[map] Setting MapLibre worker URL to', workerUrl);
 
 const DEFAULT_CENTER: [number, number] = [3.2489, 45.5401];
 const DEFAULT_ZOOM = 11;
@@ -160,7 +161,7 @@ async function resolveMapStyle(
   const sourceEntries = Object.entries(resolvedStyle.sources);
 
   await Promise.all(
-    sourceEntries.map(async ([, source]) => {
+    sourceEntries.map(async ([sourceId, source]) => {
       if (!('url' in source) || typeof source.url !== 'string') {
         return;
       }
@@ -170,17 +171,26 @@ async function resolveMapStyle(
         throw new Error(`Unable to load map source (${sourceResponse.status})`);
       }
 
-      const tileJson = (await sourceResponse.json()) as { tiles?: string[] };
-      const sourceWithTiles = source as typeof source & {
+      const tileJson = (await sourceResponse.json()) as {
         tiles?: string[];
-        url?: string;
+        minzoom?: number;
+        maxzoom?: number;
+      };
+      if (!tileJson.tiles?.length) {
+        throw new Error(`Map source did not provide tile URLs (${source.url})`);
+      }
+
+      const { url: _url, ...sourceWithoutUrl } = source as typeof source & {
+        url: string;
         attribution?: string;
       };
-      sourceWithTiles.tiles = tileJson.tiles;
-      delete sourceWithTiles.url;
-      if (attribution && !sourceWithTiles.attribution) {
-        sourceWithTiles.attribution = attribution;
-      }
+      Object.assign(sourceWithoutUrl, {
+        tiles: tileJson.tiles,
+        ...(tileJson.minzoom === undefined ? {} : { minzoom: tileJson.minzoom }),
+        ...(tileJson.maxzoom === undefined ? {} : { maxzoom: tileJson.maxzoom }),
+        ...(attribution && !('attribution' in sourceWithoutUrl) ? { attribution } : {}),
+      });
+      resolvedStyle.sources[sourceId] = sourceWithoutUrl as typeof resolvedStyle.sources[string];
     }),
   );
 
@@ -215,6 +225,12 @@ function MapStyleMenu({ map }: { map: MaplibreMap }) {
                     const styleConfig = MAP_STYLES[key];
                     const style = await resolveMapStyle(styleConfig.style, styleConfig.attribution);
                     map.setStyle(style);
+
+                    // ttendre que le nouveau style soit totalement chargé pour recalculer les dimensions
+                      map.once('styledata', () => {
+                        map.resize();
+                      });
+
                   } catch (error) {
                     console.error('Failed to load map style', error);
                   }
@@ -238,6 +254,7 @@ class MapStyleControl implements IControl {
   onAdd(map: MaplibreMap): HTMLElement {
     this.container = document.createElement('div');
     this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group map-style-control';
+    this.container.id = 'map-style-control';
     this.container.addEventListener('click', (event) => event.stopPropagation());
     this.root = createRoot(this.container);
     this.root.render(<MapStyleMenu map={map} />);
@@ -303,6 +320,10 @@ export function MapView({ escapePath }: MapViewProps) {
     map.addControl(new NavigationControl(), 'top-right');
     map.addControl(new MapStyleControl(), 'top-right');
 
+    map.on('error', (event) => {
+      console.error('[map] MapLibre error', event.error);
+    });
+
     const closeAttribution = () => {
       const attribution = map.getContainer().querySelector('.maplibregl-ctrl-attrib');
       attribution?.classList.remove('maplibregl-compact-show');
@@ -318,6 +339,7 @@ export function MapView({ escapePath }: MapViewProps) {
 
     map.once('load', () => {
       mapReadyRef.current = true;
+      map.resize();
       publishBounds();
       closeAttribution();
       void preloadMapIcons(map)
@@ -681,49 +703,49 @@ export function MapView({ escapePath }: MapViewProps) {
 
   // --- Overlay reachable zones ---
 
-    const reachableZoneGeoJSON = useMemo(
-      () =>
-        buildReachableZoneGeoJSON(showReachableZone ? reachableZoneResult : null),
-      [showReachableZone, reachableZoneResult],
-    );
+  const reachableZoneGeoJSON = useMemo(
+    () =>
+      buildReachableZoneGeoJSON(showReachableZone ? reachableZoneResult : null),
+    [showReachableZone, reachableZoneResult],
+  );
 
-    useGeoJsonLayer(mapRef, {
-      sourceId: RZ_SOURCE_ID,
-      data: reachableZoneGeoJSON,
-      addLayers: (map) => {
-        // Insert the reachable-zone layers UNDER the track so the
-        // interactive layers stay on top.
-        const beforeId = map.getLayer(TRACK_LAYER_ID)
-          ? TRACK_LAYER_ID
-          : undefined;
-        map.addLayer(
-          {
-            id: RZ_FILL_LAYER,
-            type: 'fill',
-            source: RZ_SOURCE_ID,
-            paint: {
-              'fill-color': STATUS_COLORS['in-local'],
-              'fill-opacity': 0.18,
-              'fill-antialias': false,
-            },
+  useGeoJsonLayer(mapRef, {
+    sourceId: RZ_SOURCE_ID,
+    data: reachableZoneGeoJSON,
+    addLayers: (map) => {
+      // Insert the reachable-zone layers UNDER the track so the
+      // interactive layers stay on top.
+      const beforeId = map.getLayer(TRACK_LAYER_ID)
+        ? TRACK_LAYER_ID
+        : undefined;
+      map.addLayer(
+        {
+          id: RZ_FILL_LAYER,
+          type: 'fill',
+          source: RZ_SOURCE_ID,
+          paint: {
+            'fill-color': STATUS_COLORS['in-local'],
+            'fill-opacity': 0.18,
+            'fill-antialias': false,
           },
-          beforeId,
-        );
-        map.addLayer(
-          {
-            id: RZ_OUTLINE_LAYER,
-            type: 'line',
-            source: RZ_SOURCE_ID,
-            paint: {
-              'line-color': STATUS_COLORS['in-local'],
-              'line-opacity': 0.35,
-              'line-width': 0.5,
-            },
+        },
+        beforeId,
+      );
+      map.addLayer(
+        {
+          id: RZ_OUTLINE_LAYER,
+          type: 'line',
+          source: RZ_SOURCE_ID,
+          paint: {
+            'line-color': STATUS_COLORS['in-local'],
+            'line-opacity': 0.35,
+            'line-width': 0.5,
           },
-          beforeId,
-        );
-      },
-    });
+        },
+        beforeId,
+      );
+    },
+  });
 
 
   // ---- Glider marker & camera ----
@@ -814,7 +836,7 @@ export function MapView({ escapePath }: MapViewProps) {
 
   return (
     <>
-        <div ref={containerRef} className="flex-1 min-h-0 w-full" />
+        <div id="map" ref={containerRef} className="flex-1 min-h-0 w-full h-full" />
     </>
   )
 }

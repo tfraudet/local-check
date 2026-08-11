@@ -41,26 +41,17 @@ export default defineConfig({
   },
   server: { proxy },
   preview: { proxy },
-  optimizeDeps: {
-    exclude: ['maplibre-gl'],
-  },
-build: {                                                                                                                                                
-    rollupOptions: {                                                                                                                                      
-      output: {                                                                                                                                           
-        entryFileNames: 'assets/[name]-[hash].mjs',                                                                                                       
-        chunkFileNames: (chunk) => {                                                                                                                      
-          if (chunk.name === 'maplibre-gl-shared') {                                                                                                      
-            return 'assets/maplibre-gl-shared.mjs'                                                                                                        
-          }                                                                                                                                             
-          return 'assets/[name]-[hash].mjs'
-        },                                                                                                                                                
-        assetFileNames: 'assets/[name]-[hash][extname]',
-        manualChunks(id) {                                                                                                                                
-          if (id.includes('maplibre-gl') && id.includes('shared')) {                                                                                    
-            return 'maplibre-gl-shared'
-          }                                                                                                                                               
-        },
-      },                                                                                                                                                  
-    },                                                                                                                                                  
-  },
+  // optimizeDeps: {
+  //   exclude: ['maplibre-gl'],
+  // },
+  // build: {
+  //   rollupOptions: {
+  //     output: {
+  //       entryFileNames: 'assets/[name]-[hash].mjs',
+  //       chunkFileNames: 'assets/[name]-[hash].mjs',
+  //       assetFileNames: 'assets/[name]-[hash][extname]',
+  //     },
+  //   },
+  // },
+
 })
