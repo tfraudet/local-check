@@ -9,6 +9,7 @@ import { computeActiveZones, mergeZonesBySource, type ZonesBySource, DEFAULT_SOU
 import type { LocalCheckInput, LocalCheckResult } from '@/domain/localCheck';
 
 import { createWorkerChannel } from './workerChannel';
+import { DEFAULT_REACHABLE_ZONE_PARAMS, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
 
 
 export type PlaybackSpeed = 1 | 2 | 4 | 8 | 16 | 32;
@@ -39,9 +40,9 @@ export interface Settings {
 
   // show / hide features
   showEscapePath: boolean;
-  showReachableZone: boolean;
   showArrivalHeights: boolean;
- 
+  showReachableZone: boolean;
+  reachableZoneParams: ReachableZoneParams; 
 }
 
 const DEFAULT_SETTINGS : Settings = {
@@ -58,8 +59,9 @@ const DEFAULT_SETTINGS : Settings = {
 
   showEscapePath: false,
   showReachableZone: false,
-  showArrivalHeights: true
-  
+  showArrivalHeights: true,
+  reachableZoneParams: DEFAULT_REACHABLE_ZONE_PARAMS
+
 } as const;
 
 
@@ -145,6 +147,8 @@ export interface FlightStoreState {
   localCheckResult: LocalCheckResult | null;
   isComputingLocalCheck: boolean;
 
+  reachableZoneResult: ReachableZoneResult | null;
+
   loadFlight: (flight: NormalizedFlight) => void;
   clearFlight: () => void;
   setLoadError: (error: IgcParseError | null) => void;
@@ -174,6 +178,7 @@ export interface FlightStoreState {
   setVisibleBounds: (bbox: [number, number, number, number] | null) => void;
 
   runLocalCheck: () => Promise<void>;
+  clearReachableZone: () => void;
 }
 
 export const useFlightStore = create<FlightStoreState>()(
@@ -215,6 +220,7 @@ export const useFlightStore = create<FlightStoreState>()(
 
         localCheckResult: null,
         isComputingLocalCheck: false,
+        reachableZoneResult: null,
 
         // Replay Controler
         play: () => {
@@ -295,6 +301,7 @@ export const useFlightStore = create<FlightStoreState>()(
             elevationGrid: null,
             elevationLoadError: null,
             localCheckResult: null,
+            reachableZoneResult: null,
 
             exception: null,
           });
@@ -307,6 +314,8 @@ export const useFlightStore = create<FlightStoreState>()(
             elevationGrid: null,
             elevationLoadError: null,
             localCheckResult: null,
+            reachableZoneResult: null,
+           
             exception: null,
           }),
         setLoadError: (error: IgcParseError | null) => set({ loadError: error }),
@@ -345,7 +354,8 @@ export const useFlightStore = create<FlightStoreState>()(
           }),
 
         setVisibleBounds: (bbox) => set({ visibleBounds: bbox }),
-        
+        clearReachableZone: () => set({ reachableZoneResult: null }),
+
         runLocalCheck: async () => {
           const {
             flight,

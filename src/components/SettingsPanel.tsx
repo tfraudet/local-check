@@ -6,6 +6,7 @@ import { Separator } from './ui/separator';
 import { useFlightStore } from '@/state/useFlightStore';
 import { Switch } from './ui/switch';
 import { Button } from './ui/button';
+import { REACHABLE_ZONE_CELL_CAP, REACHABLE_ZONE_GRID_SIZES, REACHABLE_ZONE_MAX_DIAMETER_KM, REACHABLE_ZONE_MIN_DIAMETER_KM, type ReachableZoneGridSizeM } from '@/domain/reachableZone';
 
 interface ParamRowProps {
   label: string;
@@ -90,18 +91,11 @@ export function SettingsPanel() {
   const setSettings = useFlightStore((s) => s.setSettings);
   const enabledSources = useFlightStore((s) => s.settings.enabledSources);
   const setSourceEnabled = useFlightStore((s) => s.setSourceEnabled);
-
-  // const runLocalCheck = useFlightStore((s) => s.runLocalCheck);
+  const result = useFlightStore((s) => s.reachableZoneResult);
 
   const update = (patch: Parameters<typeof setSettings>[0]) => {
     setSettings(patch);
-
-    // Debounce: use a small timeout so rapid slider drags don't thrash the worker.
-    // The timeout ref lives outside this render; a simple approach is to just
-    // let runLocalCheck guard on preconditions internally.
-    //void runLocalCheck();
   };
-
 
   return (
     <>
@@ -209,6 +203,9 @@ export function SettingsPanel() {
           checked={settings.showEscapePath}
           onChange={(v) => update({ showEscapePath: v })}
         />
+      </SidebarGroup>
+
+      <SidebarGroup>
         <ToggleRow
           id="show-reachable-zone"
           label={t('reachableZone.toggle')}
@@ -216,7 +213,109 @@ export function SettingsPanel() {
           checked={settings.showReachableZone}
           onChange={(v) => update({ showReachableZone: v })}
         />
+        {settings.showReachableZone && (
+          <div className="space-y-2 pl-3 border-l">
+            <div className="space-y-1">
+              <label
+                  className="text-xs font-medium"
+                  title={t('reachableZone.gridSizeHint')}
+                >
+                  {t('reachableZone.gridSize')}
+              </label>
+              <div className="flex gap-1">
+                {REACHABLE_ZONE_GRID_SIZES.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() =>
+                      update({
+                        reachableZoneParams: {
+                          ...settings.reachableZoneParams,
+                          gridSizeM: size as ReachableZoneGridSizeM,
+                        },
+                      })
+                    }
+                    className={
+                      'flex-1 rounded border px-2 py-1 text-xs transition ' +
+                      (settings.reachableZoneParams.gridSizeM === size
+                        ? 'border-primary bg-primary/10 font-semibold'
+                        : 'border-border hover:bg-accent/40')
+                    }
+                  >
+                    {size} m
+                  </button>
+                ))}
+              </div>           
+            </div>
+            
+            <div className="space-y-1">
+               <div className="flex items-center justify-between">
+              <label
+                className="text-xs font-medium"
+                title={t('reachableZone.diameterHint')}
+              >
+                {t('reachableZone.diameter')}
+              </label>
+              <input
+                type="number"
+                min={REACHABLE_ZONE_MIN_DIAMETER_KM}
+                max={REACHABLE_ZONE_MAX_DIAMETER_KM}
+                step={10}
+                value={settings.reachableZoneParams.diameterKm}
+                onChange={(e) => {
+                  const n = parseFloat(e.target.value);
+                  if (!isNaN(n)) {
+                    update({
+                      reachableZoneParams: {
+                        ...settings.reachableZoneParams,
+                        diameterKm: Math.max(
+                          REACHABLE_ZONE_MIN_DIAMETER_KM,
+                          Math.min(REACHABLE_ZONE_MAX_DIAMETER_KM, n),
+                        ),
+                      },
+                    });
+                  }
+                }}
+                className="w-16 rounded border border-border bg-background px-1 py-0.5 text-right text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                aria-label={t('reachableZone.diameter')}
+              />
+              </div>
+              <input
+                type="range"
+                min={REACHABLE_ZONE_MIN_DIAMETER_KM}
+                max={REACHABLE_ZONE_MAX_DIAMETER_KM}
+                step={10}
+                value={settings.reachableZoneParams.diameterKm}
+                onChange={(e) =>
+                  update({
+                    reachableZoneParams: {
+                      ...settings.reachableZoneParams,
+                      diameterKm: parseFloat(e.target.value),
+                    },
+                  })
+                }
+                className="h-1 w-full cursor-pointer accent-primary"
+                aria-label={t('reachableZone.diameter')}
+              />
+
+            </div>
+
+            {result?.degraded && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                {t('reachableZone.degradedHint', {
+                  cellCap: REACHABLE_ZONE_CELL_CAP.toLocaleString(),
+                  gridSizeM: result.params.gridSizeM,
+                  diameterKm: result.params.diameterKm,
+                })}
+              </p>
+            )}
+
+          </div>  
+      )}
+
       </SidebarGroup>
+     
+      <Separator />
 
       <SidebarGroup>
         <ResetSettingsButton />
