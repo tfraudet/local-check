@@ -231,7 +231,7 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
   const lzName = targetLz?.name ?? escapePath.lzId;
 
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="flex h-full w-[30%] shrink-0 flex-col">
       <div className="flex items-center justify-between gap-2 border-b px-2 py-1 text-xs">
         <span className="font-medium">{t('escapePath.profileTitle')}</span>
         <span
