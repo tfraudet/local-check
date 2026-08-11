@@ -91,14 +91,6 @@ export function SettingsPanel() {
   const enabledSources = useFlightStore((s) => s.settings.enabledSources);
   const setSourceEnabled = useFlightStore((s) => s.setSourceEnabled);
 
-  const showEscapePath = useFlightStore((s) => s.showEscapePath);
-  const setShowEscapePath = useFlightStore((s) => s.setShowEscapePath);
-  const showReachableZone = useFlightStore((s) => s.showReachableZone);
-  const setShowReachableZone = useFlightStore((s) => s.setShowReachableZone);
-  const showArrivalHeights = useFlightStore((s) => s.showArrivalHeights);
-  const setShowArrivalHeights = useFlightStore((s) => s.setShowArrivalHeights);
-
-
   // const runLocalCheck = useFlightStore((s) => s.runLocalCheck);
 
   const update = (patch: Parameters<typeof setSettings>[0]) => {
@@ -207,22 +199,22 @@ export function SettingsPanel() {
           id="show-arrival-heights"
           label={t('arrivalHeights.toggle')}
           hint={t('arrivalHeights.toggleHint')}
-          checked={showArrivalHeights}
-          onChange={setShowArrivalHeights}
+          checked={settings.showArrivalHeights}
+          onChange={(v) => update({ showArrivalHeights: v })}
         />
         <ToggleRow
           id="show-escape-path"
           label={t('escapePath.toggle')}
           hint={t('escapePath.toggleHint')}
-          checked={showEscapePath}
-          onChange={setShowEscapePath}
+          checked={settings.showEscapePath}
+          onChange={(v) => update({ showEscapePath: v })}
         />
         <ToggleRow
           id="show-reachable-zone"
           label={t('reachableZone.toggle')}
           hint={t('reachableZone.toggleHint')}
-          checked={showReachableZone}
-          onChange={setShowReachableZone}
+          checked={settings.showReachableZone}
+          onChange={(v) => update({ showReachableZone: v })}
         />
       </SidebarGroup>
 

@@ -36,6 +36,12 @@ export interface Settings {
 
   // Enabled sources for landng zones
   enabledSources: ToggleableSource;
+
+  // show / hide features
+  showEscapePath: boolean;
+  showReachableZone: boolean;
+  showArrivalHeights: boolean;
+ 
 }
 
 const DEFAULT_SETTINGS : Settings = {
@@ -48,7 +54,12 @@ const DEFAULT_SETTINGS : Settings = {
   detectFinalGlide: true,
 
   //enabled sources for landing zones
-  enabledSources: TOGGLEABLE_SOURCES
+  enabledSources: TOGGLEABLE_SOURCES,
+
+  showEscapePath: false,
+  showReachableZone: false,
+  showArrivalHeights: true
+  
 } as const;
 
 
@@ -122,10 +133,6 @@ export interface FlightStoreState {
   currentTimeMs: number;
   altitudeSource: 'pressure' | 'gnss';
 
-  showEscapePath: boolean;
-  showReachableZone: boolean;
-  showArrivalHeights: boolean;
-
   elevationGrid: ElevationGrid | null;
   elevationLoadError: string | null;
   exception: Error | null;
@@ -156,9 +163,6 @@ export interface FlightStoreState {
   setSettings: (patch: Partial<Settings>) => void;
   setSourceEnabled: (source: keyof ToggleableSource, enabled: boolean) => void;
 
-  setShowEscapePath: (visible: boolean) => void;
-  setShowReachableZone: (visible: boolean) => void;
-  setShowArrivalHeights: (visible: boolean) => void;  
   resetSettingsToDefaults: () => void;
 
   setElevationGrid: (grid: ElevationGrid | null) => void;
@@ -199,9 +203,6 @@ export const useFlightStore = create<FlightStoreState>()(
         altitudeSource: 'pressure',
 
         settings: DEFAULT_SETTINGS,
-        showEscapePath: false,
-        showReachableZone: false,
-        showArrivalHeights: true,
 
         elevationGrid: null,
         elevationLoadError: null,
@@ -276,17 +277,10 @@ export const useFlightStore = create<FlightStoreState>()(
           // void get().runLocalCheck();
         })),
         
-        setShowEscapePath: (visible: boolean) => set({ showEscapePath: visible }),
-        setShowReachableZone: (visible: boolean) => set({ showReachableZone: visible }),
-        setShowArrivalHeights: (visible: boolean) => set({ showArrivalHeights: visible }),
         resetSettingsToDefaults: () => {
           set({
             settings: DEFAULT_SETTINGS,
-            showEscapePath: false,
-            showReachableZone: false,
-            showArrivalHeights: true,
           });
-          // void get().runLocalCheck();
         },
 
         // Flight file management
@@ -405,10 +399,6 @@ export const useFlightStore = create<FlightStoreState>()(
       partialize: (state) => ({ 
         playbackSpeed: state.playbackSpeed ,
         settings: state.settings,
-        showEscapePath: state.showEscapePath,
-        showReachableZone: state.showReachableZone,
-        showArrivalHeights: state.showArrivalHeights,
-
       }),
       // merge: (persistedState, currentState) => {
       //   const persisted = persistedState as Partial<FlightStoreState>;

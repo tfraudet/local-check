@@ -281,7 +281,7 @@ export function MapView({ escapePath }: MapViewProps) {
   const setVisibleBounds = useFlightStore((s) => s.setVisibleBounds);
 
   const arrivalHeightFeatures = useArrivalHeightFeatures();
-  const showEscapePath = useFlightStore((s) => s.showEscapePath);
+  const showEscapePath = useFlightStore((s) => s.settings.showEscapePath);
 
   // ---- Map lifecycle ----
   useEffect(() => {

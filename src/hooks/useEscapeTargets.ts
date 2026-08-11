@@ -12,7 +12,7 @@ const ARRIVAL_HEIGHT_MAX_DISTANCE_KM = 60;
 const ARRIVAL_HEIGHT_MAX_DISTANCE_M = ARRIVAL_HEIGHT_MAX_DISTANCE_KM * 1000;
 
 export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
-  const showArrivalHeights = useFlightStore((s) => s.showArrivalHeights);
+  const showArrivalHeights = useFlightStore((s) => s.settings.showArrivalHeights);
   const landingZones = useFlightStore((s) => s.landingZones);
   const visibleLandingZoneIds = useFlightStore((s) => s.visibleLandingZoneIds);
   const settings = useFlightStore((s) => s.settings);
