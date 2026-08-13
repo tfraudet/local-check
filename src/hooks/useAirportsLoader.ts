@@ -7,6 +7,9 @@ import {
 } from '../services/openaipExportApi';
 import { detectCountriesFromFixes } from '../services/countryDetection';
 import { describeServiceFailure } from '../services/serviceErrors';
+import { boundingBoxOf, bufferBboxByKm } from '../domain/bbox';
+
+const AIRPORTS_FIT_MARGIN_KM = 60;
 
 /**
  * Fetches OpenAIP airports for every country the loaded flight crosses and
@@ -41,11 +44,28 @@ export function useAirportsLoader() {
       return;
     }
 
+    const [minLon, minLat, maxLon, maxLat] = bufferBboxByKm(
+      boundingBoxOf(flight.fixes),
+      AIRPORTS_FIT_MARGIN_KM,
+    );
+
     setIsLoadingAirports(true);
     fetchAirportsForCountries(countries, controller.signal)
       .then((zones) => {
         if (controller.signal.aborted) return;
-        if (zones.length > 0) addLandingZones(zones);
+        const inBbox = zones.filter(
+          (z) =>
+            z.longitude >= minLon &&
+            z.longitude <= maxLon &&
+            z.latitude >= minLat &&
+            z.latitude <= maxLat,
+        );
+        if (import.meta.env.DEV) {
+          console.log(
+            `[openaip-export] ${inBbox.length}/${zones.length} airports kept within ${AIRPORTS_FIT_MARGIN_KM}km of flight bbox`,
+          );
+        }
+        if (inBbox.length > 0) addLandingZones(inBbox);
         setAirportsLoaded();
       })
       .catch((err) => {
