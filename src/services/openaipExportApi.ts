@@ -12,7 +12,18 @@
 import type { LandingZone } from '../domain/landingZone';
 import { lzId } from '../domain/landingZone';
 
-const STORAGE_BASE = import.meta.env.DEV
+/**
+ * OpenAIP's storage bucket doesn't send CORS headers, so we go through the
+ * Vite proxy whenever the app is served from localhost (both `vite dev` and
+ * `vite preview` honour `server.proxy` / `preview.proxy`). In a real
+ * deployment we hit the bucket directly and rely on the hosting layer to
+ * proxy it if needed.
+ */
+const IS_LOCAL_SERVE =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1');
+const STORAGE_BASE = IS_LOCAL_SERVE
   ? '/openaip-storage-proxy/openaip-system-exports'
   : 'https://storage.openaip.net/openaip-system-exports';
 

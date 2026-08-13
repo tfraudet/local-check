@@ -314,6 +314,21 @@ export const useFlightStore = create<FlightStoreState>()(
 
         // Flight file management
         loadFlight: (flight: NormalizedFlight) => {
+          // OpenAIP airports are country-dependent: a new flight may cross a
+          // different set of countries, so drop the previously fetched batch
+          // and let `useAirportsLoader` refetch. Other sources (user .cup,
+          // outlanding catalogs) are flight-independent and preserved.
+          const { landingZonesBySource, visibleLandingZoneIds } = get();
+          const {
+            openaip: _dropped,
+            ...restBySource
+          } = landingZonesBySource;
+          void _dropped;
+          const nextVisible = new Set(visibleLandingZoneIds);
+          if (landingZonesBySource.openaip) {
+            for (const z of landingZonesBySource.openaip) nextVisible.delete(z.id);
+          }
+
           set({
             flight,
             loadError: null,
@@ -328,6 +343,10 @@ export const useFlightStore = create<FlightStoreState>()(
             airportsLoadError: null,
             localCheckResult: null,
             reachableZoneResult: null,
+
+            landingZonesBySource: restBySource,
+            landingZones: computeActiveZones(restBySource, DEFAULT_SOURCE_TOGGLES),
+            visibleLandingZoneIds: nextVisible,
 
             exception: null,
           });

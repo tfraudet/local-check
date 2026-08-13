@@ -7,14 +7,18 @@
  */
 
 import PolygonLookup from 'polygon-lookup';
-import getCountriesMap from '@geo-maps/countries-land-10km';
+// Importing the GeoJSON directly (rather than via the wrapper package's
+// `require('./map.geo.json')`) is essential: Rollup does not resolve that
+// dynamic CommonJS require at production build time, which leaves
+// PolygonLookup with an undefined feature collection.
+import worldCountries from '@geo-maps/countries-land-10km/map.geo.json';
 import { alpha3ToAlpha2 } from 'i18n-iso-countries';
 import type { Fix } from '../domain/flight';
 
 let lookup: PolygonLookup | null = null;
 
 function getLookup(): PolygonLookup {
-  if (!lookup) lookup = new PolygonLookup(getCountriesMap());
+  if (!lookup) lookup = new PolygonLookup(worldCountries);
   return lookup;
 }
 

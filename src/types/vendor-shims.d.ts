@@ -8,7 +8,7 @@ declare module 'polygon-lookup' {
   }
 }
 
-declare module '@geo-maps/countries-land-10km' {
-  const getMap: () => unknown;
-  export default getMap;
+declare module '@geo-maps/countries-land-10km/map.geo.json' {
+  const featureCollection: unknown;
+  export default featureCollection;
 }
