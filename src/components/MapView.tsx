@@ -309,7 +309,8 @@ export function MapView({ escapePath }: MapViewProps) {
 
     const map = new MaplibreMap({
       container: containerRef.current,
-      style: MAP_STYLES.osm.style,
+      // style: MAP_STYLES.osm.style,
+      style: MAP_STYLES.liberty.style,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       attributionControl: false,
