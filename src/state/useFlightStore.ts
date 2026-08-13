@@ -5,7 +5,8 @@ import { persist } from 'zustand/middleware';
 import { findCurrentFixIndex, flightTimeBounds, type IgcParseError, type NormalizedFlight } from '../domain/flight';
 import type { ElevationGrid } from '@/domain/elevation';
 import type { LandingZone } from '../domain/landingZone';
-import { computeActiveZones, mergeZonesBySource, type ZonesBySource, DEFAULT_SOURCE_TOGGLES } from './landingZoneCatalog';
+import { computeActiveZones, DEFAULT_SOURCE_TOGGLES, mergeZonesBySource } from './landingZoneCatalog';
+import type { ZonesBySource, ToggleableSource, SourceToggles } from './landingZoneCatalog';
 import type { LocalCheckInput, LocalCheckResult } from '@/domain/localCheck';
 
 import { createWorkerChannel } from './workerChannel';
@@ -20,12 +21,10 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /** Sources the user can switch off. Anything not listed is always on. */
-const TOGGLEABLE_SOURCES: Record<string, boolean> = {
-  'outlanding-alps': false,
-  'outlanding-auvergne': false,
-};
-
-type ToggleableSource = typeof TOGGLEABLE_SOURCES;
+// const TOGGLEABLE_SOURCES: Record<string, boolean> = {
+//   'outlanding-alps': false,
+//   'outlanding-auvergne': false,
+// };
 
 export interface Settings {
   // Parameters for the local check algorithm
@@ -37,7 +36,7 @@ export interface Settings {
   detectFinalGlide: boolean; 
 
   // Enabled sources for landng zones
-  enabledSources: ToggleableSource;
+  enabledSources: SourceToggles;
 
   // show / hide features
   showEscapePath: boolean;
@@ -56,7 +55,7 @@ const DEFAULT_SETTINGS : Settings = {
   detectFinalGlide: true,
 
   //enabled sources for landing zones
-  enabledSources: TOGGLEABLE_SOURCES,
+  enabledSources: DEFAULT_SOURCE_TOGGLES,
 
   showEscapePath: false,
   showReachableZone: false,
@@ -180,7 +179,7 @@ export interface FlightStoreState {
   tick: (deltaMs: number) => void;
 
   setSettings: (patch: Partial<Settings>) => void;
-  setSourceEnabled: (source: keyof ToggleableSource, enabled: boolean) => void;
+  setSourceEnabled: (source: ToggleableSource, enabled: boolean) => void;
 
   resetSettingsToDefaults: () => void;
 
@@ -296,20 +295,48 @@ export const useFlightStore = create<FlightStoreState>()(
 
         // Settings
         setSettings: (patch: Partial<Settings>) => set((state) => ({ settings: { ...state.settings, ...patch } })),
-        setSourceEnabled: (source, enabled) => set((state) => ({
-          settings: {
-            ...state.settings,
-            enabledSources: {
-              ...state.settings.enabledSources,
-              [source]: enabled,
+        // Recompute with the updated source selection.
+        setSourceEnabled: (source, enabled) => {
+          const currentSettings = get().settings;
+          const nextSources = {...currentSettings.enabledSources, [source]: enabled, };
+          const nextLandingZones = computeActiveZones(get().landingZonesBySource, nextSources);
+          const activeIds = new Set(nextLandingZones.map((zone) => zone.id));
+          const nextVisible = new Set(
+            [...get().visibleLandingZoneIds].filter((id) => activeIds.has(id)),
+          );
+
+          if (enabled) {
+            for (const zone of get().landingZonesBySource[source] ?? []) {
+              if (activeIds.has(zone.id)) nextVisible.add(zone.id);
+            }
+          }
+
+          // Mettre à jour le store en une seule fois
+          set((state) => ({
+            settings: {
+              ...state.settings,
+              enabledSources: nextSources,
             },
-          },
+            landingZones: nextLandingZones,
+            visibleLandingZoneIds: nextVisible,
+          }));
           // void get().runLocalCheck();
-        })),
+        },
         
         resetSettingsToDefaults: () => {
+          const nextLandingZones = computeActiveZones(
+            get().landingZonesBySource,
+            DEFAULT_SOURCE_TOGGLES,
+          );
+          const activeIds = new Set(nextLandingZones.map((zone) => zone.id));
+          const nextVisible = new Set(
+            [...get().visibleLandingZoneIds].filter((id) => activeIds.has(id)),
+          );
+
           set({
             settings: DEFAULT_SETTINGS,
+            landingZones: nextLandingZones,
+            visibleLandingZoneIds: nextVisible,
           });
         },
 
@@ -319,16 +346,17 @@ export const useFlightStore = create<FlightStoreState>()(
           // different set of countries, so drop the previously fetched batch
           // and let `useAirportsLoader` refetch. Other sources (user .cup,
           // outlanding catalogs) are flight-independent and preserved.
-          const { landingZonesBySource, visibleLandingZoneIds } = get();
-          const {
-            openaip: _dropped,
-            ...restBySource
-          } = landingZonesBySource;
-          void _dropped;
-          const nextVisible = new Set(visibleLandingZoneIds);
-          if (landingZonesBySource.openaip) {
-            for (const z of landingZonesBySource.openaip) nextVisible.delete(z.id);
-          }
+
+          // const { landingZonesBySource, visibleLandingZoneIds } = get();
+          // const {
+          //   openaip: _dropped,
+          //   ...restBySource
+          // } = landingZonesBySource;
+          // void _dropped;
+          // const nextVisible = new Set(visibleLandingZoneIds);
+          // if (landingZonesBySource.openaip) {
+          //   for (const z of landingZonesBySource.openaip) nextVisible.delete(z.id);
+          // }
 
           set({
             flight,
@@ -345,9 +373,9 @@ export const useFlightStore = create<FlightStoreState>()(
             localCheckResult: null,
             reachableZoneResult: null,
 
-            landingZonesBySource: restBySource,
-            landingZones: computeActiveZones(restBySource, DEFAULT_SOURCE_TOGGLES),
-            visibleLandingZoneIds: nextVisible,
+            // landingZonesBySource: restBySource,
+            // landingZones: computeActiveZones(restBySource, DEFAULT_SOURCE_TOGGLES),
+            // visibleLandingZoneIds: nextVisible,
 
             exception: null,
           });
@@ -389,17 +417,23 @@ export const useFlightStore = create<FlightStoreState>()(
 
         // Landing zones management
         addLandingZones: (zones) => {
-          // const {landingZonesBySource, visibleLandingZoneIds, enabledSources } = get();
           const {landingZonesBySource, visibleLandingZoneIds } = get();
+          const enabledSources = get().settings.enabledSources;
 
           const nextBySource = mergeZonesBySource(landingZonesBySource, zones);
-          const nextVisible = new Set(visibleLandingZoneIds);
-          for (const zone of zones) nextVisible.add(zone.id);
+          const nextLandingZones = computeActiveZones(nextBySource, enabledSources);
+          const activeIds = new Set(nextLandingZones.map((zone) => zone.id));
+          const nextVisible = new Set(
+            [...visibleLandingZoneIds].filter((id) => activeIds.has(id)),
+          );
+          for (const zone of zones) {
+            if (activeIds.has(zone.id)) nextVisible.add(zone.id);
+          }
 
           set({
             landingZonesBySource: nextBySource,
-            // landingZones: computeActiveZones(nextBySource, enabledSources),
-            landingZones: computeActiveZones(nextBySource, DEFAULT_SOURCE_TOGGLES),
+            landingZones: nextLandingZones,
+            // landingZones: computeActiveZones(nextBySource, DEFAULT_SOURCE_TOGGLES),
             visibleLandingZoneIds: nextVisible,
           });
         },

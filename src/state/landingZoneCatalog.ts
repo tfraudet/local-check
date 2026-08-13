@@ -83,6 +83,11 @@ export function computeActiveZones(
       if (!openaipIndex.findNear(zone.latitude, zone.longitude)) {
         active.push(zone);
       }
+      else {
+        console.log(
+          `[landingZoneCatalog] dropping ${zone.source} zone ${zone.name} (${zone.id}) because OpenAIP has a nearby zone`,
+        );
+      }
     }
   }
   return active;

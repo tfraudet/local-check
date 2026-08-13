@@ -20,6 +20,7 @@ import { useCurrentEscapePath } from "./hooks/useEscapeTargets"
 import { useAutoReachableZone } from "./hooks/useAutoReachableZone"
 import { HelpPanel } from "./components/HelpPanel"
 import { useState } from "react"
+import { useOutlandingDatabase } from "./hooks/useOutlandingDatabase"
 
 export function App() {
   const flight = useFlightStore((s) => s.flight);
@@ -31,6 +32,7 @@ export function App() {
   useReplayEngine();
   useReplayKeyboardShortcuts();
   useElevationLoader();
+  useOutlandingDatabase();
   useAirportsLoader();
   useAutoLocalCheck();
   useAutoReachableZone();

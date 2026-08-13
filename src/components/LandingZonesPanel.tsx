@@ -2,9 +2,9 @@ import { useFlightStore } from "@/state/useFlightStore";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "./ui/scroll-area";
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "./ui/item";
-import { AlertTriangleIcon, Circle, Eye, EyeOff } from "lucide-react";
+import { AlertTriangleIcon, Circle, Eye, EyeOff, Square } from "lucide-react";
 import { Button } from "./ui/button";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { Alert, AlertTitle } from "./ui/alert";
 import { Badge } from "./ui/badge";
 
 export function LandingZonesPanel() {
@@ -29,12 +29,12 @@ export function LandingZonesPanel() {
       ) : (
         <>
           <div className="flex items-center justify-center flex-wrap gap-2 px-2 pt-0 pb-3">
-            <Badge variant="secondary">
+            <Badge className="bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300">
               <Circle fill="var(--primary)" color="var(--primary)" className="size-3" data-icon="inline-start" />
                 {airfieldCount} {t('landingZones.airfield')}
             </Badge>
-             <Badge variant="secondary">
-              <Circle fill="var(--primary)" color="var(--primary)" className="size-3" data-icon="inline-start" />
+             <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+              <Square fill="var(--color-purple-700)" color="var(--color-purple-700)" className="size-3" data-icon="inline-start" />
                 {outlandingCount} {t('landingZones.outlanding')}
             </Badge>           
           </div>
