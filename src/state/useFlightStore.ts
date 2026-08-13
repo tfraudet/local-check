@@ -193,6 +193,7 @@ export interface FlightStoreState {
 
   addLandingZones: (zones: LandingZone[]) => void;
   clearLandingZones: () => void;
+  toggleLandingZoneVisibility: (id: string) => void;
   setVisibleBounds: (bbox: [number, number, number, number] | null) => void;
 
   runLocalCheck: () => Promise<void>;
@@ -410,6 +411,13 @@ export const useFlightStore = create<FlightStoreState>()(
             visibleLandingZoneIds: new Set(),
             // localCheckResult: null,
           }),
+
+        toggleLandingZoneVisibility: (id) => {
+          const next = new Set(get().visibleLandingZoneIds);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          set({ visibleLandingZoneIds: next });
+        },  
 
         setVisibleBounds: (bbox) => set({ visibleBounds: bbox }),
         clearReachableZone: () => set({ reachableZoneResult: null }),

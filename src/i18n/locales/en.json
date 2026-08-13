@@ -126,8 +126,11 @@
     "close": "Close"
   },
   "landingZones": {
-      "airfield": "Airfield",
-    "outlanding": "Outlanding",
+    "airfield": "airfield(s)",
+    "outlanding": "outlanding(s)",
+    "empty": "No landing zones imported yet",
+    "visible": "visible(s)",
+    "hiden": "hidden(s)",
     "popup": {
       "code": "Code",
       "type": "Type",

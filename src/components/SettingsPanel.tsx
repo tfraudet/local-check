@@ -7,6 +7,7 @@ import { useFlightStore } from '@/state/useFlightStore';
 import { Switch } from './ui/switch';
 import { Button } from './ui/button';
 import { REACHABLE_ZONE_CELL_CAP, REACHABLE_ZONE_GRID_SIZES, REACHABLE_ZONE_MAX_DIAMETER_KM, REACHABLE_ZONE_MIN_DIAMETER_KM, type ReachableZoneGridSizeM } from '@/domain/reachableZone';
+import { LandingZonesPanel } from './LandingZonesPanel';
 
 interface ParamRowProps {
   label: string;
@@ -181,8 +182,9 @@ export function SettingsPanel() {
           onChange={(v) => setSourceEnabled('outlanding-auvergne', v)}
         />
       </SidebarGroup>
+      <LandingZonesPanel />
       
-      <Separator />
+      {/* <Separator /> */}
       
       {/* Hide/show on the map: Escape path,reachable zones & arrival height labels */}
       <SidebarGroup className="space-y-3">
