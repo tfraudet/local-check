@@ -77,13 +77,30 @@
     "invalidFormat": "Please select a valid .igc file.",
     "unknown": "Unable to read this IGC file.",
     "service": {
-        "rateLimit": {
+      "auth": {
+        "title": "{{service}} rejected the request",
+        "message": "{{service}} returned an authorization error. {{impact}}",
+        "hint": "Check the API key in your environment configuration."
+      },
+      "rateLimit": {
         "title": "{{service}} rate-limited",
         "message": "{{service}} returned 429 Too Many Requests. {{impact}}",
         "hint": "Wait a moment; the app retries automatically after a cooldown."
-      }
+      },
+      "unavailable": {
+        "title": "{{service}} is unavailable",
+        "message": "{{service}} returned HTTP {{status}}. {{impact}}",
+        "hint": "The service is likely temporarily down; try again in a few minutes."
+      },
+      "generic": {
+        "title": "Could not reach {{service}}",
+        "message": "{{message}}"
+      },
+      "impact": {
+        "elevation": "Terrain data will not be available, so the local check cannot run.",
+        "openaip": "Public airports will be missing from the map."
+      }     
     }
-
   },
   "summary": {
     "title": "Flight summary",

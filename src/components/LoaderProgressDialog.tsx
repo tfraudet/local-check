@@ -20,7 +20,7 @@ interface TaskRowProps {
 }
 
 const taskStatusIcons: Record<TaskStatus, React.ReactNode> = {
-  'not-started': <Circle className="size-5 " />,
+  'not-started': <Circle className="size-5 text-muted-foreground" />,
   'in-progress': <Spinner className="size-5 "/>,
   'success': <CheckCircle className="size-5 text-primary" />,
   'error': <AlertCircle className="size-5 text-destructive"/>,
