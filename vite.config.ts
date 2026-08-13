@@ -44,14 +44,4 @@ export default defineConfig({
   // optimizeDeps: {
   //   exclude: ['maplibre-gl'],
   // },
-  // build: {
-  //   rollupOptions: {
-  //     output: {
-  //       entryFileNames: 'assets/[name]-[hash].mjs',
-  //       chunkFileNames: 'assets/[name]-[hash].mjs',
-  //       assetFileNames: 'assets/[name]-[hash][extname]',
-  //     },
-  //   },
-  // },
-
 })

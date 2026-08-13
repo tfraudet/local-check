@@ -87,7 +87,7 @@ const MAP_STYLES: Record<
           type: 'raster',
           tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
           tileSize: 256,
-          attribution: '&copy; OpenStreetMap contributors',
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         },
       },
       layers: [
@@ -103,19 +103,19 @@ const MAP_STYLES: Record<
     label: 'Liberty',
     style: 'https://tiles.openfreemap.org/styles/liberty',
     attribution:
-      '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a>  | © <a href="https://openmaptiles.org" target="_blank">OpenMapTiles</a> | Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
   },
   'Positron': {
     label: 'Positron',
     style: 'https://tiles.openfreemap.org/styles/positron',
     attribution:
-      '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a>  | © <a href="https://openmaptiles.org" target="_blank">OpenMapTiles</a> | Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
   },
   'Dark': {
     label: 'Dark',
     style: 'https://tiles.openfreemap.org/styles/dark',
     attribution:
-      '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a>  | © <a href="https://openmaptiles.org" target="_blank">OpenMapTiles</a> | Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
   },
   'esri-world-imagery': {
     label: 'Satellite (Esri)',
@@ -128,7 +128,7 @@ const MAP_STYLES: Record<
             'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
           ],
           tileSize: 256,
-          attribution: 'Tiles &copy; Esri',
+          attribution: 'Source: &copy; Esri, Maxar, & the GIS User Community',
         },
       },
       layers: [
