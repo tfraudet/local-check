@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFlightStore } from "@/state/useFlightStore";
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "./ui/item";
 
-type Stage = 'parsing' | 'elevation' | 'computing' | 'ready';
+type Stage = 'parsing' | 'elevation' | 'airports' | 'computing' | 'ready';
 
 type TaskStatus = 'not-started' | 'in-progress' | 'success' | 'error';
 
@@ -51,14 +51,22 @@ export function LoaderProgressDialog() {
   const elevationGrid = useFlightStore((s) => s.elevationGrid);
   const elevationLoadError = useFlightStore((s) => s.elevationLoadError);
 
+  const isLoadingAirports = useFlightStore((s) => s.isLoadingAirports);
+  const hasLoadedAirports = useFlightStore((s) => s.hasLoadedAirports);
+  const airportsLoadError = useFlightStore((s) => s.airportsLoadError);
+
   const isComputingLocalCheck = useFlightStore((s) => s.isComputingLocalCheck);
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
- 
+
   const [dismissed, setDismissed] = useState(false);
-  
-  const hasError = flight === null ? loadError !== null : elevationLoadError !== null;
+
+  const hasError =
+    flight === null
+      ? loadError !== null
+      : elevationLoadError !== null || airportsLoadError !== null;
   // const isReady = flight !== null && localCheckResult !== null && !hasError;
-  const isReady = flight !== null && elevationGrid !== null && !hasError;
+  const isReady =
+    flight !== null && elevationGrid !== null && hasLoadedAirports && !hasError;
 
   // A flight object identity changes on every successful load, so use it to
   // re-arm the dialog (clearing any earlier dismissal/ready state) for the
@@ -85,6 +93,7 @@ export function LoaderProgressDialog() {
   let stage: Stage = 'parsing';
   if (!isParsingIgc && flight) {
     if (!elevationGrid && !elevationLoadError) stage = 'elevation';
+    else if (isLoadingAirports) stage = 'airports';
     else if (isComputingLocalCheck) stage = 'computing';
     else stage = 'ready';
   }
@@ -100,11 +109,19 @@ export function LoaderProgressDialog() {
       ? (isParsingIgc ? 'in-progress' : 'not-started')
       : (isParsingIgc ? 'in-progress' : 'success');
 
-  const statusElevation: TaskStatus = elevationLoadError 
-    ? 'error' 
-    : !elevationGrid 
+  const statusElevation: TaskStatus = elevationLoadError
+    ? 'error'
+    : !elevationGrid
       ? (flight ? 'in-progress' : 'not-started')
       :  'success' ;
+
+  const statusAirports: TaskStatus = airportsLoadError
+    ? 'error'
+    : hasLoadedAirports
+      ? 'success'
+      : isLoadingAirports
+        ? 'in-progress'
+        : 'not-started';
 
   const statusComputing: TaskStatus = localCheckResult
     ? 'success' 
@@ -138,6 +155,7 @@ export function LoaderProgressDialog() {
           <ItemGroup>
             <TaskRow label={t('progress.parsing')} status={statusFlightLoading} error={loadError?.message || ''} />
             <TaskRow label={t('progress.elevation')} status={statusElevation} error={elevationLoadError || ''} />
+            <TaskRow label={t('progress.airports')} status={statusAirports} error={airportsLoadError || ''} />
             <TaskRow label={t('progress.computing')} status={statusComputing} error={''} />
           </ItemGroup>
           

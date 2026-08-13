@@ -148,6 +148,9 @@ export interface FlightStoreState {
 
   elevationGrid: ElevationGrid | null;
   elevationLoadError: string | null;
+  isLoadingAirports: boolean;
+  hasLoadedAirports: boolean;
+  airportsLoadError: string | null;
   exception: Error | null;
 
   landingZones: LandingZone[];
@@ -182,7 +185,10 @@ export interface FlightStoreState {
   resetSettingsToDefaults: () => void;
 
   setElevationGrid: (grid: ElevationGrid | null) => void;
-  setElevationLoadError: (message: string | null) => void; 
+  setElevationLoadError: (message: string | null) => void;
+  setIsLoadingAirports: (loading: boolean) => void;
+  setAirportsLoaded: () => void;
+  setAirportsLoadError: (message: string | null) => void;
   setException: (error: Error | null) => void;
 
   addLandingZones: (zones: LandingZone[]) => void;
@@ -224,6 +230,9 @@ export const useFlightStore = create<FlightStoreState>()(
 
         elevationGrid: null,
         elevationLoadError: null,
+        isLoadingAirports: false,
+        hasLoadedAirports: false,
+        airportsLoadError: null,
         exception: null,
 
         landingZones: [],
@@ -314,6 +323,9 @@ export const useFlightStore = create<FlightStoreState>()(
 
             elevationGrid: null,
             elevationLoadError: null,
+            isLoadingAirports: false,
+            hasLoadedAirports: false,
+            airportsLoadError: null,
             localCheckResult: null,
             reachableZoneResult: null,
 
@@ -327,7 +339,10 @@ export const useFlightStore = create<FlightStoreState>()(
             currentTimeMs: 0,
             elevationGrid: null,
             elevationLoadError: null,
-            
+            isLoadingAirports: false,
+            hasLoadedAirports: false,
+            airportsLoadError: null,
+
             localCheckResult: null,
             isComputingLocalCheck: false,
             
@@ -345,6 +360,12 @@ export const useFlightStore = create<FlightStoreState>()(
 
         setElevationLoadError: (message) =>
           set({ elevationLoadError: message, elevationGrid: null }),
+
+        setIsLoadingAirports: (loading) => set({ isLoadingAirports: loading }),
+        setAirportsLoaded: () =>
+          set({ isLoadingAirports: false, hasLoadedAirports: true, airportsLoadError: null }),
+        setAirportsLoadError: (message) =>
+          set({ isLoadingAirports: false, airportsLoadError: message }),
 
         // Landing zones management
         addLandingZones: (zones) => {

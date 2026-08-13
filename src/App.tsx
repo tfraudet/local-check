@@ -13,7 +13,7 @@ import { useFlightStore } from "./state/useFlightStore"
 import { useReplayEngine, useReplayKeyboardShortcuts } from "./replay/replayEngine"
 import { useElevationLoader } from "./hooks/useElevationLoader"
 import { ErrorBanner } from "./components/ErrorBanner"
-import { useOpenaipAirports } from "./hooks/useOpenaipAirports"
+import { useAirportsLoader } from "./hooks/useAirportsLoader"
 import { useAutoLocalCheck } from "./hooks/useAutoLocalCheck"
 import { EscapePathProfile } from "./components/EscapePathProfile"
 import { useCurrentEscapePath } from "./hooks/useEscapeTargets"
@@ -31,7 +31,7 @@ export function App() {
   useReplayEngine();
   useReplayKeyboardShortcuts();
   useElevationLoader();
-  useOpenaipAirports();
+  useAirportsLoader();
   useAutoLocalCheck();
   useAutoReachableZone();
   const escapePath = useCurrentEscapePath();

@@ -118,6 +118,7 @@
     "description": "Please wait while your flight is processed.",
     "parsing": "Parsing IGC file…",
     "elevation": "Loading terrain elevation data…",
+    "airports": "Loading airports database…",
     "landingZones": "Loading landing zone database…",
     "computing": "Computing local check…",
     "ready": "Local check ready",

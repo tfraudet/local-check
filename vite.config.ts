@@ -17,13 +17,12 @@ const proxy : Record<string, string | ProxyOptions>= {
     changeOrigin: true,
     rewrite: (path) => path.replace(/^\/acph-proxy/, ''),
   },
-  // OpenAIP returns CORS headers on 2xx but strips them on 429 (rate
-  // limit) — proxying in dev keeps the response same-origin so the
-  // error is visible instead of masked as a CORS failure.
-  '/openaip-proxy': {
-    target: 'https://api.core.openaip.net',
+  // OpenAIP's storage bucket serves per-country data exports without CORS
+  // headers, so we proxy it in dev to keep the response same-origin.
+  '/openaip-storage-proxy': {
+    target: 'https://storage.openaip.net',
     changeOrigin: true,
-    rewrite: (path) => path.replace(/^\/openaip-proxy/, ''),
+    rewrite: (path) => path.replace(/^\/openaip-storage-proxy/, ''),
   },
 }
 
