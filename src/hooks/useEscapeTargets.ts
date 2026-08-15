@@ -76,6 +76,7 @@ export function useCurrentEscapePath(): EscapePath | null {
   const elevationGrid = useFlightStore((s) => s.elevationGrid);
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
   const landingZones = useFlightStore((s) => s.landingZones);
+  const visibleLandingZoneIds = useFlightStore((s) => s.visibleLandingZoneIds);
   const settings = useFlightStore((s) => s.settings);
 
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
@@ -101,7 +102,7 @@ export function useCurrentEscapePath(): EscapePath | null {
       latitude,
       longitude,
       altM,
-      landingZones,
+      landingZones.filter((z) => visibleLandingZoneIds.has(z.id)),
       settings.workingLD,
     );
     if (!best) return null;
@@ -134,7 +135,7 @@ export function useCurrentEscapePath(): EscapePath | null {
     // }
 
     return path;
-  }, [elevationGrid, localCheckResult, landingZones, settings, flight, currentTimeMs, altitudeSource]);
+  }, [elevationGrid, localCheckResult, landingZones, visibleLandingZoneIds, settings, flight, currentTimeMs, altitudeSource]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {

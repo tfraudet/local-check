@@ -11,6 +11,7 @@ export function useAutoLocalCheck() {
   const flight = useFlightStore((s) => s.flight);
   const elevationGrid = useFlightStore((s) => s.elevationGrid);
   const landingZones = useFlightStore((s) => s.landingZones);
+  const visibleLandingZoneIds = useFlightStore((s) => s.visibleLandingZoneIds);
   const runLocalCheck = useFlightStore((s) => s.runLocalCheck);
   const settings = useFlightStore((s) => s.settings);
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
@@ -18,5 +19,13 @@ export function useAutoLocalCheck() {
   useEffect(() => {
     if (!flight || !elevationGrid || landingZones.length === 0) return;
     void runLocalCheck();
-  }, [flight, elevationGrid, landingZones, settings, altitudeSource, runLocalCheck]);
+  }, [
+    flight,
+    elevationGrid,
+    landingZones,
+    visibleLandingZoneIds,
+    settings,
+    altitudeSource,
+    runLocalCheck,
+  ]);
 }

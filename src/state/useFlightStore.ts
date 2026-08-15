@@ -320,7 +320,6 @@ export const useFlightStore = create<FlightStoreState>()(
             landingZones: nextLandingZones,
             visibleLandingZoneIds: nextVisible,
           }));
-          // void get().runLocalCheck();
         },
         
         resetSettingsToDefaults: () => {
@@ -461,11 +460,17 @@ export const useFlightStore = create<FlightStoreState>()(
             flight,
             elevationGrid,
             landingZones,
+            visibleLandingZoneIds,
             settings: localCheckParams,
             altitudeSource,
           } = get();
 
           if (!flight || !elevationGrid || landingZones.length === 0) return;
+
+          // Hidden zones must not be considered reachable by the check.
+          const selectedZones = landingZones.filter((zone) =>
+            visibleLandingZoneIds.has(zone.id),
+          );
 
           const startedAt = import.meta.env.DEV ? performance.now() : 0;
 
@@ -476,7 +481,7 @@ export const useFlightStore = create<FlightStoreState>()(
             fixes: flight.fixes,
             altitudeSource,
             elevationGrid,
-            landingZones,
+            landingZones: selectedZones,
             // phases,
             params: localCheckParams,
           });
