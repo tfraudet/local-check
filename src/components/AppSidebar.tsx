@@ -17,7 +17,9 @@ import { SettingsPanel } from './SettingsPanel';
 import { FlightPanel } from './FlightPanel';
 import { useTheme } from './theme-provider';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import logoAcph from '@/assets/logo-acph.jpg';
+
+// Served from `public/`, so it keeps a stable, unhashed URL.
+const logoAcph = `${import.meta.env.BASE_URL}logo-acph.jpg`;
 
 type NavKey = 'flight' | 'theme' | 'settings' | 'help';
 
