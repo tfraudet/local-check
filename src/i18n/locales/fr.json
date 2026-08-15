@@ -1,0 +1,214 @@
+{
+  "app": {
+    "title": "Local Check",
+    "disclaimer": "Indicatif uniquement — non destiné à un usage en vol. Utilisez toujours les procédures officielles de navigation et de sécurité."
+  },
+  "upload": {
+    "title": "Charger un plan de vol",
+    "description": "Chargez votre fichier de vol pour vérifier les restrictions et avis locaux.",
+    "dragHint": "Glissez-déposez un fichier .igc ici, ou cliquez pour parcourir",
+    "menuItem": "Charger un vol",
+    "parsing": "Analyse…",
+    "computing": "Calcul…"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "subTitle": "Paramètres",
+    "workingLD": "Finesse",
+    "workingLDHint": "Finesse utilisée pour le calcul du local (défaut 20)",
+    "arrivalHeight": "Hauteur d'arrivée de sécurité (m)",
+    "arrivalHeightHint": "Hauteur minimale au-dessus de la zone d'atterrissage à l'arrivée (défaut 300 m)",
+    "groundClearance": "Garde au sol (m)",
+    "groundClearanceHint": "Hauteur minimale au-dessus du terrain le long du plan de vol (défaut 150 m)",
+    "detectFinalGlide": "Détecter l'arrivée finale",
+    "detectFinalGlidedHint": "Active la détection automatique des arrivées finales vers les zones d'atterrissage sur la trace.",
+    "recalibrateAltitude": "Recalibrer l'altitude sur le QNH local",
+    "recalibrateAltitudeHint": "Compare l'altitude barométrique avant décollage à l'altitude du terrain pour estimer le décalage QNH du jour, puis corrige toutes les altitudes pression du vol.",
+    "qnhOffsetLabel": "Décalage QNH",
+    "qnhOffsetHint": "Mètres ajoutés à chaque altitude pression (positif = QNH au-dessus de 1013,25 hPa).",
+    "timeStep": "Pas de temps (s)",
+    "timeStepHint": "Intervalle d'échantillonnage pour le local check (min 10 s, défaut 20 s)",
+    "enlThreshold": "Seuil ENL",
+    "enlThresholdHint": "Niveau sonore moteur au-dessus duquel le moteur est considéré comme en marche (défaut 500)",
+    "lzData": "Données des zones d'atterrissage",
+    "showOutlandingFields": "Champs vachables des Alpes",
+    "showOutlandingFieldsHint": "Inclure la base des champs vachables alpins sur la carte et dans le calcul du local",
+    "showAuvergneFields": "Champs vachables d'Auvergne",
+    "showAuvergneFieldsHint": "Inclure la base des champs vachables ACPH Auvergne sur la carte et dans le calcul du local",
+    "resetToDefaults": "Réinitialiser aux valeurs par défaut"
+  },
+  "escapePath": {
+    "title": "Trajectoire de dégagement",
+    "toggle": "Afficher la trajectoire de dégagement",
+    "toggleHint": "Afficher la trajectoire de dégagement en ligne droite depuis la position actuelle jusqu'à la meilleure zone d'atterrissage atteignable",
+    "waiting": "Zones d'atterrissage nécessaires pour afficher la trajectoire de dégagement.",
+    "profileTitle": "Profil de la trajectoire de dégagement",
+    "profileSubtitle": "Vol plané direct vers <b>{{lzName}}</b> (alt : {{lzElevM}} m)",
+    "terrainSeries": "Terrain",
+    "glideSeries": "Plan de vol",
+    "arrivalTarget": "Cible d'arrivée",
+    "lzMarker": "Zone d'atterrissage",
+    "arrivalHeight": "Hauteur d'arrivée",
+    "minMargin": "Marge min",
+    "distance": "Distance",
+    "status": {
+      "inLocal": "Dans le local",
+      "marginal": "Marginal",
+      "outOfLocal": "Hors local"
+    }
+  },
+  "reachableZone": {
+    "title": "Zone atteignable",
+    "toggle": "Afficher la zone atteignable",
+    "toggleHint": "Superposer la zone atteignable en vol plané depuis la position actuelle, selon la finesse et le terrain",
+    "gridSize": "Taille de grille",
+    "gridSizeHint": "Taille des cellules d'échantillonnage pour la grille de zone atteignable. Plus petite = plus détaillée mais plus lente.",
+    "diameter": "Diamètre (km)",
+    "diameterHint": "Diamètre de la zone circulaire échantillonnée autour de la position actuelle",
+    "degradedHint": "Grille dégradée pour tenir dans le budget de {{cellCap}} cellules : {{gridSizeM}} m / {{diameterKm}} km"
+  },
+  "arrivalHeights": {
+    "toggle": "Afficher les hauteurs d'arrivée sur les zones d'atterrissage",
+    "toggleHint": "Affiche, à côté de chaque zone d'atterrissage visible, la hauteur d'arrivée du planeur depuis la position actuelle"
+  },
+  "noFlight": {
+    "title": "Aucune donnée de vol.",
+    "description": "Veuillez charger un fichier IGC pour visualiser la trajectoire et les informations associées."
+  },
+  "errors": {
+    "title": "Échec du chargement",
+    "invalidFormat": "Veuillez sélectionner un fichier .igc valide.",
+    "unknown": "Impossible de lire ce fichier IGC.",
+    "service": {
+      "auth": {
+        "title": "{{service}} a rejeté la requête",
+        "message": "{{service}} a retourné une erreur d'autorisation. {{impact}}",
+        "hint": "Vérifiez la clé API dans votre configuration."
+      },
+      "rateLimit": {
+        "title": "{{service}} — trop de requêtes",
+        "message": "{{service}} a retourné 429 Too Many Requests. {{impact}}",
+        "hint": "Patientez un instant ; l'application réessaie automatiquement après un délai."
+      },
+      "unavailable": {
+        "title": "{{service}} indisponible",
+        "message": "{{service}} a retourné HTTP {{status}}. {{impact}}",
+        "hint": "Le service est probablement temporairement en panne ; réessayez dans quelques minutes."
+      },
+      "generic": {
+        "title": "Impossible de joindre {{service}}",
+        "message": "{{message}}"
+      },
+      "impact": {
+        "elevation": "Les données de terrain ne seront pas disponibles, le local check ne peut donc pas s'exécuter.",
+        "openaip": "Les aérodromes publics manqueront sur la carte."
+      }
+    }
+  },
+  "summary": {
+    "title": "Résumé du vol",
+    "date": "Date",
+    "pilot": "Pilote",
+    "glider": "Planeur",
+    "notInFile": "absent du fichier",
+    "duration": "Durée",
+    "altitude": "Altitude",
+    "maxSpeed": "Vitesse sol max",
+    "distance": "Distance totale"
+  },
+  "progress": {
+    "title": "Chargement du vol",
+    "description": "Veuillez patienter pendant le traitement de votre vol.",
+    "parsing": "Analyse du fichier IGC…",
+    "elevation": "Chargement des données d'élévation du terrain…",
+    "airports": "Chargement de la base des aérodromes…",
+    "landingZones": "Chargement de la base des zones d'atterrissage…",
+    "computing": "Calcul du local check…",
+    "ready": "Local check prêt",
+    "errorTitle": "Échec du chargement",
+    "close": "Fermer"
+  },
+  "landingZones": {
+    "airfield": "aérodrome(s)",
+    "outlanding": "vachable(s)",
+    "empty": "Aucune zone d'atterrissage importée pour l'instant",
+    "visible": "visible(s)",
+    "hiden": "masqué(s)",
+    "popup": {
+      "code": "Code",
+      "type": "Type",
+      "elevation": "Altitude",
+      "position": "Position",
+      "source": "Source",
+      "styleFallback": "Style {{style}}"
+    },
+    "style": {
+      "unknown": "Inconnu",
+      "waypoint": "Point de virage",
+      "grassAirfield": "Aérodrome en herbe",
+      "outlandingField": "Champ vachable",
+      "glidingAirfield": "Aérodrome de vol à voile",
+      "solidAirfield": "Aérodrome en dur",
+      "mountainPass": "Col de montagne",
+      "mountainTop": "Sommet",
+      "transmitterMast": "Pylône émetteur",
+      "vor": "VOR",
+      "ndb": "NDB",
+      "coolingTower": "Tour de refroidissement",
+      "dam": "Barrage",
+      "tunnel": "Tunnel",
+      "bridge": "Pont",
+      "powerPlant": "Centrale électrique",
+      "castle": "Château",
+      "intersection": "Intersection"
+    }
+  },
+  "telemetry": {
+    "title": "Télémétrie",
+    "time": "Heure",
+    "pressureAltitude": "Altitude pression",
+    "gnssAltitude": "Altitude GNSS",
+    "groundSpeed": "Vitesse sol",
+    "vario": "Vario",
+    "agl": "AGL"
+  },
+  "stats": {
+    "title": "Résultats",
+    "outOfLocalTime": "Hors local",
+    "outOfLocalPercent": "% du vol",
+    "minMissingHeight": "Manque min",
+    "maxMissingHeight": "Manque max",
+    "lowestMargin": "Marge la plus basse",
+    "seekToFirstBreach": "Aller à la première sortie",
+    "noResult": "Importez un fichier .cup pour exécuter le local check",
+    "badgeBreach": "Hors local",
+    "badgeMarginal": "Marginal",
+    "badgeAlwaysInLocal": "Toujours dans le local",
+    "captionOutOfLocal": "hors local",
+    "captionMarginal": "marginal",
+    "captionAlwaysInLocal": "du vol dans le local",
+    "exits_one": "{{count}} sortie",
+    "exits_other": "{{count}} sorties"
+  },
+  "legend": {
+    "title": "Couleurs de la trace",
+    "initialClimb": "Montée initiale (remorquage/treuillage)",
+    "motor": "Moteur en marche",
+    "inLocal": "Dans le local",
+    "marginal": "Marginal (< {{height}} m)",
+    "outOfLocal": "Hors local",
+    "finalGlide": "Arrivée finale"
+  },
+  "theme": {
+    "switchToLight": "Passer au thème clair",
+    "switchToDark": "Passer au thème sombre"
+  },
+  "language": {
+    "title": "Changer de langue"
+  },
+  "help": {
+    "title": "Aide",
+    "tagline": "Vérification du local post-vol pour pilotes de planeur — guide utilisateur.",
+    "close": "Fermer"
+  }
+}

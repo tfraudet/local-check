@@ -28,10 +28,18 @@ interface AppSidebarProps {
 }
  
 export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [activeNav, setActiveNav] = useState<NavKey>('flight');
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  const currentLang = i18n.resolvedLanguage?.split('-')[0] === 'fr' ? 'fr' : 'en';
+
+  const toggleLanguage = () => {
+    const newLang = currentLang === 'en' ? 'fr' : 'en';
+    localStorage.setItem('local-check.language', newLang);
+    void i18n.changeLanguage(newLang);
+  }
 
   useEffect(() => {
     if (!isPanelOpen) {
@@ -115,6 +123,19 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip={{ children: t('language.title'), hidden: false }}
+              onClick={toggleLanguage}
+              className="justify-center px-0"
+            >
+              <span className="text-xs font-semibold tracking-wide">
+                {currentLang.toUpperCase()}
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip={{
@@ -135,6 +156,7 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
             )}
             </SidebarMenuButton>
           </SidebarMenuItem>
+       
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>

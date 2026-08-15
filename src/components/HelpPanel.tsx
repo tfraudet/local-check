@@ -1,4 +1,5 @@
 import type { ComponentPropsWithoutRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Sheet,
   SheetClose,
@@ -12,7 +13,8 @@ import { Button } from './ui/button';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import helpDocumentation from '@/doc/help.md?raw';
+import helpDocumentationEn from '@/doc/help.en.md?raw';
+import helpDocumentationFr from '@/doc/help.fr.md?raw';
 import { STATUS_COLORS } from '@/domain/phaseColors';
 
 interface HelpPanelProps {
@@ -99,6 +101,10 @@ const markdownComponents: Components = {
 };
 
 export function HelpPanel({ open, onOpenChange }: HelpPanelProps) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.resolvedLanguage?.split('-')[0] === 'fr' ? 'fr' : 'en';
+  const helpDocumentation = lang === 'fr' ? helpDocumentationFr : helpDocumentationEn;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -118,9 +124,7 @@ export function HelpPanel({ open, onOpenChange }: HelpPanelProps) {
               v{__APP_VERSION__}
             </span>
           </div>
-          <SheetDescription>
-            Post-flight local-verification for glider pilots — user guide.
-          </SheetDescription>
+          <SheetDescription>{t('help.tagline')}</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -131,7 +135,7 @@ export function HelpPanel({ open, onOpenChange }: HelpPanelProps) {
 
         <SheetFooter className="border-t border-border px-6 py-4">
           <div className="flex justify-center" >
-            <SheetClose render={<Button variant="default">Close</Button>} />
+            <SheetClose render={<Button variant="default">{t('help.close')}</Button>} />
           </div>
         </SheetFooter>
       </SheetContent>

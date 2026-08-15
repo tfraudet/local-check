@@ -203,6 +203,13 @@
   "theme": {
     "switchToLight": "Switch to light theme",
     "switchToDark": "Switch to dark theme"
+  },
+  "language": {
+    "title": "Switch language"
+  },
+  "help": {
+    "title": "Help",
+    "tagline": "Post-flight local-verification for glider pilots — user guide.",
+    "close": "Close"
   }
-  
 }

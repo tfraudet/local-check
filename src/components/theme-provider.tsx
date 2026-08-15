@@ -81,7 +81,7 @@ function isEditableTarget(target: EventTarget | null) {
 export function ThemeProvider({
   children,
   defaultTheme = "system",
-  storageKey = "theme",
+  storageKey = "local-check.theme",
   disableTransitionOnChange = true,
   ...props
 }: ThemeProviderProps) {
