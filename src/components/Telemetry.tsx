@@ -1,5 +1,6 @@
 import { sampleElevation } from "@/domain/elevation";
 import { findCurrentFixIndex } from "@/domain/flight";
+import { STATUS_COLORS } from "@/domain/phaseColors";
 import { formatAltitude, formatSpeed, formatTimeUtc, formatVario, pickAltitude } from "@/domain/units";
 import { useFlightStore } from "@/state/useFlightStore";
 import { useTranslation } from "react-i18next";
@@ -31,6 +32,15 @@ export function Telemetry() {
     }
   }
 
+  const colorVario =
+    derived?.verticalSpeedMs != null
+      ? derived.verticalSpeedMs >= 0
+        // ? "text-primary"
+        ? STATUS_COLORS['in-local']
+        // : "text-destructive"
+        : STATUS_COLORS['out-of-local']
+      : "text-foreground";
+
   return (
     <section className="border-y bg-background">
       <div className="grid grid-cols-2 gap-0 md:grid-cols-3 xl:grid-cols-6">
@@ -51,16 +61,17 @@ export function Telemetry() {
         <Row
           label={t('telemetry.vario')}
           value={formatVario(derived?.verticalSpeedMs ?? null)}
+          color={colorVario}
         />
       </div>
     </section>
   );}
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, color  = "text-foreground"}: { label: string; value: string; color ?: string }) {
   return (
     <div className="flex flex-col justify-center border-r px-3 py-1 last:border-r-0">
-      <span className="truncate text-xs text-muted-foreground">{label}</span>
-      <span className="font-mono text-xs tabular-nums">{value}</span>
+      <span className="font-mono text-xs tabular-nums font-semibold"  style={{ color: color }}>{value}</span>
+      <span className="truncate text-2xs uppercase text-muted-foreground">{label}</span>
     </div>
   );
 }

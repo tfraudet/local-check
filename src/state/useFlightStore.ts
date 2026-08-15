@@ -432,7 +432,6 @@ export const useFlightStore = create<FlightStoreState>()(
           set({
             landingZonesBySource: nextBySource,
             landingZones: nextLandingZones,
-            // landingZones: computeActiveZones(nextBySource, DEFAULT_SOURCE_TOGGLES),
             visibleLandingZoneIds: nextVisible,
           });
         },

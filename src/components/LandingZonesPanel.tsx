@@ -6,6 +6,7 @@ import { AlertTriangleIcon, Circle, Eye, EyeOff, Square } from "lucide-react";
 import { Button } from "./ui/button";
 import { Alert, AlertTitle } from "./ui/alert";
 import { Badge } from "./ui/badge";
+import { DIFFICULTY_LEVEL_COLOR } from "@/domain/landingZone";
 
 export function LandingZonesPanel() {
   const { t } = useTranslation();
@@ -48,10 +49,16 @@ export function LandingZonesPanel() {
           <ItemGroup className="has-data-[size=sm]:gap-0 has-data-[size=xs]:gap-0">
             {landingZones.map((lz) => {
               const visible = visibleIds.has(lz.id);
+              const colorStr =  DIFFICULTY_LEVEL_COLOR[lz.difficulty_level];
+
               return (
                 <Item className="py-0" size="xs" key={lz.id}>
                   <ItemMedia variant="icon">
-                    <Circle fill="var(--primary)" color="var(--primary)" className="size-3"/>
+                    {lz.style == 3 ? (
+                      <Square fill={colorStr} color={colorStr} className="size-3"/>
+                    ) : (
+                      <Circle fill="var(--primary)" color="var(--primary)" className="size-3"/>
+                    )}
                   </ItemMedia>
                   <ItemContent>
                     <ItemTitle  className="text-xs font-light">{lz.name}</ItemTitle>
