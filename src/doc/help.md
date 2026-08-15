@@ -166,7 +166,7 @@ Enable or disable the outlanding databases used for the analysis:
 - **Alpes Outlanding Fields**
 - **Auvergne Outlanding Fields (ACPH)**
 
-Landing zones are marked on the map with difficulty tags (A / F / M / D / TD).
+Landing zones are marked on the map with difficulty level using a four-colour scale.
 
 ### Display Options
 

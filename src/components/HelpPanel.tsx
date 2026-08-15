@@ -112,7 +112,7 @@ export function HelpPanel({ open, onOpenChange }: HelpPanelProps) {
               <span style={{ color: STATUS_COLORS['in-local-marginal'] }}>Check</span>
             </SheetTitle>
             <span
-              className="rounded px-1 py-px font-mono text-[10px] font-medium leading-none text-white"
+              className="rounded px-1 py-px font-mono text-xs font-medium leading-none text-white"
               style={{ backgroundColor: STATUS_COLORS['out-of-local'] }}
             >
               v{__APP_VERSION__}
