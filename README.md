@@ -6,6 +6,8 @@
 
 A specialized safety and post-flight analysis tool for glider pilots and soaring clubs. **Local Check** verifies whether a pilot remained within safe gliding distance (local range) of an airfield or a designated Landing Zone throughout their entire flight.
 
+![Local Check screenshot](./screenshot.png)
+
 ## 🎯 Core Objective
 
 Safety is paramount in soaring. This tool processes `.IGC` flight logs to automatically audit track logs against predefined landing options (airfields and verified Landing Zones suitable for outlandings).
@@ -71,3 +73,15 @@ Open the printed local URL, then upload an IGC file (e.g. `fixtures/sample-fligh
 ### Tech stack
 
 React, TypeScript, Vite, Tailwind CSS, shadcn/ui, Zustand, react-i18next, MapLibre GL (OpenFreeMap tiles), uPlot, and igc-parser.
+
+## 🙏 Credits
+
+Local Check was inspired by **[VerifLocal](https://condorutill.fr/index_fr.php)**, the well-known desktop application widely used in the French soaring community for post-flight local-verification analysis — notably adopted by the **FFVP** (Fédération Française de Vol en Planeur).
+
+The goal of this project is to offer a **pure web** alternative:
+
+- Runs directly in the browser — **no local installation** required.
+- Works on **macOS and Linux** as well as Windows, whereas VerifLocal is a Windows-only desktop application.
+- Instantly accessible from any device with a browser, without administrator rights or setup.
+
+Many thanks to the author of VerifLocal for pioneering the concept — this web version simply aims to make the same kind of analysis available to a wider audience across all platforms.

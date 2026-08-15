@@ -156,7 +156,7 @@ The computed offset is displayed under the toggle (e.g. `+42.3 m`). If fewer tha
 Enable or disable the outlanding databases used for the analysis:
 
 - **Alpes Outlanding Fields**
-- **Auvergne Outlanding Fields (ACHh)**
+- **Auvergne Outlanding Fields (ACPH)**
 
 Landing zones are marked on the map with difficulty tags (A / F / M / D / TD).
 
@@ -178,9 +178,144 @@ Use the **sun / moon** button at the bottom of the sidebar to switch between lig
 
 ---
 
+## Data Sources & Loading Logic
+
+When you upload an IGC file, Local Check parses it in a Web Worker and then fetches three external data sets in parallel, all keyed off the flight's bounding box. Progress for each is reflected in the loading dialog. Everything is cached locally where feasible so re-uploading a flight in the same area is instant.
+
+### 1. Terrain Elevation (DEM)
+
+A regular grid of terrain heights is downloaded for the flight bounding box (buffered by ~20 km). The grid feeds AGL computation, escape-path terrain profiles, glide-plane clearance, reachable-zone analysis, and QNH recalibration.
+
+> **⏱ Heads-up:** loading the elevation data is usually the slowest step of the process — expect **several tens of seconds** on a typical flight, depending on the size of the area covered and network conditions. The loading dialog shows the progress and the rest of the app remains responsive in the meantime.
+
+#### Source: Microsoft Planetary Computer
+
+Local Check fetches the DEM from the **[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)** — Microsoft's open geospatial data catalog exposing petabyte-scale Earth-observation datasets as Cloud-Optimised GeoTIFFs (COGs) with a public STAC API. It requires no API key.
+
+Loading strategy:
+
+1. **STAC search** — enumerate the 1° × 1° tiles overlapping the flight bbox.
+2. **Sign each asset href** via `/api/sas/v1/sign` to get a short-lived read URL.
+3. **Byte-range reads** — open each COG with `geotiff.js`'s `fromUrl` so only the pixels inside the bbox are downloaded, not the whole tile.
+4. **Blit into a single output grid** at ~30 m resolution.
+
+The output is capped at ~2 million samples; when the request exceeds that budget, the resolution is coarsened by successive ×2 steps until it fits.
+
+#### DSM vs DTM: why we use a DSM
+
+Digital elevation models come in two main flavours:
+
+- **DTM (Digital Terrain Model)** — bare-earth elevation. Vegetation, buildings, and other surface features are removed so the model represents the ground itself.
+- **DSM (Digital Surface Model)** — top-of-surface elevation. The model captures whatever the sensor sees from above, including tree canopy, buildings, and other structures.
+
+Local Check uses a **DSM**. Rationale: for landability/glide analysis, the height that actually threatens the glider is the top of what stands on the ground — a forest canopy, a ridge with trees, or a built-up area — not the theoretical bare-earth level a few meters below. A DSM is therefore a slightly conservative (safer) choice for AGL and glide-plane clearance computations. The trade-off is that in dense vegetation the "terrain" will read a few meters higher than the true ground, which is acceptable for a safety tool.
+
+#### Model retrieved: Copernicus DEM GLO-30
+
+The specific dataset consumed is **Copernicus DEM GLO-30** (STAC collection `cop-dem-glo-30`):
+
+- Global coverage at ~30 m ground sampling distance (1 arc-second)
+- WorldDEM DSM produced from TanDEM-X interferometric SAR data (ESA / Airbus)
+- Reference: [Copernicus DEM GLO-30 on Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/dataset/cop-dem-glo-30)
+
+Values are heights above the EGM2008 geoid.
+
+### 2. Airports (OpenAIP)
+
+Airports are pulled from **OpenAIP** to complement the outlanding databases with recognised runways worldwide.
+
+- Instead of hitting the OpenAIP REST API on every viewport change, Local Check fetches the per-country JSON exports at `https://storage.openaip.net/openaip-system-exports/<cc>_apt.json`.
+- The countries traversed are detected offline from the flight track using a 10 km world-polygons dataset (`@geo-maps/countries-land-10km`), sampled at ~30 points across the track. This produces a small list of ISO alpha-2 country codes (e.g. `fr`, `it`, `ch`).
+- Per-country payloads are **cached in `localStorage` for 24 h**, so re-uploading any flight in the same country skips the network entirely.
+- Only relevant airport types are kept: civil airports, glider sites, airfields (civil / IFR), ultra-light sites, landing strips, and altiports. Heliports, military-only, closed, water fields, and agricultural strips are dropped up-front.
+- Loaded airports are then filtered to the flight bounding box (buffered by ~60 km) before being merged into the landing-zone catalog.
+
+When served from `localhost`, the OpenAIP bucket is accessed through a Vite dev-server proxy (`/openaip-storage-proxy/…`) because it does not send CORS headers; in production the app hits the bucket directly (or via the hosting layer).
+
+### 3. Outlanding-field databases
+
+Two curated soaring databases can be enabled from the Settings panel. Each database is downloaded the first time its toggle is switched on (not necessarily at app start) and cached in memory for the rest of the session — subsequent toggle off/on cycles do not re-fetch. If both toggles stay off, no outlanding data is downloaded at all.
+
+| Source | Region | URL | Format |
+|--------|--------|-----|--------|
+| **Alpes Outlanding Fields** | French / Italian / Swiss Alps | `planeur-net.github.io/outlanding/guide_aires_securite.cup` | SeeYou `.cup` waypoint file |
+| **ACPH Auvergne Outlanding Fields** | Auvergne (France) | `aeroclub-issoire.fr/…/outlanding-fields-db.json` (via `/acph-proxy` in dev) | JSON |
+
+Both are parsed client-side and mapped into the shared `LandingZone` shape with position, elevation, orientation of the primary axis when available, and a colour-coded difficulty level.
+
+**OpenAIP takes precedence over the outlanding databases.** Because OpenAIP is the canonical source for airfields, any Alpes or Auvergne outlanding entry lying within **400 m** of an OpenAIP zone is dropped when the active list is assembled — this prevents a `.cup` airfield entry from shadowing the corresponding OpenAIP record with slightly different position, name or elevation.
+
+At parse time, each source is also cleaned of its own internal duplicates: two entries closer than 250 m within the same database are merged (a source file can list, for instance, both runway ends or two nearby waypoints for the same physical field). Airfields and entries with an explicit difficulty tag are preferred over untagged waypoints when merging.
+
+#### Difficulty levels
+
+Every outlanding field carries a difficulty rating on a simplified **four-colour scale**, from safest to hardest:
+
+| Level | Meaning |
+|-------|---------|
+| 🟢 **Green** | Airfield or easy landable field |
+| 🟠 **Orange** | Medium — requires care |
+| 🔴 **Red** | Difficult — experienced pilots only |
+| ⚫ **Black** | Very difficult — last-resort field |
+
+This 4-level scale is used consistently across the whole app: map markers, arrival-height pill labels, and the local-check status all reference the same colour taxonomy.
+
+##### Alpes: tag-to-level conversion
+
+The Alpes `.cup` database uses the alpine outlanding tags embedded in each waypoint's description (`{A}`, `{F}`, `{E}`, `{ZA}`, `{LA}`, `{M}`, `{D}`, `{TD}`, `{VD}`). Local Check maps them to the 4-level colour scale as follows:
+
+| Alpine tag | Meaning | Level |
+|------------|---------|-------|
+| `A` | Airfield | 🟢 Green |
+| `F` / `E` | Easy (*facile*) | 🟢 Green |
+| `ZA` / `LA` | Group of fields | 🟢 Green |
+| *(no tag)* | Untagged waypoint | 🟢 Green |
+| `M` | Medium (*moyen*) | 🟠 Orange |
+| `D` | Difficult (*difficile*) | 🔴 Red |
+| `TD` / `VD` | Very difficult (*très difficile*) | ⚫ Black |
+
+##### Auvergne
+
+The ACPH Auvergne JSON already ships an explicit difficulty field, so no tag translation is needed — the level is read directly from the source.
+
+##### OpenAIP airports
+
+Every OpenAIP airport is treated as an airfield and mapped to 🟢 **Green**.
+
+Toggling a source in the Settings panel adds or removes the corresponding zones from the map and from the local-check computation without re-fetching.
+
+### 4. Loading orchestration
+
+When you upload an IGC file, the following happens in the background:
+
+1. The flight track is parsed and the summary (pilot, glider, duration, distance…) becomes available.
+2. The terrain elevation and the OpenAIP airport list for the countries traversed are fetched in parallel around the flight area.
+3. The safety analysis (local check) runs automatically as soon as the flight, the terrain and at least one landing zone are ready.
+
+Outlanding databases are independent of the upload: they are downloaded the first time you enable their toggle and then kept for the rest of the session.
+
+The loading dialog reports the progress of each step and closes on its own when everything is ready. Changing a setting in session (QNH recalibration, enabling or disabling a source) refreshes the analysis but never re-downloads data — only uploading a new flight does.
+
+---
+
 ## Notes & Tips
 
 - Landing zones are matched using the configured databases only — make sure the relevant regions are enabled.
 - Reducing the reachable-zone grid size dramatically increases computation cost; start with 360 m and refine if needed.
 - The Ground Clearance parameter is informational and does not affect the local-check classification.
 - Elevation data is loaded on demand; the loading dialog reports progress across elevation, landing-zone database, and local-check computation.
+- OpenAIP country payloads and elevation results are cached client-side — clearing your browser storage forces a fresh fetch on the next upload.
+
+---
+
+## Credits
+
+Local Check was inspired by **[VerifLocal](https://condorutill.fr/index_fr.php)**, the well-known desktop application widely used in the French soaring community for post-flight local-verification analysis — notably adopted by the **FFVP** (Fédération Française de Vol en Planeur).
+
+The goal of this project is to offer a **pure web** alternative:
+
+- Runs directly in the browser — **no local installation** required.
+- Works on **macOS and Linux** as well as Windows, whereas VerifLocal is a Windows-only desktop application.
+- Instantly accessible from any device with a browser, without administrator rights or setup.
+
+Many thanks to the author of VerifLocal for pioneering the concept — this web version simply aims to make the same kind of analysis available to a wider audience across all platforms.
