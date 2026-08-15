@@ -68,15 +68,15 @@ export function LoaderProgressDialog() {
   const isReady =
     flight !== null && elevationGrid !== null && hasLoadedAirports && !hasError;
 
-  // A flight object identity changes on every successful load, so use it to
-  // re-arm the dialog (clearing any earlier dismissal/ready state) for the
-  // new file.
+  // Re-arm the dialog when a new file is being parsed, or when the flight
+  // transitions from absent to present (upload complete). Settings-driven
+  // flight-object refreshes (e.g. QNH recalibration toggling) do NOT
+  // re-arm — those are in-session updates, not new loads.
   const previousFlightRef = useRef(flight);
   useEffect(() => {
-    if (isParsingIgc || flight !== previousFlightRef.current) {
-      setDismissed(false);
-      // setReadyAcknowledged(false);
-    }
+    const isNewLoad =
+      isParsingIgc || (flight !== null && previousFlightRef.current === null);
+    if (isNewLoad) setDismissed(false);
     previousFlightRef.current = flight;
   }, [isParsingIgc, flight]);
 

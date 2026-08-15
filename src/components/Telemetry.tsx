@@ -23,11 +23,12 @@ export function Telemetry() {
   // Compute AGL on the fly: `flight.derived[i].aglM` is only populated when
   // the elevation grid was available at parse time; the grid usually loads
   // asynchronously after the flight, so read it directly here.
+  const qnhOffsetM = flight.qnhOffsetM ?? 0;
   let aglM: number | null = null;
   if (elevationGrid) {
     const terrain = sampleElevation(elevationGrid, fix.latitude, fix.longitude);
     if (!isNaN(terrain)) {
-      const alt = pickAltitude(fix, altitudeSource);
+      const alt = pickAltitude(fix, altitudeSource, qnhOffsetM);
       if (alt !== null) aglM = alt - terrain;
     }
   }
@@ -47,7 +48,11 @@ export function Telemetry() {
         <Row label={t('telemetry.time')} value={formatTimeUtc(fix.timeMs)} />
         <Row
           label={t('telemetry.pressureAltitude')}
-          value={formatAltitude(fix.pressureAltitudeM)}
+          value={formatAltitude(
+            fix.pressureAltitudeM === null
+              ? null
+              : fix.pressureAltitudeM + qnhOffsetM,
+          )}
         />
         <Row
           label={t('telemetry.gnssAltitude')}

@@ -27,7 +27,7 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
     const position = flight.fixes[index];
     const latitude = position.latitude;
     const longitude = position.longitude;
-    const altM = pickAltitude(position, altitudeSource);
+    const altM = pickAltitude(position, altitudeSource, flight.qnhOffsetM ?? 0);
     if (altM === null) return [];   
 
     const features: ArrivalHeightFeature[] = [];
@@ -95,7 +95,7 @@ export function useCurrentEscapePath(): EscapePath | null {
     const position = flight.fixes[index];
     const latitude = position.latitude;
     const longitude = position.longitude;
-    const altM = pickAltitude(position, altitudeSource);
+    const altM = pickAltitude(position, altitudeSource, flight.qnhOffsetM ?? 0);
     if (altM === null) return null;   
 
     const best = pickBestLandingZone(

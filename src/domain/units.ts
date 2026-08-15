@@ -37,11 +37,22 @@ export function haversineDistanceM(
   return haversineDistanceKm(lat1, lon1, lat2, lon2) * 1000;
 }
 
+/**
+ * Read altitude for a fix. When `source === 'pressure'`, `offsetM` (the
+ * QNH correction stored on the flight, or 0 when disabled) is added so the
+ * whole app sees the recalibrated value without mutating the raw fix.
+ */
 export function pickAltitude(
   fix: Fix,
   source: 'pressure' | 'gnss',
+  offsetM: number = 0,
 ): number | null {
-  return source === 'pressure' ? fix.pressureAltitudeM : fix.gnssAltitudeM;
+  if (source === 'pressure') {
+    return fix.pressureAltitudeM === null
+      ? null
+      : fix.pressureAltitudeM + offsetM;
+  }
+  return fix.gnssAltitudeM;
 }
 
 function toRadians(deg: number): number {

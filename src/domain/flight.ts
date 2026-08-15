@@ -53,6 +53,10 @@ export interface NormalizedFlight {
   summary: FlightSummary;
   /** Altitude source the UI should default to when both are available. */
   preferredAltitudeSource: 'pressure' | 'gnss';
+  /** Meters to add to every `pressureAltitudeM` read via `pickAltitude` so
+   * the flight is displayed against the local QNH of the day. `null` when
+   * the recalibration option is off or when calibration failed. */
+  qnhOffsetM?: number | null;
   /** Original uploaded file name (e.g. `2026-08-01.igc`), attached by the
    * loader after parsing — not part of the IGC content itself, so `null`
    * when a flight is constructed without going through the upload flow. */

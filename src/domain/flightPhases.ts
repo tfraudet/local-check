@@ -80,6 +80,7 @@ export function computeFlightPhases(
   motorFlags: boolean[],
   altSrc: 'pressure' | 'gnss',
   enableFinalGlide: boolean = false,
+  qnhOffsetM: number = 0,
 ): FlightPhase[] {
   const n = fixes.length;
   const phases: FlightPhase[] = new Array(n).fill('cruise');
@@ -90,7 +91,7 @@ export function computeFlightPhases(
   //    the same tag so the stationary-at-airfield-elevation samples aren't
   //    scored as out-of-local (glider on the runway has margin = -arrival).
   if ((derived[0].groundSpeedKmh ?? 0) < ON_GROUND_MAX_GS_KMH) {
-    const range = detectInitialClimb(fixes, derived, altSrc);
+    const range = detectInitialClimb(fixes, derived, altSrc, qnhOffsetM);
     if (range) {
       for (let i = 0; i <= range.releaseIdx; i++) {
         phases[i] = 'initial-climb';
@@ -142,14 +143,14 @@ export function computeFlightPhases(
 
     const endIdx = anchor - 1;
     if (endIdx >= 0 && phases[endIdx] === 'cruise') {
-      const endAlt = pickAltitude(fixes[endIdx], altSrc);
+      const endAlt = pickAltitude(fixes[endIdx], altSrc, qnhOffsetM);
       if (endAlt !== null) {
         let rgStart = endIdx;
         let backwardMaxAlt = endAlt;
 
         for (let i = endIdx - 1; i >= 0; i--) {
           if (phases[i] !== 'cruise') break;
-          const alt = pickAltitude(fixes[i], altSrc);
+          const alt = pickAltitude(fixes[i], altSrc, qnhOffsetM);
           if (alt === null) break;
           if (backwardMaxAlt - alt > FINAL_GLIDE_CLIMB_TOLERANCE_M) break;
           if (alt > backwardMaxAlt) backwardMaxAlt = alt;
@@ -194,6 +195,7 @@ function detectInitialClimb(
   fixes: Fix[],
   derived: DerivedPoint[],
   altSrc: 'pressure' | 'gnss',
+  qnhOffsetM: number = 0,
 ): InitialClimbRange | null {
   const n = fixes.length;
 
@@ -204,7 +206,7 @@ function detectInitialClimb(
   ) {
     takeoffIdx++;
   }
-  const takeoffAlt = pickAltitude(fixes[takeoffIdx], altSrc) ?? 0;
+  const takeoffAlt = pickAltitude(fixes[takeoffIdx], altSrc, qnhOffsetM) ?? 0;
 
   let state: ClimbState = 'rolling';
   let climbStartTimeMs = 0;
@@ -216,7 +218,7 @@ function detectInitialClimb(
   let everSustained = false;
 
   for (let i = takeoffIdx; i < n; i++) {
-    const alt = pickAltitude(fixes[i], altSrc) ?? takeoffAlt;
+    const alt = pickAltitude(fixes[i], altSrc, qnhOffsetM) ?? takeoffAlt;
 
     // Hard cap — we've gained too much to still be on tow.
     if (alt - takeoffAlt > MAX_INITIAL_CLIMB_GAIN_M) {

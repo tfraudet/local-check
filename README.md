@@ -36,6 +36,7 @@ It helps flight instructors and pilots answer critical safety questions:
 - **Escape-path profile chart:** Compact uPlot chart to the right of the barogram (30 / 70 width split). Draws the terrain profile and glide plane along the escape line, with a filled square marker at the LZ and a dashed arrival-target guide. Extends 20 % past the LZ for post-target context.
 - **Reachable zone:** From the current position, at user-selectable grid size (90 / 180 / 360 / 720 m) and extent (5–30 km). Rendered as a translucent green fill overlay under the track. Runs in a dedicated Web Worker with a 250 ms debounce on cursor moves.
 - **Arrival-height labels:** For every visible LZ, an SDF "pill" label shows the projected arrival height at the current fix, colour-coded by the shared status rule.
+- **QNH altitude recalibration:** Optional setting that estimates the day's QNH offset from the first ~8 stationary pre-takeoff fixes (comparing recorded baro altitude to terrain elevation at the takeoff position). When enabled, every pressure altitude in the flight is corrected in-app (raw IGC fixes are preserved); the computed offset is displayed under the toggle, and a warning is shown when pre-takeoff samples are insufficient.
 
 ### 🗺️ Planned features
 

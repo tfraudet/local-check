@@ -77,9 +77,13 @@ export function Barogram() {
 
     // Prepare data to plot: downsample if necessary, and always include the last point
     const fullTimes = flight.fixes.map((f) => f.timeMs / 1000);
-    const fullAltitudes = flight.fixes.map((f) =>
-      altitudeSource === 'pressure' ? f.pressureAltitudeM : f.gnssAltitudeM,
-    );
+    const qnhOffsetM = flight.qnhOffsetM ?? 0;
+    const fullAltitudes = flight.fixes.map((f) => {
+      if (altitudeSource === 'gnss') return f.gnssAltitudeM;
+      return f.pressureAltitudeM === null
+        ? null
+        : f.pressureAltitudeM + qnhOffsetM;
+    });
     const fullTerrain = elevationGrid
       ? flight.fixes.map((f) => {
           const v = sampleElevation(elevationGrid, f.latitude, f.longitude);

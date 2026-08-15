@@ -17,14 +17,17 @@ const ELEVATION_FIT_MARGIN_KM = 20;
  */
 export function useElevationLoader() {
   const { t } = useTranslation();
-  const flight = useFlightStore((s) => s.flight);
+  // Subscribe to `fixes` (stable across in-session updates like QNH
+  // recalibration) rather than the whole `flight` object, so refreshing
+  // `flight.derived` after a settings change does not re-trigger a fetch.
+  const fixes = useFlightStore((s) => s.flight?.fixes);
   const setElevationGrid = useFlightStore((s) => s.setElevationGrid);
   const setElevationLoadError = useFlightStore((s) => s.setElevationLoadError);
   const setException = useFlightStore((s) => s.setException);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!flight) {
+    if (!fixes) {
       return;
     }
 
@@ -33,7 +36,7 @@ export function useElevationLoader() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const bbox = bufferBboxByKm(boundingBoxOf(flight.fixes), ELEVATION_FIT_MARGIN_KM);
+    const bbox = bufferBboxByKm(boundingBoxOf(fixes), ELEVATION_FIT_MARGIN_KM);
     if (import.meta.env.DEV) {
       console.log('Fetching elevation grid for bbox:', bbox);
     }
@@ -61,5 +64,5 @@ export function useElevationLoader() {
     return () => {
       controller.abort();
     };
-  }, [flight, setElevationGrid, setElevationLoadError, setException, t]);
+  }, [fixes, setElevationGrid, setElevationLoadError, setException, t]);
 }

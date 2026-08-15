@@ -11,6 +11,7 @@ export function computeSummary(
   fixes: Fix[],
   derived: DerivedPoint[],
   altitudeSource: 'pressure' | 'gnss',
+  qnhOffsetM: number = 0,
 ): FlightSummary {
   if (fixes.length === 0) {
     return {
@@ -33,7 +34,7 @@ export function computeSummary(
   let maxGroundSpeedKmh = 0;
 
   for (let i = 0; i < fixes.length; i++) {
-    const alt = pickAltitude(fixes[i], altitudeSource);
+    const alt = pickAltitude(fixes[i], altitudeSource, qnhOffsetM);
     if (alt !== null) {
       if (alt > maxAltitudeM) maxAltitudeM = alt;
       if (alt < minAltitudeM) minAltitudeM = alt;

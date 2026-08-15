@@ -93,6 +93,8 @@ export interface LocalCheckInput {
   landingZones: LandingZone[];
   // phases: FlightPhase[];
   params: LocalCheckParams;
+  /** Optional QNH-based offset added to every pressure altitude read. */
+  qnhOffsetM?: number;
 }
 
 export function runLocalCheckFull(input: LocalCheckInput): LocalCheckResult {
@@ -106,10 +108,12 @@ export function runLocalCheckFull(input: LocalCheckInput): LocalCheckResult {
   // `computeFlightPhases` sees populated `aglM` for initial-climb /
   // final-glide detection. Kept local so `flight` identity stays
   // stable (mutating it here would loop the auto-effect hooks).
+  const qnhOffsetM = input.qnhOffsetM ?? 0;
   const derivedWithAgl = computeDerivedMetrics(
     input.fixes,
     input.altitudeSource,
     input.elevationGrid,
+    qnhOffsetM,
   );
   const phases = computeFlightPhases(
     input.fixes,
@@ -117,6 +121,7 @@ export function runLocalCheckFull(input: LocalCheckInput): LocalCheckResult {
     motorFlags,
     input.altitudeSource,
     input.params.detectFinalGlide,
+    qnhOffsetM,
   );
   
   return runLocalCheck(input, phases);
@@ -127,6 +132,7 @@ export function runLocalCheck(input: LocalCheckInput, phases : FlightPhase[]): L
   // const { fixes, altitudeSource, elevationGrid, landingZones, phases, params } =
   const { fixes, altitudeSource, elevationGrid, landingZones, params } =
     input;
+  const qnhOffsetM = input.qnhOffsetM ?? 0;
   const stepMs = Math.max(10, params.timeStepS) * 1000;
 
   const samples: SampledPoint[] = [];
@@ -137,7 +143,7 @@ export function runLocalCheck(input: LocalCheckInput, phases : FlightPhase[]): L
     if (fix.timeMs - lastSampleMs < stepMs) continue;
     lastSampleMs = fix.timeMs;
 
-    const altM = pickAltitude(fix, altitudeSource);
+    const altM = pickAltitude(fix, altitudeSource, qnhOffsetM);
     if (altM === null) continue;
 
     const terrain = sampleElevation(elevationGrid, fix.latitude, fix.longitude);

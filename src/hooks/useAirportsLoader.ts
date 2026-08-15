@@ -20,7 +20,9 @@ const AIRPORTS_FIT_MARGIN_KM = 60;
  */
 export function useAirportsLoader() {
   const { t } = useTranslation();
-  const flight = useFlightStore((s) => s.flight);
+  // Subscribe to `fixes` (stable across in-session flight updates like QNH
+  // recalibration) rather than the whole `flight` object.
+  const fixes = useFlightStore((s) => s.flight?.fixes);
   const addLandingZones = useFlightStore((s) => s.addLandingZones);
   const setIsLoadingAirports = useFlightStore((s) => s.setIsLoadingAirports);
   const setAirportsLoaded = useFlightStore((s) => s.setAirportsLoaded);
@@ -29,13 +31,13 @@ export function useAirportsLoader() {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!flight) return;
+    if (!fixes) return;
 
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const countries = detectCountriesFromFixes(flight.fixes);
+    const countries = detectCountriesFromFixes(fixes);
     if (import.meta.env.DEV) {
       console.log('[openaip-export] countries traversed:', countries);
     }
@@ -45,7 +47,7 @@ export function useAirportsLoader() {
     }
 
     const [minLon, minLat, maxLon, maxLat] = bufferBboxByKm(
-      boundingBoxOf(flight.fixes),
+      boundingBoxOf(fixes),
       AIRPORTS_FIT_MARGIN_KM,
     );
 
@@ -85,7 +87,7 @@ export function useAirportsLoader() {
       controller.abort();
     };
   }, [
-    flight,
+    fixes,
     addLandingZones,
     setIsLoadingAirports,
     setAirportsLoaded,

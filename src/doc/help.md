@@ -139,6 +139,17 @@ All settings are persisted in your browser (localStorage).
 | **Detect Final Glide** | On | Automatically detect and mark final glide |
 | **Time Step** | 20 s | Sampling interval for the local check (minimum 10 s) |
 | **ENL Threshold** | 500 | Engine noise level above which the engine is considered on |
+| **Recalibrate altitude on local QNH** | Off | Correct raw IGC pressure altitude to the day's QNH using pre-takeoff terrain elevation |
+
+#### Recalibrate altitude on local QNH
+
+IGC pressure altitude is recorded against the ISA reference (1013.25 hPa), not the QNH of the day, so displayed altitudes and AGL can be off by tens of meters. When this toggle is enabled, Local Check:
+
+1. Averages the barometric altitude of the first ~8 consecutive stationary fixes (ground speed below 10 km/h) before takeoff.
+2. Samples the terrain elevation at that same position.
+3. Computes an offset (`terrain − average baro`) and applies it to every pressure altitude in the flight — barogram, telemetry, AGL, local-check classification, escape path and reachable zone all reflect the corrected value.
+
+The computed offset is displayed under the toggle (e.g. `+42.3 m`). If fewer than 5 valid pre-takeoff fixes are available, or if the takeoff position falls outside the elevation grid, the correction is disabled and a warning is shown; the raw IGC fixes are always preserved as the source of truth.
 
 ### Landing Zone Databases
 

@@ -157,7 +157,8 @@ export function SettingsPanel() {
           hint={t('settings.detectFinalGlidedHint')}
           checked={settings.detectFinalGlide}
           onChange={(v) => update({ detectFinalGlide: v })}
-        />       
+        />
+        <QnhRecalibrationRow />
       </SidebarGroup>
 
       <Separator />
@@ -324,6 +325,43 @@ export function SettingsPanel() {
       </SidebarGroup>
     </>
   )
+}
+
+function QnhRecalibrationRow() {
+  const { t } = useTranslation();
+  const settings = useFlightStore((s) => s.settings);
+  const setSettings = useFlightStore((s) => s.setSettings);
+  const qnhOffsetM = useFlightStore((s) => s.flight?.qnhOffsetM ?? null);
+  const qnhWarning = useFlightStore((s) => s.qnhWarning);
+
+  return (
+    <div className="space-y-1">
+      <ToggleRow
+        id="recalibrate-altitude"
+        label={t('settings.recalibrateAltitude')}
+        hint={t('settings.recalibrateAltitudeHint')}
+        checked={settings.recalibrateAltitude}
+        onChange={(v) => setSettings({ recalibrateAltitude: v })}
+      />
+      {settings.recalibrateAltitude && qnhOffsetM !== null && (
+        <div
+          className="flex items-center justify-between pl-3 text-[10px] text-muted-foreground"
+          title={t('settings.qnhOffsetHint')}
+        >
+          <span>{t('settings.qnhOffsetLabel')}</span>
+          <span className="font-mono tabular-nums">
+            {qnhOffsetM >= 0 ? '+' : ''}
+            {qnhOffsetM.toFixed(1)} m
+          </span>
+        </div>
+      )}
+      {settings.recalibrateAltitude && qnhWarning && (
+        <p className="pl-3 text-[10px] text-amber-600 dark:text-amber-400">
+          {qnhWarning}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function ResetSettingsButton() {

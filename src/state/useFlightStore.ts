@@ -12,6 +12,18 @@ import type { LocalCheckInput, LocalCheckResult } from '@/domain/localCheck';
 import { createWorkerChannel } from './workerChannel';
 import { DEFAULT_REACHABLE_ZONE_PARAMS, type ReachableZoneInputs, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
 import { pickAltitude } from '@/domain/units';
+import { applyQnhOffsetToFlight, computeQnhOffset, QNH_DEFAULT_SAMPLES, QNH_MIN_SAMPLES, type QnhCorrectionError } from '@/domain/qnhCorrection';
+
+function describeQnhError(err: QnhCorrectionError): string {
+  switch (err.kind) {
+    case 'insufficient-samples':
+      return `QNH recalibration disabled: only ${err.available} pre-takeoff fix(es) available (need at least ${QNH_MIN_SAMPLES}).`;
+    case 'no-pressure-altitude':
+      return 'QNH recalibration disabled: pressure altitude missing in pre-takeoff fixes.';
+    case 'no-terrain':
+      return 'QNH recalibration disabled: no terrain elevation available at the takeoff position.';
+  }
+}
 
 
 export type PlaybackSpeed = 1 | 2 | 4 | 8 | 16 | 32;
@@ -29,11 +41,15 @@ function clamp(value: number, min: number, max: number): number {
 export interface Settings {
   // Parameters for the local check algorithm
   workingLD: number;
-  arrivalHeightM: number; 
-  groundClearanceM: number; 
-  timeStepS: number; 
-  enlThreshold: number; 
-  detectFinalGlide: boolean; 
+  arrivalHeightM: number;
+  groundClearanceM: number;
+  timeStepS: number;
+  enlThreshold: number;
+  detectFinalGlide: boolean;
+
+  // Recalibrate barometric altitude on local QNH (using first N pre-takeoff
+  // fixes compared to terrain elevation).
+  recalibrateAltitude: boolean;
 
   // Enabled sources for landng zones
   enabledSources: SourceToggles;
@@ -42,7 +58,7 @@ export interface Settings {
   showEscapePath: boolean;
   showArrivalHeights: boolean;
   showReachableZone: boolean;
-  reachableZoneParams: ReachableZoneParams; 
+  reachableZoneParams: ReachableZoneParams;
 }
 
 const DEFAULT_SETTINGS : Settings = {
@@ -53,6 +69,7 @@ const DEFAULT_SETTINGS : Settings = {
   timeStepS: 20,
   enlThreshold: 500,
   detectFinalGlide: true,
+  recalibrateAltitude: false,
 
   //enabled sources for landing zones
   enabledSources: DEFAULT_SOURCE_TOGGLES,
@@ -147,6 +164,7 @@ export interface FlightStoreState {
 
   elevationGrid: ElevationGrid | null;
   elevationLoadError: string | null;
+  qnhWarning: string | null;
   isLoadingAirports: boolean;
   hasLoadedAirports: boolean;
   airportsLoadError: string | null;
@@ -203,6 +221,52 @@ export interface FlightStoreState {
 export const useFlightStore = create<FlightStoreState>()(
   persist(
     (set, get) => {
+      /** Recompute QNH offset when the settings toggle or the elevation
+       * grid changes. Clears the correction when the toggle is off or when
+       * calibration fails; sets a warning message for user feedback. */
+      const reapplyQnhCorrection = () => {
+        const { flight, elevationGrid, settings } = get();
+        if (!flight) return;
+
+        // Toggle off → drop any previously computed offset.
+        if (!settings.recalibrateAltitude) {
+          if (flight.qnhOffsetM != null) {
+            set({
+              flight: applyQnhOffsetToFlight(flight, null, elevationGrid),
+              qnhWarning: null,
+            });
+          } else {
+            set({ qnhWarning: null });
+          }
+          return;
+        }
+
+        // Toggle on but grid not ready yet → wait for setElevationGrid.
+        if (!elevationGrid) {
+          set({ qnhWarning: null });
+          return;
+        }
+
+        const outcome = computeQnhOffset(
+          flight.fixes,
+          flight.derived,
+          elevationGrid,
+          QNH_DEFAULT_SAMPLES,
+        );
+        if (!outcome.ok) {
+          set({
+            flight: applyQnhOffsetToFlight(flight, null, elevationGrid),
+            qnhWarning: describeQnhError(outcome.error),
+          });
+          return;
+        }
+
+        set({
+          flight: applyQnhOffsetToFlight(flight, outcome.correction.offsetM, elevationGrid),
+          qnhWarning: null,
+        });
+      };
+
       /** Jump `delta` fixes from the current position and pause. */
       const stepBy = (delta: number) => {
         const { flight, currentTimeMs } = get();
@@ -230,6 +294,7 @@ export const useFlightStore = create<FlightStoreState>()(
 
         elevationGrid: null,
         elevationLoadError: null,
+        qnhWarning: null,
         isLoadingAirports: false,
         hasLoadedAirports: false,
         airportsLoadError: null,
@@ -294,7 +359,14 @@ export const useFlightStore = create<FlightStoreState>()(
         },
 
         // Settings
-        setSettings: (patch: Partial<Settings>) => set((state) => ({ settings: { ...state.settings, ...patch } })),
+        setSettings: (patch: Partial<Settings>) => {
+          const prev = get().settings;
+          const nextSettings = { ...prev, ...patch } as Settings;
+          set({ settings: nextSettings });
+          if ('recalibrateAltitude' in patch && patch.recalibrateAltitude !== prev.recalibrateAltitude) {
+            reapplyQnhCorrection();
+          }
+        },
         // Recompute with the updated source selection.
         setSourceEnabled: (source, enabled) => {
           const currentSettings = get().settings;
@@ -358,7 +430,7 @@ export const useFlightStore = create<FlightStoreState>()(
           // }
 
           set({
-            flight,
+            flight: { ...flight, qnhOffsetM: null },
             loadError: null,
             currentTimeMs: flight.fixes[0]?.timeMs ?? 0,
             isPlaying: false,
@@ -366,6 +438,7 @@ export const useFlightStore = create<FlightStoreState>()(
 
             elevationGrid: null,
             elevationLoadError: null,
+            qnhWarning: null,
             isLoadingAirports: false,
             hasLoadedAirports: false,
             airportsLoadError: null,
@@ -402,8 +475,10 @@ export const useFlightStore = create<FlightStoreState>()(
         setIsParsingIgc: (isParsing: boolean) => set({ isParsingIgc: isParsing }),
         
         // elevation grid management
-        setElevationGrid: (grid) =>
-          set({ elevationGrid: grid, elevationLoadError: null }),
+        setElevationGrid: (grid) => {
+          set({ elevationGrid: grid, elevationLoadError: null });
+          if (grid) reapplyQnhCorrection();
+        },
 
         setElevationLoadError: (message) =>
           set({ elevationLoadError: message, elevationGrid: null }),
@@ -483,6 +558,7 @@ export const useFlightStore = create<FlightStoreState>()(
             landingZones: selectedZones,
             // phases,
             params: localCheckParams,
+            qnhOffsetM: flight.qnhOffsetM ?? 0,
           });
           // console.log('AFTER running runLocalCheckFull() in a worker');
 
@@ -521,7 +597,7 @@ export const useFlightStore = create<FlightStoreState>()(
           const idx = findCurrentFixIndex(flight, currentTimeMs);
           if (idx < 0) return;
           const fix = flight.fixes[idx];
-          const altM = pickAltitude(fix, altitudeSource);
+          const altM = pickAltitude(fix, altitudeSource, flight.qnhOffsetM ?? 0);
           if (altM === null) return;
 
           set({ isComputingReachableZone: true });

@@ -17,6 +17,7 @@ export function computeDerivedMetrics(
   fixes: Fix[],
   altitudeSource: 'pressure' | 'gnss',
   elevationGrid?: ElevationGrid | null,
+  qnhOffsetM: number = 0,
 ): DerivedPoint[] {
   const derived: DerivedPoint[] = [];
   let cumulativeDistanceKm = 0;
@@ -46,8 +47,8 @@ export function computeDerivedMetrics(
       if (elapsedSeconds > 0) {
         groundSpeedKmh = (distanceKm / elapsedSeconds) * 3600;
 
-        const currentAlt = pickAltitude(current, altitudeSource);
-        const previousAlt = pickAltitude(previous, altitudeSource);
+        const currentAlt = pickAltitude(current, altitudeSource, qnhOffsetM);
+        const previousAlt = pickAltitude(previous, altitudeSource, qnhOffsetM);
         if (currentAlt !== null && previousAlt !== null) {
           const rawVario = (currentAlt - previousAlt) / elapsedSeconds;
           varioWindow.push(rawVario);
@@ -69,7 +70,7 @@ export function computeDerivedMetrics(
       );
       if (!isNaN(terrain)) {
         terrainElevationM = terrain;
-        const alt = pickAltitude(current, altitudeSource);
+        const alt = pickAltitude(current, altitudeSource, qnhOffsetM);
         if (alt !== null) aglM = alt - terrain;
       }
     }
