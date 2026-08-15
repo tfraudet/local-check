@@ -12,3 +12,5 @@ declare module '@geo-maps/countries-land-10km/map.geo.json' {
   const featureCollection: unknown;
   export default featureCollection;
 }
+
+declare const __APP_VERSION__: string;

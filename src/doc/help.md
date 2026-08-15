@@ -4,6 +4,14 @@
 
 ---
 
+## About
+
+- **Author:** ACPH — Aéroclub Pierre Herbaud
+- **Source code:** [github.com/tfraudet/local-check](https://github.com/tfraudet/local-check)
+- **License:** MIT
+
+---
+
 ## Getting Started
 
 1. Open the **Flight** panel from the left sidebar (plane icon).
