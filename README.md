@@ -24,17 +24,20 @@ It helps flight instructors and pilots answer critical safety questions:
 
 - **IGC Parsing:** Client-side parsing of standard IGC flight records, off the main thread via a Web Worker.
 - **Interactive Replay:** Play/pause, step forward/backward, reset, adjustable playback speed (1×–16×), and timeline scrubbing, with keyboard shortcuts (Space, ←/→, Home).
-- **Map View:** Flight track rendered on an OpenFreeMap basemap (MapLibre GL), with a live position marker synced to replay time.
+- **Map View:** Flight track rendered on MapLibre GL, with a live position marker synced to replay time. Five basemap styles are switchable at runtime: **OpenStreetMap**, **Liberty**, **Positron** and **Dark** (all three via [OpenFreeMap](https://openfreemap.org)), plus **Satellite (Esri World Imagery)**.
 - **Barogram:** Interactive altitude-over-time chart with a replay-synced cursor and click/hover-to-seek.
 - **Telemetry & Flight Summary Panels:** Live time, position, altitude (pressure/GNSS), ground speed, and vario, plus overall flight stats (date, pilot, glider, duration, min/max altitude, max speed, total distance).
 - **Derived Metrics:** Ground speed, vario, and cumulative distance computed from raw IGC fixes.
 - **Landing Zone import (`.cup`):** SeeYou-format waypoint files parsed client-side; airfield vs outlanding, difficulty tags (`{A}` / `{F}` / `{M}` / `{D}` / `{TD}`), 250 m de-duplication.
-- **Terrain elevation:** OpenTopography DEM prefetched around the flight bbox; bilinear sampling for AGL and glide computations.
+- **Terrain elevation:** DEM grid prefetched around the flight bounding box, with bilinear sampling for AGL and glide computations. Two backends are supported and selectable via env var:
+  - **Microsoft Planetary Computer** *(default)* — no API key required; serves **[Copernicus DEM GLO-30](https://planetarycomputer.microsoft.com/dataset/cop-dem-glo-30)** (WorldDEM DSM, ~30 m, EGM2008 geoid) via STAC + Cloud-Optimised GeoTIFF byte-range reads.
+  - **OpenTopography** — single-GeoTIFF request; requires `VITE_OPENTOPOGRAPHY_API_KEY`. Choice of DEM via `VITE_ELEVATION_DEMTYPE`: `EU_DTM` (Copernicus EU-DEM v1.1, ~25 m, Europe), `SRTMGL1` / `SRTMGL3` (NASA SRTM, ~30 / 90 m, global ±60°), `COP30` / `COP90` (Copernicus GLO-30 / 90, global).
+  A **DSM** (Digital Surface Model — top-of-canopy) rather than a DTM (bare-earth) is used on purpose: for landability analysis the safety-relevant height is the top of what stands on the ground (canopy, buildings), not the theoretical ground level a few meters below.
 - **In-local / marginal / out-of-local classification:** One shared rule across all surfaces — for each fix, pick the LZ with the highest projected arrival above ground, then colour by `arrival > safety height` (green) / `arrival > 0` (yellow) / `arrival ≤ 0` (red).
 - **Coloured track & barogram:** Track segments and altitude line coloured per phase (initial-climb, motor, final-glide) and status. Legend surfaces every colour.
 - **Out-of-local statistics:** Time / % out-of-local, mean & max missing height, first out-of-local time (click-to-seek).
 - **Configurable parameters:** Working L/D, safety arrival height, time step, ENL threshold — all persisted via `localStorage`. (Ground clearance is exposed but informational only; it does not gate status.)
-- **Escape path:** From the current replay position to the LZ with the highest arrival height above ground. Dashed polyline on the map (green/yellow/red per shared status rule).
+- **Escape path:** From the current replay position to the LZ with the highest arrival height above ground. Dashed polyline on the map (green/yellow/red per shared status rule). Computed as a **straight line** to the target LZ for now — terrain-collision detection along the path is not performed yet; the escape-path profile chart lets the pilot visually check whether the glide clips the ground.
 - **Escape-path profile chart:** Compact uPlot chart to the right of the barogram (30 / 70 width split). Draws the terrain profile and glide plane along the escape line, with a filled square marker at the LZ and a dashed arrival-target guide. Extends 20 % past the LZ for post-target context.
 - **Reachable zone:** From the current position, at user-selectable grid size (90 / 180 / 360 / 720 m) and extent (5–30 km). Rendered as a translucent green fill overlay under the track. Runs in a dedicated Web Worker with a 250 ms debounce on cursor moves.
 - **Arrival-height labels:** For every visible LZ, an SDF "pill" label shows the projected arrival height at the current fix, colour-coded by the shared status rule.
@@ -45,7 +48,7 @@ It helps flight instructors and pilots answer critical safety questions:
 - **Airspace penetration detection & reporting** (imported OpenAir/GeoJSON).
 - **Wind effect on glide,** manual entry or drift-derived.
 - **Downloadable debrief reports** — flight summary, out-of-local events, screenshots for club compliance.
-- **Terrain-avoiding poly-line escape routes** (Phase 3 ships straight-line only).
+- **Terrain-avoiding poly-line escape routes** (current version ships straight-line only).
 
 ---
 
@@ -69,6 +72,55 @@ Open the printed local URL, then upload an IGC file (e.g. `fixtures/sample-fligh
 | `npm run format`       | Format the codebase with Prettier        |
 | `npm run format:check` | Check formatting without writing changes |
 | `npm run test`         | Run the Vitest unit test suite           |
+
+### Environment configuration (`.env.local`)
+
+Create a `.env.local` at the repo root to configure the elevation backend and any third-party API keys. All variables **must** be prefixed with `VITE_` so Vite exposes them to the client bundle.
+
+Example `.env.local`:
+
+```bash
+# Elevation data source: 'opentopography' | 'planetary-computer' (default)
+VITE_ELEVATION_SOURCE=planetary-computer
+# VITE_ELEVATION_SOURCE=opentopography
+
+# --- OpenTopography (used when VITE_ELEVATION_SOURCE=opentopography) ---
+# https://opentopography.org/blog/introducing-api-keys-access-opentopography-global-datasets
+# Free tier: 50 API calls / 24 h.
+VITE_OPENTOPOGRAPHY_API_KEY=your-opentopography-key-here
+
+# Choice of DEM: EU_DTM | SRTMGL1 | SRTMGL3 | COP30 | COP90
+VITE_ELEVATION_DEMTYPE=EU_DTM
+
+# --- Microsoft Planetary Computer (used when VITE_ELEVATION_SOURCE=planetary-computer) ---
+# Serves Copernicus DEM GLO-30 (cop-dem-glo-30) via STAC. No API key needed.
+
+# --- OpenAIP (optional, reserved for future REST-API use) ---
+# VITE_OPENAIP_API_KEY=your-openaip-key-here
+```
+
+Supported variables:
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `VITE_ELEVATION_SOURCE` | Elevation backend: `planetary-computer` or `opentopography` | `opentopography` |
+| `VITE_OPENTOPOGRAPHY_API_KEY` | Required when `VITE_ELEVATION_SOURCE=opentopography` | *(empty)* |
+| `VITE_ELEVATION_DEMTYPE` | DEM used by OpenTopography: `EU_DTM` / `SRTMGL1` / `SRTMGL3` / `COP30` / `COP90` | `EU_DTM` |
+| `VITE_OPENAIP_API_KEY` | Reserved for future OpenAIP REST-API use (current build uses the CORS-friendly data exports and does not consume this) | *(empty)* |
+
+The Planetary Computer backend is fully public and requires no key, so a bare install with no `.env.local` works out of the box.
+
+### Dev-server proxies
+
+Several upstream data sources do not send CORS headers, so the Vite dev server (`npm run dev`) and preview server (`npm run preview`) proxy them to the same origin. See [`vite.config.ts`](./vite.config.ts) for the exact configuration; in production these proxies are inactive — the deploy target must expose equivalent paths or the origin must add CORS support.
+
+| Path prefix | Upstream | Used by |
+|-------------|----------|---------|
+| `/ot-proxy` | `https://portal.opentopography.org` | OpenTopography elevation backend |
+| `/acph-proxy` | `https://aeroclub-issoire.fr` | ACPH Auvergne outlanding-fields JSON |
+| `/openaip-storage-proxy` | `https://storage.openaip.net` | OpenAIP per-country airport exports |
+
+The Planetary Computer backend does not need a proxy — its STAC + SAS-signed COG endpoints send permissive CORS headers.
 
 ### Tech stack
 

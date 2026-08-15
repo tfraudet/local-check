@@ -2,10 +2,10 @@
  * Elevation API dispatcher.
  *
  * Two backends are supported, chosen at build time via VITE_ELEVATION_SOURCE:
- *   - `opentopography` (default): a single GeoTIFF from OpenTopography,
- *     with the DEM picked by VITE_ELEVATION_DEMTYPE.
- *   - `planetary-computer`: Copernicus DEM GLO-30 tiles fetched via
- *     Microsoft Planetary Computer's STAC API.
+ *   - `planetary-computer` (default): Copernicus DEM GLO-30 tiles fetched
+ *     via Microsoft Planetary Computer's STAC API. No API key required.
+ *   - `opentopography`: a single GeoTIFF from OpenTopography, with the DEM
+ *     picked by VITE_ELEVATION_DEMTYPE.
  *
  * Both backends normalize the result into a WGS84- (or EPSG:3035-)aligned
  * `ElevationGrid`, so downstream code doesn't care where the data came from.
@@ -25,7 +25,7 @@ export const ELEVATION_SOURCE: ElevationSource = (() => {
   if (raw && (SUPPORTED_SOURCES as readonly string[]).includes(raw)) {
     return raw as ElevationSource;
   }
-  return 'opentopography';
+  return 'planetary-computer';
 })();
 
 export interface ElevationFetchProgress {
