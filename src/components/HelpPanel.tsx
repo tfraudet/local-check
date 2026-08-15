@@ -103,7 +103,7 @@ export function HelpPanel({ open, onOpenChange }: HelpPanelProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-3/4! max-w-none! sm:w-3/4! sm:max-w-none!"
+        className="w-2/3! max-w-none! sm:w-2/3! sm:max-w-none!"
       >
         <SheetHeader className="border-b border-border pb-4">
           <div className="flex items-center gap-3">
@@ -129,8 +129,10 @@ export function HelpPanel({ open, onOpenChange }: HelpPanelProps) {
           </ReactMarkdown>
         </div>
 
-        <SheetFooter>
-          <SheetClose render={<Button variant="outline">Close</Button>} />
+        <SheetFooter className="border-t border-border px-6 py-4">
+          <div className="flex justify-center" >
+            <SheetClose render={<Button variant="default">Close</Button>} />
+          </div>
         </SheetFooter>
       </SheetContent>
     </Sheet>
