@@ -131,7 +131,7 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
               className="justify-center px-0"
             >
               <span className="text-xs font-semibold tracking-wide">
-                {currentLang.toUpperCase()}
+                {(currentLang === 'en' ? 'fr' : 'en').toUpperCase()}
               </span>
             </SidebarMenuButton>
           </SidebarMenuItem>

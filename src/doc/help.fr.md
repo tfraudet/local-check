@@ -32,7 +32,7 @@ La navigation icônes-seulement à gauche est toujours visible :
 - **Avion** — Charger et gérer le vol courant
 - **Réglages** — Configurer les paramètres d'analyse et les sources de données
 - **Info** — Ouvrir cette documentation d'aide
-- **FR/EN** -  Changer de langue
+- **FR/EN** — Changer de langue
 - **Soleil / Lune** — Basculer entre thème clair et sombre
 
 Cliquer sur une icône déploie un panneau contextuel à côté de la barre latérale.
@@ -190,6 +190,12 @@ Utilisez le bouton **soleil / lune** en bas de la barre latérale pour basculer 
 | Touche | Action |
 |--------|--------|
 | `d` | Alterner entre thème sombre et clair |
+
+---
+
+## Langue
+
+Utilisez le bouton **FR / EN** de la barre latérale pour basculer l'interface entre le français et l'anglais. Le libellé du bouton indique toujours la langue vers laquelle vous allez basculer (par exemple, `EN` quand l'interface est actuellement en français). Le changement s'applique immédiatement à tous les panneaux — infobulles de la barre latérale, panneaux Vol et Réglages, contrôles de rejeu et cette documentation d'aide — et votre choix est mémorisé entre les sessions.
 
 ---
 

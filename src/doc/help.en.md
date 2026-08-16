@@ -193,6 +193,12 @@ Use the **sun / moon** button at the bottom of the sidebar to switch between lig
 
 ---
 
+## Language
+
+Use the **FR / EN** button in the sidebar to switch the interface language between French and English. The label of the button always shows the language you will switch to (for instance, `FR` when the interface is currently in English). The change is applied immediately to every panel — sidebar tooltips, Flight and Settings panels, replay controls, and this help documentation — and your choice is remembered between sessions.
+
+---
+
 ## Data Sources & Loading Logic
 
 When you upload an IGC file, Local Check parses it and then fetches three external data sets in parallel, all keyed off the flight's bounding box. Progress for each is reflected in the loading dialog. Everything is cached locally where feasible so re-uploading a flight in the same area is instant.

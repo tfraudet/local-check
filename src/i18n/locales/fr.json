@@ -123,7 +123,7 @@
     "elevation": "Chargement des données d'élévation du terrain…",
     "airports": "Chargement de la base des aérodromes…",
     "landingZones": "Chargement de la base des zones d'atterrissage…",
-    "computing": "Calcul du local check…",
+    "computing": "Calcul du local…",
     "ready": "Local check prêt",
     "errorTitle": "Échec du chargement",
     "close": "Fermer"
