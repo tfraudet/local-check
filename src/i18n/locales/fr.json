@@ -4,7 +4,7 @@
     "disclaimer": "Indicatif uniquement — non destiné à un usage en vol. Utilisez toujours les procédures officielles de navigation et de sécurité."
   },
   "upload": {
-    "title": "Charger un plan de vol",
+    "title": "Charger un vol",
     "description": "Chargez votre fichier de vol pour vérifier les restrictions et avis locaux.",
     "dragHint": "Glissez-déposez un fichier .igc ici, ou cliquez pour parcourir",
     "menuItem": "Charger un vol",

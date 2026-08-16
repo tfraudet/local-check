@@ -6,7 +6,7 @@
 
 ## À propos
 
-- **Auteur :** ACPH — Aéroclub Pierre Herbaud
+- **Auteur :** [ACPH - Aéroclub Pierre Herbaud](https://aeroclub-issoire.fr/)
 - **Code source :** [github.com/tfraudet/local-check](https://github.com/tfraudet/local-check)
 - **Licence :** MIT
 
@@ -32,6 +32,7 @@ La navigation icônes-seulement à gauche est toujours visible :
 - **Avion** — Charger et gérer le vol courant
 - **Réglages** — Configurer les paramètres d'analyse et les sources de données
 - **Info** — Ouvrir cette documentation d'aide
+- **FR/EN** -  Changer de langue
 - **Soleil / Lune** — Basculer entre thème clair et sombre
 
 Cliquer sur une icône déploie un panneau contextuel à côté de la barre latérale.
@@ -40,8 +41,8 @@ Cliquer sur une icône déploie un panneau contextuel à côté de la barre lat�
 
 - **Carte** (partie haute) — Trace du vol, zones d'atterrissage, trajectoire de dégagement et zone atteignable
 - **Barogramme** (partie basse)
-  - Gauche : **Profil de la trajectoire de dégagement** — profil du terrain et plan de vol vers la meilleure zone atteignable
-  - Droite : **Barogramme** — altitude en fonction du temps, synchronisé avec le curseur de la carte
+  - Droite : **Profil de la trajectoire de dégagement** — profil du terrain et plan de vol vers la meilleure zone atteignable
+  - Gauche : **Barogramme** — altitude en fonction du temps, synchronisé avec le curseur de la carte
 - **Contrôles de rejeu** — Barre temporelle, lecture/pause, sélecteur de vitesse et affichage de l'heure
 
 ---
@@ -111,7 +112,7 @@ La trace sur la carte est colorée selon la phase et le statut de sécurité :
 
 Une ligne pointillée reliant la position de rejeu courante à la zone d'atterrissage offrant la **hauteur d'arrivée projetée la plus élevée** au-dessus du sol. Elle se met à jour en continu pendant le rejeu et est colorée selon le statut (dans le local / marginal / hors local).
 
-Le graphique **Profil de la trajectoire de dégagement** (à gauche du barogramme) montre :
+Le graphique **Profil de la trajectoire de dégagement** (à droite du barogramme) montre :
 
 - L'élévation du terrain le long de la trajectoire de dégagement
 - Le plan de vol depuis la position actuelle
@@ -125,7 +126,7 @@ Une superposition verte translucide représentant la zone atteignable depuis la 
 - **Taille de grille** — 90 / 180 / 360 / 720 m (plus petit = plus détaillé, plus lent)
 - **Diamètre** — 5 à 30 km autour de la position courante
 
-Le calcul s'exécute dans un Web Worker avec un court délai anti-rebond ; une indication de qualité s'affiche si la résolution demandée dépasse le budget de cellules.
+Une indication de qualité s'affiche si la résolution demandée dépasse le nombre maximum de cellules supporté.
 
 ### Étiquettes de hauteur d'arrivée
 
@@ -141,7 +142,7 @@ Tous les réglages sont conservés dans votre navigateur (localStorage).
 
 | Paramètre | Défaut | Description |
 |-----------|--------|-------------|
-| **Finesse d'exploitation** | 20 | Finesse utilisée pour le calcul du local |
+| **Finesse** | 20 | Finesse utilisée pour le calcul du local |
 | **Hauteur d'arrivée de sécurité** | 300 m | Hauteur minimale au-dessus de la zone d'atterrissage à l'arrivée |
 | **Garde au sol** | 150 m | Hauteur minimale au-dessus du terrain le long du plan (informatif) |
 | **Détecter l'arrivée finale** | On | Détecter et marquer automatiquement l'arrivée finale |
@@ -151,13 +152,13 @@ Tous les réglages sont conservés dans votre navigateur (localStorage).
 
 #### Recalibrer l'altitude sur le QNH local
 
-L'altitude pression IGC est enregistrée par rapport à l'ISA (1013,25 hPa), et non par rapport au QNH du jour ; les altitudes affichées et l'AGL peuvent donc être décalés de plusieurs dizaines de mètres. Lorsque cette option est activée, Local Check :
+L'altitude pression IGC est enregistrée par rapport à la pression atmosphérique standard (1013,25 hPa), et non par rapport au QNH du jour ; les altitudes affichées et l'AGL peuvent donc être décalés de plusieurs dizaines de mètres. Lorsque cette option est activée, Local Check :
 
 1. Calcule la moyenne de l'altitude barométrique des ~8 premiers points stationnaires consécutifs (vitesse sol inférieure à 10 km/h) avant le décollage.
 2. Échantillonne l'élévation du terrain à la même position.
 3. Calcule un décalage (`terrain − moyenne baro`) et l'applique à toutes les altitudes pression du vol — barogramme, télémétrie, AGL, classification local-check, trajectoire de dégagement et zone atteignable reflètent tous la valeur corrigée.
 
-Le décalage calculé est affiché sous l'interrupteur (par ex. `+42,3 m`). Si moins de 5 fixes valides avant décollage sont disponibles, ou si la position de décollage tombe hors grille d'élévation, la correction est désactivée et un avertissement s'affiche ; les fixes IGC bruts restent toujours la source de vérité.
+Le décalage calculé est affiché sous l'interrupteur (par ex. `+42,3 m`). Si moins de 5 points valides avant décollage sont disponibles, ou si la position de décollage tombe hors grille d'élévation, la correction est désactivée et un avertissement s'affiche ; les points IGC bruts restent toujours la source de vérité.
 
 ### Bases de zones d'atterrissage
 
@@ -184,11 +185,17 @@ Les zones d'atterrissage sont marquées sur la carte avec un niveau de difficult
 
 Utilisez le bouton **soleil / lune** en bas de la barre latérale pour basculer entre thème clair et sombre. Votre choix est mémorisé entre les sessions.
 
+### Raccourcis clavier
+
+| Touche | Action |
+|--------|--------|
+| `d` | Alterner entre thème sombre et clair |
+
 ---
 
 ## Sources de données & logique de chargement
 
-Quand vous chargez un fichier IGC, Local Check l'analyse dans un Web Worker puis récupère en parallèle trois jeux de données externes, tous indexés sur la boîte englobante du vol. La progression de chacun apparaît dans la boîte de dialogue de chargement. Tout est mis en cache localement lorsque possible : recharger un vol dans la même zone est alors instantané.
+Quand vous chargez un fichier IGC, Local Check l'analyse puis récupère en parallèle trois jeux de données externes, tous indexés sur la boîte englobante du vol. La progression de chacun apparaît dans la boîte de dialogue de chargement. Tout est mis en cache localement lorsque possible : recharger un vol dans la même zone est alors instantané.
 
 ### 1. Élévation du terrain (DEM)
 
@@ -238,8 +245,6 @@ Les aérodromes sont récupérés depuis **OpenAIP** pour compléter les bases d
 - Seuls les types d'aérodromes pertinents sont conservés : aérodromes civils, sites vélivoles, aérodromes (civils / IFR), sites ULM, terrains d'aviation et altiports. Héliports, terrains militaires uniquement, terrains fermés, hydroaérodromes et pistes agricoles sont écartés d'emblée.
 - Les aérodromes chargés sont ensuite filtrés à la boîte englobante du vol (élargie de ~60 km) avant d'être fusionnés dans le catalogue des zones d'atterrissage.
 
-Servi depuis `localhost`, le bucket OpenAIP est accédé via un proxy du serveur de dev Vite (`/openaip-storage-proxy/…`) car il n'envoie pas d'en-têtes CORS ; en production, l'application tape directement sur le bucket (ou via la couche d'hébergement).
-
 ### 3. Bases de champs vachables
 
 Deux bases vélivoles peuvent être activées depuis le panneau Réglages. Chacune est téléchargée la première fois que son interrupteur est activé (pas nécessairement au démarrage) et conservée en mémoire pour le reste de la session — les cycles activation/désactivation ultérieurs ne rechargent pas. Si les deux interrupteurs restent éteints, aucune donnée vachable n'est téléchargée.
@@ -247,7 +252,7 @@ Deux bases vélivoles peuvent être activées depuis le panneau Réglages. Chacu
 | Source | Région | URL | Format |
 |--------|--------|-----|--------|
 | **Champs vachables des Alpes** | Alpes françaises / italiennes / suisses | `planeur-net.github.io/outlanding/guide_aires_securite.cup` | Fichier `.cup` SeeYou |
-| **Champs vachables d'Auvergne (ACPH)** | Auvergne (France) | `aeroclub-issoire.fr/…/outlanding-fields-db.json` (via `/acph-proxy` en dev) | JSON |
+| **Champs vachables d'Auvergne (ACPH)** | Auvergne (France) | `aeroclub-issoire.fr/…/outlanding-fields-db.json` | JSON |
 
 Les deux sont analysés côté client et convertis dans le format commun `LandingZone` avec position, altitude, orientation de l'axe principal quand disponible, et un niveau de difficulté codé par couleur.
 
@@ -265,8 +270,6 @@ Chaque champ vachable porte une note de difficulté sur une **échelle simplifi�
 | 🟠 **Orange** | Moyen — demande de l'attention |
 | 🔴 **Rouge** | Difficile — pilotes expérimentés uniquement |
 | ⚫ **Noir** | Très difficile — champ de dernier recours |
-
-Cette échelle à 4 niveaux est utilisée de manière cohérente dans toute l'application : marqueurs sur la carte, pastilles de hauteur d'arrivée et statut du local check référencent tous la même taxonomie de couleurs.
 
 ##### Alpes : conversion étiquette → niveau
 
@@ -312,7 +315,7 @@ La boîte de dialogue de chargement affiche la progression de chaque étape et s
 - Réduire la taille de grille de la zone atteignable augmente fortement le coût de calcul ; commencez par 360 m et affinez au besoin.
 - Le paramètre Garde au sol est informatif et n'influe pas sur la classification du local check.
 - Les données d'élévation sont chargées à la demande ; la boîte de dialogue indique la progression pour l'élévation, la base des zones d'atterrissage et le calcul du local check.
-- Les charges OpenAIP par pays et les résultats d'élévation sont mis en cache côté client — vider le stockage du navigateur force une nouvelle récupération au prochain chargement.
+- Les données OpenAIP par pays et les résultats d'élévation sont mis en cache côté client — vider le stockage du navigateur force une nouvelle récupération au prochain chargement.
 
 ---
 

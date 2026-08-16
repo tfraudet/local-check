@@ -4,7 +4,7 @@
     "disclaimer": "Indicative only — not for in-flight use. Always rely on official navigation and safety procedures."
   },
   "upload": {
-    "title": "Upload Flight Plan",
+    "title": "Upload Flight",
     "description": "Upload your flight plan file to check for local restrictions and advisories.",
     "dragHint": "Drag and drop a .igc file here, or click to browse",
     "menuItem": "Upload flight",

@@ -6,7 +6,7 @@
 
 ## About
 
-- **Author:** ACPH — Aéroclub Pierre Herbaud
+- **Author:** [ACPH - Aéroclub Pierre Herbaud](https://aeroclub-issoire.fr/)
 - **Source code:** [github.com/tfraudet/local-check](https://github.com/tfraudet/local-check)
 - **License:** MIT
 
@@ -32,6 +32,7 @@ The icon-only left navigation is always visible:
 - **Plane** — Upload and manage the current flight
 - **Settings** — Configure analysis parameters and data sources
 - **Info** — Open this help documentation
+- **FR/EN** Switch language
 - **Sun / Moon** — Toggle between light and dark theme
 
 Clicking an icon expands a contextual panel next to the sidebar.
@@ -40,8 +41,8 @@ Clicking an icon expands a contextual panel next to the sidebar.
 
 - **Map view** (upper area) — Flight track, landing zones, escape path, and reachable-zone overlay
 - **Barogram row** (lower area)
-  - Left: **Escape Path Profile** — terrain and glide-plane profile toward the best reachable landing zone
-  - Right: **Barogram** — altitude over time, synchronised with the map cursor
+  - Right: **Escape Path Profile** — terrain and glide-plane profile toward the best reachable landing zone
+  - Left: **Barogram** — altitude over time, synchronised with the map cursor
 - **Replay Controls** — Timeline scrubber, play/pause, speed selector, and time display
 
 ---
@@ -111,7 +112,7 @@ The flight track on the map is colour-coded by phase and safety status:
 
 A dashed polyline from the current replay position to the landing zone offering the **highest projected arrival height** above ground. It updates continuously during replay and is colour-coded by status (in-local / marginal / out-of-local).
 
-The **Escape Path Profile** chart (left of the barogram) shows:
+The **Escape Path Profile** chart (right of the barogram) shows:
 
 - Terrain elevation along the escape trajectory
 - The glide plane from the current position
@@ -125,7 +126,7 @@ A translucent green overlay showing the area reachable from the current position
 - **Grid size** — 90 / 180 / 360 / 720 m (smaller = more detailed, slower)
 - **Diameter** — 5 to 30 km around the current position
 
-Computation runs in a Web Worker with a short debounce; a quality hint is shown if the requested resolution exceeds the cell budget.
+A quality hint is shown if the requested resolution exceeds the maximum number of cells supported.
 
 ### Arrival Height Labels
 
@@ -151,7 +152,7 @@ All settings are persisted in your browser (localStorage).
 
 #### Recalibrate altitude on local QNH
 
-IGC pressure altitude is recorded against the ISA reference (1013.25 hPa), not the QNH of the day, so displayed altitudes and AGL can be off by tens of meters. When this toggle is enabled, Local Check:
+IGC pressure altitude is recorded against the International Standard Atmosphere reference (1013.25 hPa), not the QNH of the day, so displayed altitudes and AGL can be off by tens of meters. When this toggle is enabled, Local Check:
 
 1. Averages the barometric altitude of the first ~8 consecutive stationary fixes (ground speed below 10 km/h) before takeoff.
 2. Samples the terrain elevation at that same position.
@@ -184,11 +185,17 @@ Landing zones are marked on the map with difficulty level using a four-colour sc
 
 Use the **sun / moon** button at the bottom of the sidebar to switch between light and dark themes. Your choice is remembered between sessions.
 
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `d` | Switch between dark and light themes |
+
 ---
 
 ## Data Sources & Loading Logic
 
-When you upload an IGC file, Local Check parses it in a Web Worker and then fetches three external data sets in parallel, all keyed off the flight's bounding box. Progress for each is reflected in the loading dialog. Everything is cached locally where feasible so re-uploading a flight in the same area is instant.
+When you upload an IGC file, Local Check parses it and then fetches three external data sets in parallel, all keyed off the flight's bounding box. Progress for each is reflected in the loading dialog. Everything is cached locally where feasible so re-uploading a flight in the same area is instant.
 
 ### 1. Terrain Elevation (DEM)
 
@@ -238,8 +245,6 @@ Airports are pulled from **OpenAIP** to complement the outlanding databases with
 - Only relevant airport types are kept: civil airports, glider sites, airfields (civil / IFR), ultra-light sites, landing strips, and altiports. Heliports, military-only, closed, water fields, and agricultural strips are dropped up-front.
 - Loaded airports are then filtered to the flight bounding box (buffered by ~60 km) before being merged into the landing-zone catalog.
 
-When served from `localhost`, the OpenAIP bucket is accessed through a Vite dev-server proxy (`/openaip-storage-proxy/…`) because it does not send CORS headers; in production the app hits the bucket directly (or via the hosting layer).
-
 ### 3. Outlanding-field databases
 
 Two curated soaring databases can be enabled from the Settings panel. Each database is downloaded the first time its toggle is switched on (not necessarily at app start) and cached in memory for the rest of the session — subsequent toggle off/on cycles do not re-fetch. If both toggles stay off, no outlanding data is downloaded at all.
@@ -247,7 +252,7 @@ Two curated soaring databases can be enabled from the Settings panel. Each datab
 | Source | Region | URL | Format |
 |--------|--------|-----|--------|
 | **Alpes Outlanding Fields** | French / Italian / Swiss Alps | `planeur-net.github.io/outlanding/guide_aires_securite.cup` | SeeYou `.cup` waypoint file |
-| **ACPH Auvergne Outlanding Fields** | Auvergne (France) | `aeroclub-issoire.fr/…/outlanding-fields-db.json` (via `/acph-proxy` in dev) | JSON |
+| **ACPH Auvergne Outlanding Fields** | Auvergne (France) | `aeroclub-issoire.fr/…/outlanding-fields-db.json` | JSON |
 
 Both are parsed client-side and mapped into the shared `LandingZone` shape with position, elevation, orientation of the primary axis when available, and a colour-coded difficulty level.
 
@@ -265,8 +270,6 @@ Every outlanding field carries a difficulty rating on a simplified **four-colour
 | 🟠 **Orange** | Medium — requires care |
 | 🔴 **Red** | Difficult — experienced pilots only |
 | ⚫ **Black** | Very difficult — last-resort field |
-
-This 4-level scale is used consistently across the whole app: map markers, arrival-height pill labels, and the local-check status all reference the same colour taxonomy.
 
 ##### Alpes: tag-to-level conversion
 
