@@ -61,7 +61,7 @@ export interface Settings {
   reachableZoneParams: ReachableZoneParams;
 }
 
-const DEFAULT_SETTINGS : Settings = {
+export const DEFAULT_SETTINGS : Settings = {
   // parameters for the local check algorithm
   workingLD: 20,
   arrivalHeightM: 300,

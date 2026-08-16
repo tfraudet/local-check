@@ -1,7 +1,7 @@
 import { fileURLToPath, URL } from 'node:url';
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
+import { defineConfig } from 'vitest/config';
 import devtoolsJson from 'vite-plugin-devtools-json';
 import type { ProxyOptions } from 'vite'
 import pkg from './package.json' with { type: 'json' };
@@ -47,4 +47,10 @@ export default defineConfig({
   // optimizeDeps: {
   //   exclude: ['maplibre-gl'],
   // },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./tests/setup/vitest.setup.ts'],
+    include: ['tests/unit/**/*.{test,spec}.ts?(x)'],
+    css: true,
+  },
 })
