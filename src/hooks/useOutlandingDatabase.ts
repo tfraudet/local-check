@@ -8,12 +8,12 @@ const ALPES_OUTLANDING_URL =
   'https://planeur-net.github.io/outlanding/guide_aires_securite.cup';
 // 'https://planeur-net.github.io/outlanding/champs_des_alpes.cup';
 
-// The ACPH site serves the JSON without CORS headers; in dev we route
-// through the Vite proxy (`/acph-proxy` → aeroclub-issoire.fr). In prod
-// the deploy target must expose the same path or the origin must add
-// CORS support.
+// In production the app is hosted on aeroclub-issoire.fr itself, so
+// this root-relative path is same-origin — no CORS, no proxy needed.
+// In dev and `vite preview`, `vite.config.ts` proxies the same path
+// to aeroclub-issoire.fr, so a single URL works everywhere.
 const AUVERGNE_OUTLANDING_URL =
-  '/acph-proxy/wp-content/uploads/acph/outlanding-fields/outlanding-fields-db.json';
+  '/wp-content/uploads/acph/outlanding-fields/outlanding-fields-db.json';
 
 interface OutlandingSource {
   label: string;

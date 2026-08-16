@@ -138,8 +138,8 @@ Several upstream data sources do not send CORS headers, so the Vite dev server (
 | Path prefix | Upstream | Used by |
 |-------------|----------|---------|
 | `/ot-proxy` | `https://portal.opentopography.org` | OpenTopography elevation backend |
-| `/acph-proxy` | `https://aeroclub-issoire.fr` | ACPH Auvergne outlanding-fields JSON |
-| `/openaip-storage-proxy` | `https://storage.openaip.net` | OpenAIP per-country airport exports |
+| `/wp-content/uploads/acph` | `https://aeroclub-issoire.fr` | ACPH Auvergne outlanding-fields JSON (mirrors the same-origin path used in production, where the app is hosted on `aeroclub-issoire.fr/local-check/`) |
+| `/local-check/openaip-storage-proxy` | `https://storage.openaip.net` | OpenAIP per-country airport exports (mirrors the Apache reverse-proxy set up in `.htaccess` on the production host) |
 
 The Planetary Computer backend does not need a proxy — its STAC + SAS-signed COG endpoints send permissive CORS headers.
 
