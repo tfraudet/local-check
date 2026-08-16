@@ -107,8 +107,29 @@ Supported variables:
 | `VITE_OPENTOPOGRAPHY_API_KEY` | Required when `VITE_ELEVATION_SOURCE=opentopography` | *(empty)* |
 | `VITE_ELEVATION_DEMTYPE` | DEM used by OpenTopography: `EU_DTM` / `SRTMGL1` / `SRTMGL3` / `COP30` / `COP90` | `EU_DTM` |
 | `VITE_OPENAIP_API_KEY` | Reserved for future OpenAIP REST-API use (current build uses the CORS-friendly data exports and does not consume this) | *(empty)* |
+| `VITE_UMAMI_SRC` | Umami script URL (e.g. `https://cloud.umami.is/script.js`). Leave empty to disable analytics. | *(empty)* |
+| `VITE_UMAMI_WEBSITE_ID` | Umami website UUID. Required together with `VITE_UMAMI_SRC` for analytics to load. | *(empty)* |
 
 The Planetary Computer backend is fully public and requires no key, so a bare install with no `.env.local` works out of the box.
+
+### Analytics
+
+When both `VITE_UMAMI_SRC` and `VITE_UMAMI_WEBSITE_ID` are set at build time, the app loads [Umami](https://umami.is) and reports a small, fixed set of **anonymous, cookieless** usage events. If either variable is empty (as in the default `.env.example`), no analytics script is loaded and no request is made — dev builds stay silent.
+
+Events emitted (all first-party, no PII, no filename, no coordinates, no pilot name):
+
+| Event | Extra properties | Fired when |
+|-------|------------------|------------|
+| `igc_upload` | `source` (`picker` \| `dragdrop`), `sizeKb` | An IGC file is accepted for parsing |
+| `igc_parse_error` | `reason` | Parsing fails (invalid format, worker error, etc.) |
+| `language_toggle` | `to` (`fr` \| `en`) | User clicks the FR/EN button |
+| `theme_toggle` | `to` (`light` \| `dark`) | User clicks the sun/moon button |
+| `help_open` | — | User opens the help panel |
+| `replay_play` | — | User starts (not pauses) the replay |
+| `replay_speed_change` | `speed` | User picks a new playback speed |
+| `setting_change` | `key`, `value` | User changes L/D, safety height, QNH recalibration, or an outlanding-database toggle |
+
+All tracking is defined in `src/lib/analytics.ts` — one small wrapper module — so events are typed and easy to audit.
 
 ### Dev-server proxies
 

@@ -17,6 +17,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { FlightPanel } from './FlightPanel';
 import { useTheme } from './theme-provider';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { track } from '@/lib/analytics';
 
 // Served from `public/`, so it keeps a stable, unhashed URL.
 const logoAcph = `${import.meta.env.BASE_URL}logo-acph.jpg`;
@@ -39,7 +40,13 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
     const newLang = currentLang === 'en' ? 'fr' : 'en';
     localStorage.setItem('local-check.language', newLang);
     void i18n.changeLanguage(newLang);
+    track('language_toggle', { to: newLang });
   }
+
+  const handleThemeToggle = () => {
+    track('theme_toggle', { to: theme === 'dark' ? 'light' : 'dark' });
+    toggleTheme();
+  };
 
   useEffect(() => {
     if (!isPanelOpen) {
@@ -66,6 +73,7 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
     if (key === 'help') {
       setIsPanelOpen(false);
       setActiveNav(key);
+      track('help_open');
       onOpenHelp();
       return;
     }
@@ -147,7 +155,7 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
                 hidden: false,
               }}
               size="default"
-              onClick={toggleTheme}
+              onClick={handleThemeToggle}
             >
             {theme === 'dark' ? (
               <Sun  />

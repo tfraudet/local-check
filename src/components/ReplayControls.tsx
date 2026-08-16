@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { flightTimeBounds } from '@/domain/flight';
 import throttle from 'lodash/throttle';
 import { useEffect, useMemo, useState } from 'react';
+import { track } from '@/lib/analytics';
 
 
 const SPEEDS: PlaybackSpeed[] = [1, 2, 4, 8, 16, 32];
@@ -70,7 +71,14 @@ export function ReplayControls() {
             <Button 
                 variant="secondary" 
                 size="icon"
-                onClick={() => (isPlaying ? pause() : play())}
+                onClick={() => {
+                    if (isPlaying) {
+                        pause();
+                    } else {
+                        track('replay_play');
+                        play();
+                    }
+                }}
             >
                 {isPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
             </Button>
@@ -79,7 +87,11 @@ export function ReplayControls() {
                 <RotateCcw />
             </Button>
 
-            <Select value={String(playbackSpeed) + "x"} onValueChange={(value) => setSpeed(Number(value) as PlaybackSpeed)}>
+            <Select value={String(playbackSpeed) + "x"} onValueChange={(value) => {
+                const speed = Number(value) as PlaybackSpeed;
+                track('replay_speed_change', { speed });
+                setSpeed(speed);
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder="select the playback speed" />
               </SelectTrigger>

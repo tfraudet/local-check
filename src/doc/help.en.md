@@ -322,6 +322,7 @@ The loading dialog reports the progress of each step and closes on its own when 
 - The Ground Clearance parameter is informational and does not affect the local-check classification.
 - Elevation data is loaded on demand; the loading dialog reports progress across elevation, landing-zone database, and local-check computation.
 - OpenAIP country payloads and elevation results are cached client-side — clearing your browser storage forces a fresh fetch on the next upload.
+- Anonymous, cookieless usage statistics may be collected via [Umami](https://umami.is) (no personal data, no flight content, no cookies) so the club can see which features are actually used.
 
 ---
 

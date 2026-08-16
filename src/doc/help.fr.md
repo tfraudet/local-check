@@ -322,6 +322,7 @@ La boîte de dialogue de chargement affiche la progression de chaque étape et s
 - Le paramètre Garde au sol est informatif et n'influe pas sur la classification du local check.
 - Les données d'élévation sont chargées à la demande ; la boîte de dialogue indique la progression pour l'élévation, la base des zones d'atterrissage et le calcul du local check.
 - Les données OpenAIP par pays et les résultats d'élévation sont mis en cache côté client — vider le stockage du navigateur force une nouvelle récupération au prochain chargement.
+- Des statistiques d'usage anonymes et sans cookies peuvent être collectées via [Umami](https://umami.is) (aucune donnée personnelle, aucun contenu de vol, aucun cookie) afin que le club puisse voir quelles fonctionnalités sont réellement utilisées.
 
 ---
 

@@ -24,7 +24,7 @@ export function FlightPanel() {
 
   const onFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) loadFile(file);
+    if (file) loadFile(file, 'picker');
     event.target.value = '';
   };
 
@@ -51,7 +51,7 @@ export function FlightPanel() {
     setIsDragActive(false);
     if (isParsing) return;
     const file = event.dataTransfer.files?.[0];
-    if (file) loadFile(file);
+    if (file) loadFile(file, 'dragdrop');
   };
 
   return (

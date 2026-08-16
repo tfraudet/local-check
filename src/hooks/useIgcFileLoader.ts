@@ -1,11 +1,14 @@
 import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFlightStore } from '@/state/useFlightStore';
+import { track } from '@/lib/analytics';
 
 import type {
   IgcWorkerRequest,
   IgcWorkerResponse,
 } from '../workers/igcParser.worker';
+
+export type IgcUploadSource = 'picker' | 'dragdrop';
 
 /**
  * Shared IGC file-loading logic: validates the extension, parses off the
@@ -29,14 +32,20 @@ export function useIgcFileLoader() {
   const workerRef = useRef<Worker | null>(null);
 
   const loadFile = useCallback(
-    (file: File) => {
+    (file: File, source: IgcUploadSource = 'picker') => {
       if (!file.name.toLowerCase().endsWith('.igc')) {
         setLoadError({
           kind: 'invalid-format',
           message: t('errors.invalidFormat'),
         });
+        track('igc_parse_error', { reason: 'invalid-format' });
         return;
       }
+
+      track('igc_upload', {
+        source,
+        sizeKb: Math.round(file.size / 1024),
+      });
 
       setLoadError(null);
       clearFlight();
@@ -67,6 +76,7 @@ export function useIgcFileLoader() {
               loadFlight({ ...event.data.flight, fileName: file.name });
             } else {
               setLoadError(event.data.error);
+              track('igc_parse_error', { reason: event.data.error.kind });
             }
           };
 
@@ -74,6 +84,7 @@ export function useIgcFileLoader() {
             cleanup();
             setIsParsingIgc(false);
             setLoadError({ kind: 'unknown', message: t('errors.unknown') });
+            track('igc_parse_error', { reason: 'worker-error' });
           };
 
           worker.addEventListener('message', handleMessage);
@@ -84,6 +95,7 @@ export function useIgcFileLoader() {
         .catch(() => {
           setIsParsingIgc(false);
           setLoadError({ kind: 'unknown', message: t('errors.unknown') });
+          track('igc_parse_error', { reason: 'read-failed' });
         });
     },
     [clearFlight, loadFlight, setLoadError, setIsParsingIgc, t],

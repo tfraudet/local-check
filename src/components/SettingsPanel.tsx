@@ -8,6 +8,7 @@ import { Switch } from './ui/switch';
 import { Button } from './ui/button';
 import { REACHABLE_ZONE_CELL_CAP, REACHABLE_ZONE_GRID_SIZES, REACHABLE_ZONE_MAX_DIAMETER_KM, REACHABLE_ZONE_MIN_DIAMETER_KM, type ReachableZoneGridSizeM } from '@/domain/reachableZone';
 import { LandingZonesPanel } from './LandingZonesPanel';
+import { track } from '@/lib/analytics';
 
 interface ParamRowProps {
   label: string;
@@ -113,7 +114,10 @@ export function SettingsPanel() {
             min={5}
             max={60}
             step={1}
-            onChange={(v) => update({ workingLD: v })}
+            onChange={(v) => {
+              track('setting_change', { key: 'workingLD', value: v });
+              update({ workingLD: v });
+            }}
         />
         <ParamRow
             label={t('settings.arrivalHeight')}
@@ -122,7 +126,10 @@ export function SettingsPanel() {
             min={0}
             max={1000}
             step={50}
-            onChange={(v) => update({ arrivalHeightM: v })}
+            onChange={(v) => {
+              track('setting_change', { key: 'arrivalHeightM', value: v });
+              update({ arrivalHeightM: v });
+            }}
         />
         <ParamRow
             label={t('settings.groundClearance')}
@@ -156,7 +163,10 @@ export function SettingsPanel() {
           label={t('settings.detectFinalGlide')}
           hint={t('settings.detectFinalGlidedHint')}
           checked={settings.detectFinalGlide}
-          onChange={(v) => update({ detectFinalGlide: v })}
+          onChange={(v) => {
+            track('setting_change', { key: 'detectFinalGlide', value: v });
+            update({ detectFinalGlide: v });
+          }}
         />
         <QnhRecalibrationRow />
       </SidebarGroup>
@@ -173,14 +183,20 @@ export function SettingsPanel() {
           label={t('settings.showOutlandingFields')}
           hint={t('settings.showOutlandingFieldsHint')}
           checked={enabledSources['outlanding-alps']}
-          onChange={(v) => setSourceEnabled('outlanding-alps', v)}
+          onChange={(v) => {
+            track('setting_change', { key: 'outlanding-alps', value: v });
+            setSourceEnabled('outlanding-alps', v);
+          }}
         />
         <ToggleRow
           id="show-auvergne-fields"
           label={t('settings.showAuvergneFields')}
           hint={t('settings.showAuvergneFieldsHint')}
           checked={enabledSources['outlanding-auvergne']}
-          onChange={(v) => setSourceEnabled('outlanding-auvergne', v)}
+          onChange={(v) => {
+            track('setting_change', { key: 'outlanding-auvergne', value: v });
+            setSourceEnabled('outlanding-auvergne', v);
+          }}
         />
       </SidebarGroup>
       <LandingZonesPanel />
@@ -341,7 +357,10 @@ function QnhRecalibrationRow() {
         label={t('settings.recalibrateAltitude')}
         hint={t('settings.recalibrateAltitudeHint')}
         checked={settings.recalibrateAltitude}
-        onChange={(v) => setSettings({ recalibrateAltitude: v })}
+        onChange={(v) => {
+          track('setting_change', { key: 'recalibrateAltitude', value: v });
+          setSettings({ recalibrateAltitude: v });
+        }}
       />
       {settings.recalibrateAltitude && qnhOffsetM !== null && (
         <div
