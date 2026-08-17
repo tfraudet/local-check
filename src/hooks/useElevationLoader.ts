@@ -21,6 +21,7 @@ export function useElevationLoader() {
   // recalibration) rather than the whole `flight` object, so refreshing
   // `flight.derived` after a settings change does not re-trigger a fetch.
   const fixes = useFlightStore((s) => s.flight?.fixes);
+  const elevationSource = useFlightStore((s) => s.settings.elevationSource);
   const setElevationGrid = useFlightStore((s) => s.setElevationGrid);
   const setElevationLoadError = useFlightStore((s) => s.setElevationLoadError);
   const setException = useFlightStore((s) => s.setException);
@@ -38,18 +39,21 @@ export function useElevationLoader() {
 
     const bbox = bufferBboxByKm(boundingBoxOf(fixes), ELEVATION_FIT_MARGIN_KM);
     if (import.meta.env.DEV) {
-      console.log('[useElevationLodaer] Fetching elevation grid for bbox:', bbox);
+      console.log(
+        `[useElevationLoader] Fetching elevation grid (source=${elevationSource}) for bbox:`,
+        bbox,
+      );
     }
 
     const startedAt = import.meta.env.DEV ? performance.now() : 0;
 
-    fetchElevationGrid(bbox)
+    fetchElevationGrid(bbox, elevationSource)
       .then((grid) => {
         if (!controller.signal.aborted) {
           if (import.meta.env.DEV) {
             const elapsedMs = performance.now() - startedAt;
             console.log(
-              `[useElevationLodaer] Elevation grid loaded in ${elapsedMs.toFixed(0)} ms`,
+              `[useElevationLoader] Elevation grid loaded (${elevationSource}) in ${elapsedMs.toFixed(0)} ms`,
             );
           }
           setElevationGrid(grid);
@@ -72,5 +76,5 @@ export function useElevationLoader() {
     return () => {
       controller.abort();
     };
-  }, [fixes, setElevationGrid, setElevationLoadError, setException, t]);
+  }, [fixes, elevationSource, setElevationGrid, setElevationLoadError, setException, t]);
 }

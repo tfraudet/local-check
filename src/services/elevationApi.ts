@@ -1,32 +1,32 @@
 /**
  * Elevation API dispatcher.
  *
- * Two backends are supported, chosen at build time via VITE_ELEVATION_SOURCE:
+ * Two backends are supported, chosen at runtime by the user in the
+ * Settings panel (persisted via the flight store):
  *   - `planetary-computer` (default): Copernicus DEM GLO-30 tiles fetched
- *     via Microsoft Planetary Computer's STAC API. No API key required.
- *   - `opentopography`: a single GeoTIFF from OpenTopography, with the DEM
- *     picked by VITE_ELEVATION_DEMTYPE.
+ *     via Microsoft Planetary Computer's STAC API. DSM, ~30 m.
+ *   - `aws-terrain`: AWS Open Data "Terrain Tiles" (Terrarium PNG tiles)
+ *     served from a CloudFront-fronted S3 bucket. DTM, ~10-30 m depending
+ *     on region.
  *
- * Both backends normalize the result into a WGS84- (or EPSG:3035-)aligned
- * `ElevationGrid`, so downstream code doesn't care where the data came from.
+ * Both are key-less. Backends normalize the result into a WGS84-aligned
+ * `ElevationGrid`, so downstream code doesn't care where the data came
+ * from.
  */
 
 import type { ElevationGrid } from '../domain/elevation';
 import type { Bbox } from '../domain/bbox';
-import { fetchElevationGridFromOpenTopography } from './openTopographyElevationApi';
 import { fetchElevationGridFromPlanetaryComputer } from './planetaryComputerElevationApi';
+import { fetchElevationGridFromAwsTerrain } from './awsTerrainElevationApi';
 
-export type ElevationSource = 'opentopography' | 'planetary-computer';
+export type ElevationSource = 'planetary-computer' | 'aws-terrain';
 
-const SUPPORTED_SOURCES = ['opentopography', 'planetary-computer'] as const;
+export const SUPPORTED_ELEVATION_SOURCES: readonly ElevationSource[] = [
+  'planetary-computer',
+  'aws-terrain',
+] as const;
 
-export const ELEVATION_SOURCE: ElevationSource = (() => {
-  const raw = import.meta.env.VITE_ELEVATION_SOURCE as string | undefined;
-  if (raw && (SUPPORTED_SOURCES as readonly string[]).includes(raw)) {
-    return raw as ElevationSource;
-  }
-  return 'planetary-computer';
-})();
+export const DEFAULT_ELEVATION_SOURCE: ElevationSource = 'aws-terrain';
 
 export interface ElevationFetchProgress {
   loaded: number;
@@ -37,18 +37,19 @@ export type ProgressCallback = (progress: ElevationFetchProgress) => void;
 
 export async function fetchElevationGrid(
   bbox: Bbox,
+  source: ElevationSource,
   onProgress?: ProgressCallback,
 ): Promise<ElevationGrid> {
   const startedAt = import.meta.env.DEV ? performance.now() : 0;
   try {
-    if (ELEVATION_SOURCE === 'planetary-computer') {
-      return await fetchElevationGridFromPlanetaryComputer(bbox, onProgress);
+    if (source === 'aws-terrain') {
+      return await fetchElevationGridFromAwsTerrain(bbox, onProgress);
     }
-    return await fetchElevationGridFromOpenTopography(bbox, onProgress);
+    return await fetchElevationGridFromPlanetaryComputer(bbox, onProgress);
   } finally {
     if (import.meta.env.DEV) {
       console.log(
-        `[fetchElevationGrid] ${(performance.now() - startedAt).toFixed(1)} ms`,
+        `[fetchElevationGrid:${source}] ${(performance.now() - startedAt).toFixed(1)} ms`,
       );
     }
   }
@@ -61,7 +62,7 @@ export class ElevationApiError extends Error {
   constructor(
     message: string,
     statusCode?: number,
-    serviceName = 'OpenTopography',
+    serviceName = 'Elevation API',
   ) {
     super(message);
     this.name = 'ElevationApiError';

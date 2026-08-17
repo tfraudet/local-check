@@ -13,6 +13,7 @@ import { createWorkerChannel } from './workerChannel';
 import { DEFAULT_REACHABLE_ZONE_PARAMS, type ReachableZoneInputs, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
 import { pickAltitude } from '@/domain/units';
 import { applyQnhOffsetToFlight, computeQnhOffset, QNH_DEFAULT_SAMPLES, QNH_MIN_SAMPLES, type QnhCorrectionError } from '@/domain/qnhCorrection';
+import { DEFAULT_ELEVATION_SOURCE, SUPPORTED_ELEVATION_SOURCES, type ElevationSource } from '@/services/elevationApi';
 
 function describeQnhError(err: QnhCorrectionError): string {
   switch (err.kind) {
@@ -51,6 +52,9 @@ export interface Settings {
   // fixes compared to terrain elevation).
   recalibrateAltitude: boolean;
 
+  // Terrain-elevation backend used to build the DEM grid on flight load.
+  elevationSource: ElevationSource;
+
   // Enabled sources for landng zones
   enabledSources: SourceToggles;
 
@@ -70,6 +74,8 @@ export const DEFAULT_SETTINGS : Settings = {
   enlThreshold: 500,
   detectFinalGlide: true,
   recalibrateAltitude: false,
+
+  elevationSource: DEFAULT_ELEVATION_SOURCE,
 
   //enabled sources for landing zones
   enabledSources: DEFAULT_SOURCE_TOGGLES,
@@ -628,13 +634,32 @@ export const useFlightStore = create<FlightStoreState>()(
     },
     {
       name: 'flight-store',
-      version: 1,
+      version: 2,
 
       // Pick only the properties you want to keep in localStorage
-      partialize: (state) => ({ 
+      partialize: (state) => ({
         playbackSpeed: state.playbackSpeed ,
         settings: state.settings,
       }),
+
+      // Fill in fields added in newer versions with defaults so existing
+      // users don't lose their persisted settings when the shape changes.
+      migrate: (persistedState, fromVersion) => {
+        const state = (persistedState ?? {}) as { settings?: Partial<Settings> };
+        if (fromVersion < 2) {
+          const source = state.settings?.elevationSource;
+          const valid =
+            source && SUPPORTED_ELEVATION_SOURCES.includes(source)
+              ? source
+              : DEFAULT_ELEVATION_SOURCE;
+          state.settings = {
+            ...DEFAULT_SETTINGS,
+            ...(state.settings ?? {}),
+            elevationSource: valid,
+          };
+        }
+        return state as never;
+      },
       // merge: (persistedState, currentState) => {
       //   const persisted = persistedState as Partial<FlightStoreState>;
 

@@ -149,6 +149,7 @@ Tous les réglages sont conservés dans votre navigateur (localStorage).
 | **Pas de temps** | 20 s | Intervalle d'échantillonnage pour le local check (min 10 s) |
 | **Seuil ENL** | 500 | Niveau sonore moteur au-dessus duquel le moteur est considéré en marche |
 | **Recalibrer l'altitude sur le QNH local** | Off | Corriger l'altitude pression brute du fichier IGC vers le QNH du jour en s'appuyant sur l'altitude terrain au décollage |
+| **Source d'élévation du terrain** | AWS Terrain | Backend DEM utilisé pour construire la grille d'élévation — AWS Terrain (~25 m DTM en Europe, CDN rapide) ou Microsoft Planetary Computer (~30 m DSM, canopée/bâti inclus, plus lent) |
 
 #### Recalibrer l'altitude sur le QNH local
 
@@ -207,39 +208,48 @@ Quand vous chargez un fichier IGC, Local Check l'analyse puis récupère en para
 
 Une grille régulière des hauteurs de terrain est téléchargée pour la boîte englobante du vol (élargie d'environ 20 km). Cette grille alimente le calcul de l'AGL, les profils de terrain, la garde au plan de vol, l'analyse de la zone atteignable et la recalibration QNH.
 
-> **⏱ À noter :** le chargement des données d'élévation est en général l'étape la plus lente du processus — comptez **plusieurs dizaines de secondes** sur un vol typique, selon la taille de la zone couverte et les conditions réseau. La boîte de dialogue affiche la progression et le reste de l'application demeure réactif pendant ce temps.
+> **⏱ À noter :** le chargement des données d'élévation est l'une des étapes les plus lentes sur un nouveau vol. La durée dépend de la taille de la zone couverte, du backend choisi et des conditions réseau. La boîte de dialogue affiche la progression et le reste de l'application demeure réactif pendant ce temps.
 
-#### Source : Microsoft Planetary Computer
+La source d'élévation se choisit dans le **panneau Paramètres** et est mémorisée par utilisateur.
 
-Local Check récupère le DEM sur **[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)** — le catalogue open-data géospatial de Microsoft exposant des jeux de données d'observation de la Terre à l'échelle pétaoctet sous forme de Cloud-Optimised GeoTIFFs (COGs) via une API STAC publique. Aucune clé API n'est requise.
+#### Source par défaut : AWS Terrain Tiles
+
+Local Check récupère le DEM depuis **[AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)** (tuiles PNG Terrarium d'AWS Open Data), servies via CloudFront. Aucune clé API n'est requise.
 
 Stratégie de chargement :
 
-1. **Recherche STAC** — énumérer les tuiles 1° × 1° chevauchant la bbox du vol.
-2. **Signer chaque URL d'asset** via `/api/sas/v1/sign` pour obtenir une URL de lecture à durée limitée.
-3. **Lectures par plages d'octets** — ouvrir chaque COG avec `fromUrl` de `geotiff.js` pour ne télécharger que les pixels inclus dans la bbox, et non la tuile entière.
-4. **Assemblage** dans une grille de sortie unique à ~30 m de résolution.
+1. Choisir un niveau de zoom Web Mercator dont la taille de pixel native est au plus égale au pas cible (~30 m) à la latitude de la bbox.
+2. Énumérer les tuiles XYZ chevauchant la bbox à ce zoom.
+3. Télécharger les tuiles en parallèle depuis le CDN et décoder PNG → RGBA via `createImageBitmap` + `OffscreenCanvas`.
+4. Assembler les élévations décodées dans une grille de sortie unique (EPSG:4326, pas régulier lat/lon) en appliquant la formule Terrarium `(R × 256 + G + B / 256) − 32768` mètres par pixel.
+
+Des caches internes à la session (pixels décodés + requêtes en vol) court-circuitent les rechargements. Les URLs des tuiles sont immuables, donc le cache HTTP du navigateur prend le relais entre rechargements de page.
+
+Sources sous-jacentes selon la région (mosaïque) :
+
+- **EU-DEM v1.1** (~25 m, **DTM**) — sur l'Europe
+- **3DEP / NED** (~10 m) — sur les USA
+- **SRTM v3** (~30 m) — mondial, ±60° de latitude
+- **GMTED2010** (~250 m) — comblement ailleurs
 
 La sortie est plafonnée à ~2 millions d'échantillons ; quand la requête dépasse ce budget, la résolution est dégradée par étapes ×2 successives jusqu'à tenir dans le budget.
 
-#### DSM vs DTM : pourquoi un DSM
+#### DSM vs DTM
 
 Les modèles numériques d'élévation existent en deux grandes variantes :
 
 - **DTM (Digital Terrain Model)** — élévation « sol nu ». La végétation, les bâtiments et les autres éléments de surface sont retirés pour ne représenter que le sol.
 - **DSM (Digital Surface Model)** — élévation « toit ». Le modèle capture ce que le capteur voit d'en haut, y compris canopées, bâtiments et autres structures.
 
-Local Check utilise un **DSM**. Raison : pour l'analyse de posabilité et de plané, la hauteur qui menace réellement le planeur est celle du sommet de ce qui se dresse au sol — canopée, crête boisée, zone urbanisée — pas le niveau théorique du sol nu quelques mètres plus bas. Un DSM est donc un choix légèrement conservateur (plus sûr) pour l'AGL et la garde au plan de vol. La contrepartie : en végétation dense, le « terrain » lira quelques mètres au-dessus du sol réel, ce qui est acceptable pour un outil de sécurité.
+AWS Terrain Tiles sert un **DTM** sur l'Europe (EU-DEM). C'est l'option la plus rapide et largement suffisante pour la plupart des vols. **Compromis :** pour l'analyse de posabilité et de plané, la hauteur qui menace réellement le planeur est celle du sommet de ce qui se dresse au sol (canopée, bâtiments), pas le niveau théorique du sol nu quelques mètres plus bas — sur terrain densément boisé, un DTM est donc légèrement moins conservateur qu'un DSM. Si ce compromis est gênant, bascule sur le backend DSM ci-dessous depuis le panneau Paramètres.
 
-#### Modèle utilisé : Copernicus DEM GLO-30
+#### Backend alternatif : Microsoft Planetary Computer (DSM)
 
-Le jeu de données utilisé est **Copernicus DEM GLO-30** (collection STAC `cop-dem-glo-30`) :
+La source d'élévation peut être basculée depuis le **panneau Paramètres** vers le **[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)** — le catalogue open-data géospatial de Microsoft exposant des jeux de données d'observation de la Terre à l'échelle pétaoctet sous forme de Cloud-Optimised GeoTIFFs (COGs) via une API STAC publique. Aucune clé API n'est requise.
 
-- Couverture mondiale à ~30 m de résolution au sol (1 arc-seconde)
-- DSM WorldDEM issu du radar interférométrique TanDEM-X (ESA / Airbus)
-- Référence : [Copernicus DEM GLO-30 sur Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/dataset/cop-dem-glo-30)
-
-Les valeurs sont des hauteurs au-dessus du géoïde EGM2008.
+- Sert **Copernicus DEM GLO-30** (collection STAC `cop-dem-glo-30`) — **DSM** WorldDEM mondial ~30 m issu du radar interférométrique TanDEM-X (ESA / Airbus). Hauteurs au-dessus du géoïde EGM2008.
+- Stratégie de chargement : recherche STAC des tuiles 1° × 1° chevauchant la bbox, signature de chaque URL d'asset via `/api/sas/v1/sign`, puis lecture des pixels utiles uniquement via les requêtes de plages d'octets de `geotiff.js`.
+- Généralement plus lent au chargement qu'AWS Terrain (aller-retour STAC + signature, pas de cache CDN), mais un DSM est plus sûr pour l'AGL et la garde au plan de vol sur terrain boisé ou urbanisé.
 
 ### 2. Aérodromes (OpenAIP)
 

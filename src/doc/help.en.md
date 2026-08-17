@@ -149,6 +149,7 @@ All settings are persisted in your browser (localStorage).
 | **Time Step** | 20 s | Sampling interval for the local check (minimum 10 s) |
 | **ENL Threshold** | 500 | Engine noise level above which the engine is considered on |
 | **Recalibrate altitude on local QNH** | Off | Correct raw IGC pressure altitude to the day's QNH using pre-takeoff terrain elevation |
+| **Terrain elevation source** | AWS Terrain | DEM backend used to build the elevation grid — AWS Terrain (~25 m DTM in Europe, fast CDN) or Microsoft Planetary Computer (~30 m DSM, canopy/buildings included, slower) |
 
 #### Recalibrate altitude on local QNH
 
@@ -207,39 +208,48 @@ When you upload an IGC file, Local Check parses it and then fetches three extern
 
 A regular grid of terrain heights is downloaded for the flight bounding box (buffered by ~20 km). The grid feeds AGL computation, escape-path terrain profiles, glide-plane clearance, reachable-zone analysis, and QNH recalibration.
 
-> **⏱ Heads-up:** loading the elevation data is usually the slowest step of the process — expect **several tens of seconds** on a typical flight, depending on the size of the area covered and network conditions. The loading dialog shows the progress and the rest of the app remains responsive in the meantime.
+> **⏱ Heads-up:** loading the elevation data is one of the slowest steps on a fresh flight. Duration depends on the size of the area covered, the chosen backend and network conditions. The loading dialog shows the progress and the rest of the app remains responsive in the meantime.
 
-#### Source: Microsoft Planetary Computer
+The elevation source is chosen from the **Settings panel** and persisted per user.
 
-Local Check fetches the DEM from the **[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)** — Microsoft's open geospatial data catalog exposing petabyte-scale Earth-observation datasets as Cloud-Optimised GeoTIFFs (COGs) with a public STAC API. It requires no API key.
+#### Default source: AWS Terrain Tiles
+
+Local Check fetches the DEM from **[AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)** (Terrarium PNG tiles from AWS Open Data), served through CloudFront. No API key required.
 
 Loading strategy:
 
-1. **STAC search** — enumerate the 1° × 1° tiles overlapping the flight bbox.
-2. **Sign each asset href** via `/api/sas/v1/sign` to get a short-lived read URL.
-3. **Byte-range reads** — open each COG with `geotiff.js`'s `fromUrl` so only the pixels inside the bbox are downloaded, not the whole tile.
-4. **Blit into a single output grid** at ~30 m resolution.
+1. Pick a Web Mercator zoom whose native pixel size is at most the target step (~30 m) given the bbox latitude.
+2. Enumerate the XYZ tiles overlapping the flight bbox at that zoom.
+3. Fetch tiles in parallel from the CDN and decode PNG → RGBA via `createImageBitmap` + `OffscreenCanvas`.
+4. Blit each tile's decoded elevations into a single output grid (EPSG:4326, uniform lat/lon), decoding the Terrarium formula `(R × 256 + G + B / 256) − 32768` metres per pixel.
+
+Session-scoped caches of decoded pixels and in-flight requests short-circuit repeat loads. Tile URLs are immutable so the browser HTTP cache also kicks in across page reloads.
+
+Underlying sources vary by region (mosaic):
+
+- **EU-DEM v1.1** (~25 m, **DTM**) — over Europe
+- **3DEP / NED** (~10 m) — over the USA
+- **SRTM v3** (~30 m) — global, ±60° latitude
+- **GMTED2010** (~250 m) — gap-filling elsewhere
 
 The output is capped at ~2 million samples; when the request exceeds that budget, the resolution is coarsened by successive ×2 steps until it fits.
 
-#### DSM vs DTM: why we use a DSM
+#### DSM vs DTM
 
 Digital elevation models come in two main flavours:
 
 - **DTM (Digital Terrain Model)** — bare-earth elevation. Vegetation, buildings, and other surface features are removed so the model represents the ground itself.
 - **DSM (Digital Surface Model)** — top-of-surface elevation. The model captures whatever the sensor sees from above, including tree canopy, buildings, and other structures.
 
-Local Check uses a **DSM**. Rationale: for landability/glide analysis, the height that actually threatens the glider is the top of what stands on the ground — a forest canopy, a ridge with trees, or a built-up area — not the theoretical bare-earth level a few meters below. A DSM is therefore a slightly conservative (safer) choice for AGL and glide-plane clearance computations. The trade-off is that in dense vegetation the "terrain" will read a few meters higher than the true ground, which is acceptable for a safety tool.
+AWS Terrain Tiles serves a **DTM** over Europe (EU-DEM). This is the fastest option and more than accurate enough for most flights. **Trade-off:** for landability/glide analysis the height that actually threatens the glider is the top of what stands on the ground (canopy, buildings), not the bare-earth level a few metres below — so on densely-forested terrain the DTM is slightly less conservative than a DSM. If that trade-off matters, switch to the DSM backend below from the Settings panel.
 
-#### Model retrieved: Copernicus DEM GLO-30
+#### Alternative backend: Microsoft Planetary Computer (DSM)
 
-The specific dataset consumed is **Copernicus DEM GLO-30** (STAC collection `cop-dem-glo-30`):
+The elevation source can be switched from the **Settings panel** to the **[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)** — Microsoft's open geospatial data catalog exposing petabyte-scale Earth-observation datasets as Cloud-Optimised GeoTIFFs (COGs) via a public STAC API. No API key required.
 
-- Global coverage at ~30 m ground sampling distance (1 arc-second)
-- WorldDEM DSM produced from TanDEM-X interferometric SAR data (ESA / Airbus)
-- Reference: [Copernicus DEM GLO-30 on Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/dataset/cop-dem-glo-30)
-
-Values are heights above the EGM2008 geoid.
+- Serves **Copernicus DEM GLO-30** (STAC collection `cop-dem-glo-30`) — global ~30 m WorldDEM **DSM** derived from TanDEM-X interferometric SAR data (ESA / Airbus). Heights above the EGM2008 geoid.
+- Loading strategy: STAC-search the 1° × 1° tiles overlapping the bbox, sign each asset href via `/api/sas/v1/sign`, then read only the required pixels via `geotiff.js` byte-range requests.
+- Typically slower to load than AWS Terrain (STAC search + sign roundtrips, no CDN caching), but a DSM is safer for AGL and glide-plane clearance on forested / built-up terrain.
 
 ### 2. Airports (OpenAIP)
 

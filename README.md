@@ -29,9 +29,9 @@ It helps flight instructors and pilots answer critical safety questions:
 - **Telemetry & Flight Summary Panels:** Live time, position, altitude (pressure/GNSS), ground speed, and vario, plus overall flight stats (date, pilot, glider, duration, min/max altitude, max speed, total distance).
 - **Derived Metrics:** Ground speed, vario, and cumulative distance computed from raw IGC fixes.
 - **Landing Zone import (`.cup`):** SeeYou-format waypoint files parsed client-side; airfield vs outlanding, difficulty tags (`{A}` / `{F}` / `{M}` / `{D}` / `{TD}`), 250 m de-duplication.
-- **Terrain elevation:** DEM grid prefetched around the flight bounding box, with bilinear sampling for AGL and glide computations. Two backends are supported and selectable via env var:
-  - **Microsoft Planetary Computer** *(default)* — no API key required; serves **[Copernicus DEM GLO-30](https://planetarycomputer.microsoft.com/dataset/cop-dem-glo-30)** (WorldDEM DSM, ~30 m, EGM2008 geoid) via STAC + Cloud-Optimised GeoTIFF byte-range reads.
-  - **OpenTopography** — single-GeoTIFF request; requires `VITE_OPENTOPOGRAPHY_API_KEY`. Choice of DEM via `VITE_ELEVATION_DEMTYPE`: `EU_DTM` (Copernicus EU-DEM v1.1, ~25 m, Europe), `SRTMGL1` / `SRTMGL3` (NASA SRTM, ~30 / 90 m, global ±60°), `COP30` / `COP90` (Copernicus GLO-30 / 90, global).
+- **Terrain elevation:** DEM grid prefetched around the flight bounding box, with bilinear sampling for AGL and glide computations. The backend is picked at runtime from the Settings panel and persisted per user:
+  - **[AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)** (Terrarium) *(default)* — no API key required; PNG-encoded XYZ tiles served from a CloudFront-fronted S3 bucket. Mosaic of EU-DEM (~25 m over Europe, DTM), 3DEP (~10 m over USA), SRTM (~30 m elsewhere within ±60°). Typically the fastest option thanks to CDN caching and browser-native HTTP cache reuse on repeat loads — trade-off in Europe: EU-DEM is a DTM (bare-earth), so tree canopy and buildings are not represented.
+  - **Microsoft Planetary Computer** — no API key required; serves **[Copernicus DEM GLO-30](https://planetarycomputer.microsoft.com/dataset/cop-dem-glo-30)** (WorldDEM DSM, ~30 m, EGM2008 geoid) via STAC + Cloud-Optimised GeoTIFF byte-range reads. **DSM** — includes canopy/buildings, safer for AGL and glide-plane clearance.
   A **DSM** (Digital Surface Model — top-of-canopy) rather than a DTM (bare-earth) is used on purpose: for landability analysis the safety-relevant height is the top of what stands on the ground (canopy, buildings), not the theoretical ground level a few meters below.
 - **In-local / marginal / out-of-local classification:** One shared rule across all surfaces — for each fix, pick the LZ with the highest projected arrival above ground, then colour by `arrival > safety height` (green) / `arrival > 0` (yellow) / `arrival ≤ 0` (red).
 - **Coloured track & barogram:** Track segments and altitude line coloured per phase (initial-climb, motor, final-glide) and status. Legend surfaces every colour.
@@ -80,20 +80,9 @@ Create a `.env.local` at the repo root to configure the elevation backend and an
 Example `.env.local`:
 
 ```bash
-# Elevation data source: 'opentopography' | 'planetary-computer' (default)
-VITE_ELEVATION_SOURCE=planetary-computer
-# VITE_ELEVATION_SOURCE=opentopography
-
-# --- OpenTopography (used when VITE_ELEVATION_SOURCE=opentopography) ---
-# https://opentopography.org/blog/introducing-api-keys-access-opentopography-global-datasets
-# Free tier: 50 API calls / 24 h.
-VITE_OPENTOPOGRAPHY_API_KEY=your-opentopography-key-here
-
-# Choice of DEM: EU_DTM | SRTMGL1 | SRTMGL3 | COP30 | COP90
-VITE_ELEVATION_DEMTYPE=EU_DTM
-
-# --- Microsoft Planetary Computer (used when VITE_ELEVATION_SOURCE=planetary-computer) ---
-# Serves Copernicus DEM GLO-30 (cop-dem-glo-30) via STAC. No API key needed.
+# --- Terrain elevation backend ---
+# Picked at runtime in the Settings panel (Microsoft Planetary Computer or
+# AWS Terrain Tiles). Both are public and key-less — no env var needed.
 
 # --- OpenAIP (optional, reserved for future REST-API use) ---
 # VITE_OPENAIP_API_KEY=your-openaip-key-here
@@ -103,14 +92,11 @@ Supported variables:
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `VITE_ELEVATION_SOURCE` | Elevation backend: `planetary-computer` or `opentopography` | `opentopography` |
-| `VITE_OPENTOPOGRAPHY_API_KEY` | Required when `VITE_ELEVATION_SOURCE=opentopography` | *(empty)* |
-| `VITE_ELEVATION_DEMTYPE` | DEM used by OpenTopography: `EU_DTM` / `SRTMGL1` / `SRTMGL3` / `COP30` / `COP90` | `EU_DTM` |
 | `VITE_OPENAIP_API_KEY` | Reserved for future OpenAIP REST-API use (current build uses the CORS-friendly data exports and does not consume this) | *(empty)* |
 | `VITE_UMAMI_SRC` | Umami script URL (e.g. `https://cloud.umami.is/script.js`). Leave empty to disable analytics. | *(empty)* |
 | `VITE_UMAMI_WEBSITE_ID` | Umami website UUID. Required together with `VITE_UMAMI_SRC` for analytics to load. | *(empty)* |
 
-The Planetary Computer backend is fully public and requires no key, so a bare install with no `.env.local` works out of the box.
+Both elevation backends are fully public and require no key, so a bare install with no `.env.local` works out of the box.
 
 ### Analytics
 
@@ -137,11 +123,10 @@ Several upstream data sources do not send CORS headers, so the Vite dev server (
 
 | Path prefix | Upstream | Used by |
 |-------------|----------|---------|
-| `/ot-proxy` | `https://portal.opentopography.org` | OpenTopography elevation backend |
 | `/wp-content/uploads/acph` | `https://aeroclub-issoire.fr` | ACPH Auvergne outlanding-fields JSON (mirrors the same-origin path used in production, where the app is hosted on `aeroclub-issoire.fr/local-check/`) |
 | `/local-check/openaip-storage-proxy` | `https://storage.openaip.net` | OpenAIP per-country airport exports (mirrors the Apache reverse-proxy set up in `.htaccess` on the production host) |
 
-The Planetary Computer backend does not need a proxy — its STAC + SAS-signed COG endpoints send permissive CORS headers.
+Neither elevation backend needs a proxy — their endpoints send permissive CORS headers.
 
 ### Tech stack
 

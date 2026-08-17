@@ -7,11 +7,6 @@ import type { ProxyOptions } from 'vite'
 import pkg from './package.json' with { type: 'json' };
 
 const proxy : Record<string, string | ProxyOptions>= {
-  '/ot-proxy': {
-    target: 'https://portal.opentopography.org',
-    changeOrigin: true,
-    rewrite: (path) => path.replace(/^\/ot-proxy/, ''),
-  },
   // ACPH Auvergne serves the outlanding JSON without CORS headers. In
   // prod the app is hosted on aeroclub-issoire.fr itself, so the fetch
   // hits `/wp-content/...` same-origin with no proxy. We mirror that

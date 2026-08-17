@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { REACHABLE_ZONE_CELL_CAP, REACHABLE_ZONE_GRID_SIZES, REACHABLE_ZONE_MAX_DIAMETER_KM, REACHABLE_ZONE_MIN_DIAMETER_KM, type ReachableZoneGridSizeM } from '@/domain/reachableZone';
 import { LandingZonesPanel } from './LandingZonesPanel';
 import { track } from '@/lib/analytics';
+import type { ElevationSource } from '@/services/elevationApi';
 
 interface ParamRowProps {
   label: string;
@@ -169,6 +170,7 @@ export function SettingsPanel() {
           }}
         />
         <QnhRecalibrationRow />
+        <ElevationSourceRow />
       </SidebarGroup>
 
       <Separator />
@@ -379,6 +381,54 @@ function QnhRecalibrationRow() {
           {qnhWarning}
         </p>
       )}
+    </div>
+  );
+}
+
+const ELEVATION_SOURCE_OPTIONS: Array<{
+  value: ElevationSource;
+  labelKey: string;
+}> = [
+  { value: 'planetary-computer', labelKey: 'settings.elevationSourcePc' },
+  { value: 'aws-terrain', labelKey: 'settings.elevationSourceAws' },
+];
+
+function ElevationSourceRow() {
+  const { t } = useTranslation();
+  const elevationSource = useFlightStore((s) => s.settings.elevationSource);
+  const setSettings = useFlightStore((s) => s.setSettings);
+
+  return (
+    <div className="space-y-1">
+      <label
+        className="text-xs font-medium"
+        title={t('settings.elevationSourceHint')}
+      >
+        {t('settings.elevationSource')}
+      </label>
+      <div className="flex gap-1">
+        {ELEVATION_SOURCE_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => {
+              track('setting_change', {
+                key: 'elevationSource',
+                value: opt.value,
+              });
+              setSettings({ elevationSource: opt.value });
+            }}
+            className={
+              'flex-1 rounded border px-2 py-1 text-xs transition ' +
+              (elevationSource === opt.value
+                ? 'border-primary bg-primary/10 font-semibold'
+                : 'border-border hover:bg-accent/40')
+            }
+          >
+            {t(opt.labelKey)}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
