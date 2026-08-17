@@ -201,7 +201,7 @@ Use the **FR / EN** button in the sidebar to switch the interface language betwe
 
 ## Data Sources & Loading Logic
 
-When you upload an IGC file, Local Check parses it and then fetches three external data sets in parallel, all keyed off the flight's bounding box. Progress for each is reflected in the loading dialog. Everything is cached locally where feasible so re-uploading a flight in the same area is instant.
+When you upload an IGC file, Local Check parses it and then fetches three external data sets in parallel, all keyed off the flight's bounding box. Progress for each is reflected in the loading dialog. OpenAIP payloads are cached locally (24 h); elevation data is re-fetched on every upload.
 
 ### 1. Terrain Elevation (DEM)
 
@@ -321,7 +321,7 @@ The loading dialog reports the progress of each step and closes on its own when 
 - Reducing the reachable-zone grid size dramatically increases computation cost; start with 360 m and refine if needed.
 - The Ground Clearance parameter is informational and does not affect the local-check classification.
 - Elevation data is loaded on demand; the loading dialog reports progress across elevation, landing-zone database, and local-check computation.
-- OpenAIP country payloads and elevation results are cached client-side — clearing your browser storage forces a fresh fetch on the next upload.
+- OpenAIP country payloads are cached client-side in `localStorage` (24 h) — clearing your browser storage forces a fresh fetch on the next upload. Elevation data is re-fetched on every upload.
 - Anonymous, cookieless usage statistics may be collected via [Umami](https://umami.is) (no personal data, no flight content, no cookies) so the club can see which features are actually used.
 
 ---

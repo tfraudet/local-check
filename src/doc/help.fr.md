@@ -201,7 +201,7 @@ Utilisez le bouton **FR / EN** de la barre latérale pour basculer l'interface e
 
 ## Sources de données & logique de chargement
 
-Quand vous chargez un fichier IGC, Local Check l'analyse puis récupère en parallèle trois jeux de données externes, tous indexés sur la boîte englobante du vol. La progression de chacun apparaît dans la boîte de dialogue de chargement. Tout est mis en cache localement lorsque possible : recharger un vol dans la même zone est alors instantané.
+Quand vous chargez un fichier IGC, Local Check l'analyse puis récupère en parallèle trois jeux de données externes, tous indexés sur la boîte englobante du vol. La progression de chacun apparaît dans la boîte de dialogue de chargement. Les données OpenAIP sont mises en cache localement (24 h) ; les données d'élévation sont re-téléchargées à chaque import.
 
 ### 1. Élévation du terrain (DEM)
 
@@ -321,7 +321,7 @@ La boîte de dialogue de chargement affiche la progression de chaque étape et s
 - Réduire la taille de grille de la zone atteignable augmente fortement le coût de calcul ; commencez par 360 m et affinez au besoin.
 - Le paramètre Garde au sol est informatif et n'influe pas sur la classification du local check.
 - Les données d'élévation sont chargées à la demande ; la boîte de dialogue indique la progression pour l'élévation, la base des zones d'atterrissage et le calcul du local check.
-- Les données OpenAIP par pays et les résultats d'élévation sont mis en cache côté client — vider le stockage du navigateur force une nouvelle récupération au prochain chargement.
+- Les données OpenAIP par pays sont mises en cache côté client dans `localStorage` (24 h) — vider le stockage du navigateur force une nouvelle récupération au prochain chargement. Les données d'élévation sont re-téléchargées à chaque import.
 - Des statistiques d'usage anonymes et sans cookies peuvent être collectées via [Umami](https://umami.is) (aucune donnée personnelle, aucun contenu de vol, aucun cookie) afin que le club puisse voir quelles fonctionnalités sont réellement utilisées.
 
 ---
