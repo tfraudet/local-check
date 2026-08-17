@@ -38,12 +38,20 @@ export function useElevationLoader() {
 
     const bbox = bufferBboxByKm(boundingBoxOf(fixes), ELEVATION_FIT_MARGIN_KM);
     if (import.meta.env.DEV) {
-      console.log('Fetching elevation grid for bbox:', bbox);
+      console.log('[useElevationLodaer] Fetching elevation grid for bbox:', bbox);
     }
+
+    const startedAt = import.meta.env.DEV ? performance.now() : 0;
 
     fetchElevationGrid(bbox)
       .then((grid) => {
         if (!controller.signal.aborted) {
+          if (import.meta.env.DEV) {
+            const elapsedMs = performance.now() - startedAt;
+            console.log(
+              `[useElevationLodaer] Elevation grid loaded in ${elapsedMs.toFixed(0)} ms`,
+            );
+          }
           setElevationGrid(grid);
         }
       })

@@ -63,6 +63,11 @@ export async function fetchElevationGridFromPlanetaryComputer(
   ) {
     stepDeg *= 2;
   }
+  if (import.meta.env.DEV) {
+    const stepArcSec = Math.round(stepDeg * 3600);
+    const resolutionM = Math.round(stepDeg * (Math.PI / 180) * 6_371_000);
+    console.log(`[useElevationLodaer] Target resolution for Planetary Computer STAC : ${stepArcSec}" (${stepDeg}° / ~${resolutionM}m)`);
+  }
   const rows = Math.max(2, Math.ceil((maxLat - minLat) / stepDeg) + 1);
   const cols = Math.max(2, Math.ceil((maxLon - minLon) / stepDeg) + 1);
   const outMaxLat = minLat + (rows - 1) * stepDeg;
@@ -72,23 +77,36 @@ export async function fetchElevationGridFromPlanetaryComputer(
 
   onProgress?.({ loaded: 0, total: features.length });
 
-  for (let idx = 0; idx < features.length; idx++) {
-    const href = features[idx].assets?.data?.href;
-    if (!href) {
-      onProgress?.({ loaded: idx + 1, total: features.length });
-      continue;
-    }
-    const signedHref = await signHref(href);
-    await blitTileIntoGrid(signedHref, {
-      data,
-      cols,
-      rows,
-      minLon,
-      minLat,
-      stepDeg,
-    });
-    onProgress?.({ loaded: idx + 1, total: features.length });
-  }
+  // Sign all asset hrefs up front in parallel so tile reads can start
+  // as soon as their signed URL is ready, without waiting for a chain
+  // of sign requests.
+  const signedHrefs = await Promise.all(
+    features.map((feature) => {
+      const href = feature.assets?.data?.href;
+      return href ? signHref(href) : Promise.resolve(null);
+    }),
+  );
+
+  let completed = 0;
+  await Promise.all(
+    signedHrefs.map(async (signedHref) => {
+      if (!signedHref) {
+        completed += 1;
+        onProgress?.({ loaded: completed, total: features.length });
+        return;
+      }
+      await blitTileIntoGrid(signedHref, {
+        data,
+        cols,
+        rows,
+        minLon,
+        minLat,
+        stepDeg,
+      });
+      completed += 1;
+      onProgress?.({ loaded: completed, total: features.length });
+    }),
+  );
 
   const resolutionM = Math.round(stepDeg * (Math.PI / 180) * 6_371_000);
 
