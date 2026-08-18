@@ -13,7 +13,7 @@ import {
   type ExpressionSpecification,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Layers } from 'lucide-react';
+import { Layers, Mountain } from 'lucide-react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGeoJsonLayer } from './map/useGeoJsonLayer';
@@ -247,6 +247,108 @@ function MapStyleMenu({ map }: { map: MaplibreMap }) {
   );
 }
 
+// --- Hillshade / terrain relief overlay ---
+// The overlay uses AWS Terrarium RGB-encoded tiles as a `raster-dem` source
+// so MapLibre's native `hillshade` layer can render relief on top of any base
+// style. This is a purely visual layer; it is deliberately decoupled from the
+// user's chosen DEM backend for glide calculations (Planetary Computer does
+// not serve raster-dem XYZ tiles, so it cannot drive this layer).
+const HILLSHADE_DEM_SOURCE_ID = 'terrain-dem';
+const HILLSHADE_LAYER_ID = 'hillshade';
+const TERRARIUM_TILE_URL =
+  'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+
+function addHillshade(map: MaplibreMap) {
+  if (!map.getSource(HILLSHADE_DEM_SOURCE_ID)) {
+    map.addSource(HILLSHADE_DEM_SOURCE_ID, {
+      type: 'raster-dem',
+      tiles: [TERRARIUM_TILE_URL],
+      tileSize: 256,
+      encoding: 'terrarium',
+      maxzoom: 15,
+      attribution:
+        'Elevation tiles © <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank">AWS Terrain Tiles</a>',
+    });
+  }
+  if (!map.getLayer(HILLSHADE_LAYER_ID)) {
+    // Insert under the track/overlays so relief stays visually in the base map.
+    const beforeId = map.getLayer(TRACK_LAYER_ID) ? TRACK_LAYER_ID : undefined;
+    map.addLayer(
+      {
+        id: HILLSHADE_LAYER_ID,
+        type: 'hillshade',
+        source: HILLSHADE_DEM_SOURCE_ID,
+        paint: {
+          'hillshade-shadow-color': '#000000',
+          'hillshade-highlight-color': '#ffffff',
+          'hillshade-exaggeration': 0.4,
+        },
+      },
+      beforeId,
+    );
+  }
+}
+
+function removeHillshade(map: MaplibreMap) {
+  if (map.getLayer(HILLSHADE_LAYER_ID)) map.removeLayer(HILLSHADE_LAYER_ID);
+  if (map.getSource(HILLSHADE_DEM_SOURCE_ID)) map.removeSource(HILLSHADE_DEM_SOURCE_ID);
+}
+
+function TerrainToggle({
+  map,
+  enabledRef,
+}: {
+  map: MaplibreMap;
+  enabledRef: { current: boolean };
+}) {
+  const [enabled, setEnabled] = useState(enabledRef.current);
+
+  return (
+    <button
+      type="button"
+      className="map-style-button"
+      title="Terrain relief"
+      aria-label="Terrain relief"
+      aria-pressed={enabled}
+      onClick={() => {
+        const next = !enabled;
+        enabledRef.current = next;
+        setEnabled(next);
+        if (next) addHillshade(map);
+        else removeHillshade(map);
+      }}
+    >
+      <Mountain size={18} strokeWidth={2} />
+    </button>
+  );
+}
+
+class TerrainControl implements IControl {
+  private container?: HTMLDivElement;
+  private root?: Root;
+  readonly enabledRef = { current: false };
+
+  onAdd(map: MaplibreMap): HTMLElement {
+    this.container = document.createElement('div');
+    this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group map-terrain-control';
+    this.container.addEventListener('click', (event) => event.stopPropagation());
+    this.root = createRoot(this.container);
+    this.root.render(<TerrainToggle map={map} enabledRef={this.enabledRef} />);
+    return this.container;
+  }
+
+  onRemove(): void {
+    const root = this.root;
+    const container = this.container;
+    this.root = undefined;
+    this.container = undefined;
+    queueMicrotask(() => {
+      root?.unmount();
+      container?.remove();
+    });
+  }
+}
+
 class MapStyleControl implements IControl {
   private container?: HTMLDivElement;
   private root?: Root;
@@ -320,6 +422,8 @@ export function MapView({ escapePath }: MapViewProps) {
     map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
     map.addControl(new NavigationControl(), 'top-right');
     map.addControl(new MapStyleControl(), 'top-right');
+    const terrainControl = new TerrainControl();
+    map.addControl(terrainControl, 'top-right');
 
     map.on('error', (event) => {
       console.error('[map] MapLibre error', event.error);
@@ -365,6 +469,7 @@ export function MapView({ escapePath }: MapViewProps) {
       void preloadMapIcons(map)
         .then(() => setIconsReady(true))
         .catch((err) => console.warn('[map] icon preload failed:', err));
+      if (terrainControl.enabledRef.current) addHillshade(map);
     };
     map.on('style.load', restoreStyleAssets);
     map.on('moveend', publishBounds);
