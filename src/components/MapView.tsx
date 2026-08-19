@@ -301,7 +301,12 @@ function TerrainToggle({
   map: MaplibreMap;
   enabledRef: { current: boolean };
 }) {
-  const [enabled, setEnabled] = useState(enabledRef.current);
+  // `enabledRef` owns the source-of-truth flag (the outer effect reads it
+  // to know whether to reapply hillshade after a style reload). We can't
+  // read `.current` during render — the lint rule would rightly flag it —
+  // so we seed local state with the ref's default (`false`) and keep the
+  // ref in sync via the click handler below.
+  const [enabled, setEnabled] = useState(false);
 
   return (
     <button

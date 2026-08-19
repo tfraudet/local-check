@@ -63,7 +63,7 @@ Once a flight is loaded, the Flight panel displays:
 - **Play / Pause** — Start or pause the replay
 - **Step forward / backward** — Advance one sample at a time
 - **Reset** — Return to the start of the flight
-- **Speed** — Playback speed from **1x** up to **16x**
+- **Speed** — Playback speed from **1x** up to **32x**
 - **Timeline scrubber** — Click or drag to jump to any moment
 
 ### Keyboard Shortcuts
@@ -112,6 +112,8 @@ The flight track on the map is colour-coded by phase and safety status:
 
 A dashed polyline from the current replay position to the landing zone offering the **highest projected arrival height** above ground. It updates continuously during replay and is colour-coded by status (in-local / marginal / out-of-local).
 
+By default the path is drawn as a **straight line**. When **Terrain-aware routing** is enabled in the Settings panel, the path curves around ridges that block the direct glide (see *Terrain-aware routing* below).
+
 The **Escape Path Profile** chart (right of the barogram) shows:
 
 - Terrain elevation along the escape trajectory
@@ -124,13 +126,30 @@ The **Escape Path Profile** chart (right of the barogram) shows:
 A translucent green overlay showing the area reachable from the current position, given your working L/D and the underlying terrain. Configurable via:
 
 - **Grid size** — 90 / 180 / 360 / 720 m (smaller = more detailed, slower)
-- **Diameter** — 5 to 30 km around the current position
+- **Diameter** — 10 to 60 km around the current position
 
 A quality hint is shown if the requested resolution exceeds the maximum number of cells supported.
 
+With **Terrain-aware routing** off, cells whose direct glide clips terrain are excluded — the overlay hugs the front of the nearest ridge. With it on, the reachable footprint grows into valleys behind ridges wherever an any-angle glide is still feasible.
+
 ### Arrival Height Labels
 
-When enabled, each visible landing zone shows a pill label with the projected arrival height from the current position, automatically colour-coded by safety status.
+When enabled, each visible landing zone shows a pill label with the projected arrival height from the current position, automatically colour-coded by safety status. Arrival heights use the routed distance when **Terrain-aware routing** is on, so an LZ behind a ridge no longer shows an over-optimistic straight-line figure.
+
+### Terrain-aware routing
+
+Off by default. When enabled from the Settings panel, Local Check finds a path around ridges rather than discarding landing zones behind terrain. The altitude loss from the detour is factored into the glide calculation, ensuring accurate estimates for reachable areas, clearance, and arrival heights.
+
+Under the hood:
+
+- **Escape path, arrival-height labels, best-LZ picker in the local** — a per-query **Theta\*** search (any-angle A\* on the elevation grid). Line-of-sight uses the same terrain-clearance primitive as the straight-line check, so the glide plane must stay above terrain + ground-clearance along the routed segment.
+- **Reachable zone** — a single **Dijkstra** sweep outward from the pilot on the reachable-zone grid marks every cell with its shortest routed distance in one pass; running Theta\* per cell would be far too slow.
+
+Trade-offs:
+
+- Routing is CPU-intensive and adds visible latency to the escape-path panel and the reachable-zone overlay, especially on large flights or fine grid sizes.
+- A routed arrival height is always ≤ the straight-line arrival height. In flat terrain the routing degenerates to a straight line and the numbers are identical.
+- Leave the toggle off for lowland flights; enable it when flying near mountains where a straight line would clip a ridge but a valley/saddle detour is actually feasible.
 
 ---
 
@@ -146,7 +165,8 @@ All settings are persisted in your browser (localStorage).
 | **Safety Arrival Height** | 300 m | Minimum height above the landing zone on arrival |
 | **Ground Clearance** | 150 m | Minimum height above terrain along the glide path (informational) |
 | **Detect Final Glide** | On | Automatically detect and mark final glide |
-| **Time Step** | 20 s | Sampling interval for the local check (minimum 10 s) |
+| **Terrain-aware routing** | Off | Route escape path, arrival heights and reachable zone around ridges instead of straight-line only. Slower — leave off in flat terrain (see *Terrain-aware routing* above) |
+| **Time Step** | 20 s | Sampling interval for the local check (minimum 1 s) |
 | **ENL Threshold** | 500 | Engine noise level above which the engine is considered on |
 | **Recalibrate altitude on local QNH** | Off | Correct raw IGC pressure altitude to the day's QNH using pre-takeoff terrain elevation |
 | **Terrain elevation source** | AWS Terrain | DEM backend used to build the elevation grid — AWS Terrain (~25 m DTM in Europe, fast CDN) or Microsoft Planetary Computer (~30 m DSM, canopy/buildings included, slower) |

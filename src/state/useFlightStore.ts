@@ -48,6 +48,11 @@ export interface Settings {
   enlThreshold: number;
   detectFinalGlide: boolean;
 
+  // Terrain-aware routing: when enabled, escape path / arrival heights /
+  // reachable zone / local-check consider curved paths around ridges
+  // instead of rejecting LZs behind terrain. Off by default (slower).
+  terrainAwareRouting: boolean;
+
   // Recalibrate barometric altitude on local QNH (using first N pre-takeoff
   // fixes compared to terrain elevation).
   recalibrateAltitude: boolean;
@@ -73,6 +78,7 @@ export const DEFAULT_SETTINGS : Settings = {
   timeStepS: 20,
   enlThreshold: 500,
   detectFinalGlide: true,
+  terrainAwareRouting: false,
   recalibrateAltitude: false,
 
   elevationSource: DEFAULT_ELEVATION_SOURCE,
@@ -579,7 +585,7 @@ export const useFlightStore = create<FlightStoreState>()(
 
           if (import.meta.env.DEV) {
             console.log(
-              `[runLocalCheck] ${(performance.now() - startedAt).toFixed(2)} ms`,
+              `[usFlightStore.runLocalCheck] ${(performance.now() - startedAt).toFixed(2)} ms`,
             );
           }
         },
@@ -616,6 +622,7 @@ export const useFlightStore = create<FlightStoreState>()(
             grid: elevationGrid,
             params: localCheckParams,
             zoneParams: reachableZoneParams,
+            terrainAwareRouting: localCheckParams.terrainAwareRouting,
           });
           // console.log('AFTER running reachableZoneChannel() in a worker');
 
@@ -634,7 +641,7 @@ export const useFlightStore = create<FlightStoreState>()(
     },
     {
       name: 'flight-store',
-      version: 2,
+      version: 3,
 
       // Pick only the properties you want to keep in localStorage
       partialize: (state) => ({
@@ -656,6 +663,14 @@ export const useFlightStore = create<FlightStoreState>()(
             ...DEFAULT_SETTINGS,
             ...(state.settings ?? {}),
             elevationSource: valid,
+          };
+        }
+        if (fromVersion < 3) {
+          // v3 adds `terrainAwareRouting` (default off). Existing settings
+          // are merged over the new defaults so no user preference is lost.
+          state.settings = {
+            ...DEFAULT_SETTINGS,
+            ...(state.settings ?? {}),
           };
         }
         return state as never;

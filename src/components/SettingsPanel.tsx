@@ -146,8 +146,8 @@ export function SettingsPanel() {
             hint={t('settings.timeStepHint')}
             value={settings.timeStepS}
             min={1}
-            max={120}
-            step={10}
+            max={60}
+            step={1}
             onChange={(v) => update({ timeStepS: v })}
         />
         <ParamRow
@@ -167,6 +167,19 @@ export function SettingsPanel() {
           onChange={(v) => {
             track('setting_change', { key: 'detectFinalGlide', value: v });
             update({ detectFinalGlide: v });
+          }}
+        />
+        <ToggleRow
+          id="terrain-aware-routing"
+          label={t('settings.terrainAwareRouting', 'Terrain-aware routing')}
+          hint={t(
+            'settings.terrainAwareRoutingHint',
+            'Route escape path and arrival-height checks around ridges instead of straight-line only. Slower.',
+          )}
+          checked={settings.terrainAwareRouting}
+          onChange={(v) => {
+            track('setting_change', { key: 'terrainAwareRouting', value: v });
+            update({ terrainAwareRouting: v });
           }}
         />
         <QnhRecalibrationRow />

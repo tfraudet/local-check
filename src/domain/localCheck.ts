@@ -18,17 +18,22 @@ import {
   pickBestLandingZone,
   type LocalStatus,
 } from './arrival';
-import { pickAltitude } from './units';
+import { pickAltitude, haversineDistanceM } from './units';
 import { detectMotorUse } from './enlDetection';
 import { computeDerivedMetrics } from './derivedMetrics';
+import { routeToLz } from './routing/routeToLz';
 
 export interface LocalCheckParams {
-  workingLD: number; 
-  arrivalHeightM: number; 
-  groundClearanceM: number; 
-  timeStepS: number; 
-  enlThreshold: number; 
+  workingLD: number;
+  arrivalHeightM: number;
+  groundClearanceM: number;
+  timeStepS: number;
+  enlThreshold: number;
   detectFinalGlide: boolean;
+  /** When true, LZs whose straight-line glide clips terrain are re-evaluated
+   * via terrain-aware routing (Theta*). The arrival-height picker uses the
+   * routed distance so the "best LZ" pick reflects real detour costs. */
+  terrainAwareRouting?: boolean;
 }
 
 // export const DEFAULT_LOCAL_CHECK_PARAMS: LocalCheckParams = {
@@ -133,7 +138,7 @@ export function runLocalCheck(input: LocalCheckInput, phases : FlightPhase[]): L
   const { fixes, altitudeSource, elevationGrid, landingZones, params } =
     input;
   const qnhOffsetM = input.qnhOffsetM ?? 0;
-  const stepMs = Math.max(10, params.timeStepS) * 1000;
+  const stepMs = Math.max(1, params.timeStepS) * 1000;
 
   const samples: SampledPoint[] = [];
   let lastSampleMs = -Infinity;
@@ -155,6 +160,7 @@ export function runLocalCheck(input: LocalCheckInput, phases : FlightPhase[]): L
       altM,
       landingZones,
       params,
+      elevationGrid,
     );
 
     samples.push({
@@ -202,13 +208,45 @@ function classifyPosition(
   altM: number,
   landingZones: LandingZone[],
   params: LocalCheckParams,
+  elevationGrid: ElevationGrid,
 ): Classification {
+  // Terrain-aware routing: for each LZ where the straight-line glide would
+  // clip terrain, ask Theta* for a routed distance. Cheap LZs (straight
+  // glide clears, or LZ hopelessly far) stay on the straight-line path.
+  const distanceFn = params.terrainAwareRouting
+    ? (lz: LandingZone) => {
+        const straightM = haversineDistanceM(
+          fix.latitude,
+          fix.longitude,
+          lz.latitude,
+          lz.longitude,
+        );
+        // Skip routing for LZs beyond the theoretical L/D max reach — no
+        // detour can help. `params.workingLD` is meters per meter, so max
+        // reachable distance is altM × workingLD.
+        if (straightM > altM * params.workingLD * 1.2) return null;
+        const route = routeToLz({
+          sourceLat: fix.latitude,
+          sourceLon: fix.longitude,
+          sourceAltM: altM,
+          targetLat: lz.latitude,
+          targetLon: lz.longitude,
+          workingLD: params.workingLD,
+          groundClearanceM: params.groundClearanceM,
+          grid: elevationGrid,
+          maxNodes: 5_000,
+        });
+        return route ? route.distanceM : null;
+      }
+    : undefined;
+
   const best = pickBestLandingZone(
     fix.latitude,
     fix.longitude,
     altM,
     landingZones,
     params.workingLD,
+    distanceFn,
   );
 
   if (!best) {

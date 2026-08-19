@@ -37,7 +37,7 @@ self.onmessage = (event: MessageEvent<LocalCheckWorkerRequest>) => {
   } finally {
     if (import.meta.env.DEV) {
       console.log(
-        `[runLocalCheckFull] ${(performance.now() - startedAt).toFixed(2)} ms`,
+        `[localCheck.worker.runLocalCheckFull] ${(performance.now() - startedAt).toFixed(2)} ms`,
       );
     }
   }

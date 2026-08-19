@@ -63,7 +63,7 @@ Une fois un vol chargé, le panneau Vol affiche :
 - **Lecture / Pause** — Démarrer ou mettre en pause le rejeu
 - **Pas en avant / arrière** — Avancer d'un échantillon à la fois
 - **Réinitialiser** — Revenir au début du vol
-- **Vitesse** — De **1x** à **16x**
+- **Vitesse** — De **1x** à **32x**
 - **Barre temporelle** — Cliquer ou glisser pour sauter à un instant précis
 
 ### Raccourcis clavier
@@ -77,9 +77,9 @@ Une fois un vol chargé, le panneau Vol affiche :
 
 ---
 
-## Analyse Local Check
+## Analyse Du Local
 
-Le panneau **Statistiques du local** classe le vol par rapport à vos paramètres de sécurité :
+Le panneau **Local Statistiques** classe le vol par rapport à vos paramètres de sécurité :
 
 - **Toujours dans le local** (vert) — Le vol est toujours resté à portée de plané sûre
 - **Marginal** (jaune) — Les marges sont passées sous le seuil de sécurité à un moment donné
@@ -112,6 +112,8 @@ La trace sur la carte est colorée selon la phase et le statut de sécurité :
 
 Une ligne pointillée reliant la position de rejeu courante à la zone d'atterrissage offrant la **hauteur d'arrivée projetée la plus élevée** au-dessus du sol. Elle se met à jour en continu pendant le rejeu et est colorée selon le statut (dans le local / marginal / hors local).
 
+Par défaut, la trajectoire est tracée en **ligne droite**. Lorsque le **Routage tenant compte du relief** est activé dans les Réglages, la trajectoire contourne les crêtes qui bloqueraient le plan direct (voir *Routage tenant compte du relief* ci-dessous).
+
 Le graphique **Profil de la trajectoire de dégagement** (à droite du barogramme) montre :
 
 - L'élévation du terrain le long de la trajectoire de dégagement
@@ -121,16 +123,33 @@ Le graphique **Profil de la trajectoire de dégagement** (à droite du barogramm
 
 ### Zone atteignable
 
-Une superposition verte translucide représentant la zone atteignable depuis la position actuelle, compte tenu de la finesse d'exploitation et du terrain sous-jacent. Configurable via :
+Une superposition verte translucide représentant la zone atteignable depuis la position actuelle, compte tenu de la finesse définie dans ```Paramètres``` et du terrain sous-jacent. Configurable via :
 
 - **Taille de grille** — 90 / 180 / 360 / 720 m (plus petit = plus détaillé, plus lent)
-- **Diamètre** — 5 à 30 km autour de la position courante
+- **Diamètre** — 10 à 60 km autour de la position courante
 
-Une indication de qualité s'affiche si la résolution demandée dépasse le nombre maximum de cellules supporté.
+Une annotation s'affiche si la résolution demandée dépasse le nombre maximum de cellules supporté.
+
+Lorsque le **Routage tenant compte du relief** est désactivé, les cellules dont le plan direct heurte le terrain sont exclues — la zone s'arrête au pied de la crête la plus proche. Activé, la zone atteignable s'étend dans les vallées derrière les crêtes partout où un plan de vol détourné reste réalisable.
 
 ### Étiquettes de hauteur d'arrivée
 
-Lorsqu'elle est activée, chaque zone d'atterrissage visible affiche une pastille indiquant la hauteur d'arrivée projetée depuis la position actuelle, colorée automatiquement selon le statut de sécurité.
+Lorsqu'elle est activée, chaque zone d'atterrissage visible affiche une pastille indiquant la hauteur d'arrivée projetée depuis la position actuelle, colorée automatiquement selon le statut de sécurité. Ces hauteurs utilisent la distance détournée quand le **Routage tenant compte du relief** est actif, si bien qu'une zone située derrière une crête n'affiche plus une hauteur trop optimiste issue d'un calcul en ligne droite.
+
+### Routage tenant compte du relief
+
+Désactivé par défaut. Lorsqu'il est activé depuis les Réglages, Local Check cherche une trajectoire contournant les crêtes plutôt que de rejeter une zone d'atterrissage située derrière un obstacle. Le coût en altitude du détour est intégré au calcul de plané, garantissant une estimation exacte de la zone atteignable, du dégagement et des hauteurs d'arrivée.
+
+Sous le capot :
+
+- **Trajectoire de dégagement, étiquettes de hauteur d'arrivée, sélection de la meilleure zone dans le local** — recherche **Theta\*** (A\* à angle libre sur la grille d'élévation) par requête. La visibilité s'appuie sur la même primitive de garde au relief que la vérification en ligne droite : le plan de vol doit rester au-dessus du terrain + garde au sol tout le long du segment détourné.
+- **Zone atteignable** — un seul balayage **Dijkstra** depuis la position pilote marque chaque cellule de la grille avec sa distance détournée minimale en une passe ; exécuter un Theta\* par cellule serait beaucoup trop lent.
+
+Compromis :
+
+- Le routage est coûteux en CPU et introduit une latence visible sur le panneau de dégagement et sur la zone atteignable, en particulier sur de grands vols ou avec une grille fine.
+- Une hauteur d'arrivée détournée est toujours ≤ à celle en ligne droite. En terrain plat, le routage dégénère en ligne droite et les valeurs sont identiques.
+- Laissez l'option désactivée pour les vols en plaine ; activez-la pour le vol en montagne où une ligne droite couperait une crête alors qu'un détour par une vallée ou un col est en pratique réalisable.
 
 ---
 
@@ -146,7 +165,8 @@ Tous les réglages sont conservés dans votre navigateur (localStorage).
 | **Hauteur d'arrivée de sécurité** | 300 m | Hauteur minimale au-dessus de la zone d'atterrissage à l'arrivée |
 | **Garde au sol** | 150 m | Hauteur minimale au-dessus du terrain le long du plan (informatif) |
 | **Détecter l'arrivée finale** | On | Détecter et marquer automatiquement l'arrivée finale |
-| **Pas de temps** | 20 s | Intervalle d'échantillonnage pour le local check (min 10 s) |
+| **Routage tenant compte du relief** | Off | Contourne les crêtes pour la trajectoire de dégagement, les hauteurs d'arrivée et la zone atteignable au lieu d'un simple calcul en ligne droite. Plus lent — laisser désactivé en plaine (voir *Routage tenant compte du relief* ci-dessus) |
+| **Pas de temps** | 20 s | Intervalle d'échantillonnage pour le local check (min 1 s) |
 | **Seuil ENL** | 500 | Niveau sonore moteur au-dessus duquel le moteur est considéré en marche |
 | **Recalibrer l'altitude sur le QNH local** | Off | Corriger l'altitude pression brute du fichier IGC vers le QNH du jour en s'appuyant sur l'altitude terrain au décollage |
 | **Source d'élévation du terrain** | AWS Terrain | Backend DEM utilisé pour construire la grille d'élévation — AWS Terrain (~25 m DTM en Europe, CDN rapide) ou Microsoft Planetary Computer (~30 m DSM, canopée/bâti inclus, plus lent) |

@@ -28,7 +28,11 @@ It helps flight instructors and pilots answer critical safety questions:
 - **Barogram:** Interactive altitude-over-time chart with a replay-synced cursor and click/hover-to-seek.
 - **Telemetry & Flight Summary Panels:** Live time, position, altitude (pressure/GNSS), ground speed, and vario, plus overall flight stats (date, pilot, glider, duration, min/max altitude, max speed, total distance).
 - **Derived Metrics:** Ground speed, vario, and cumulative distance computed from raw IGC fixes.
-- **Landing Zone import (`.cup`):** SeeYou-format waypoint files parsed client-side; airfield vs outlanding, difficulty tags (`{A}` / `{F}` / `{M}` / `{D}` / `{TD}`), 250 m de-duplication.
+- **Landing Zone catalog:** Airports pulled from **OpenAIP** per-country JSON exports (24 h `localStorage` cache) plus two curated outlanding databases toggleable from the Settings panel:
+  - **Alpes Outlanding Fields** — SeeYou `.cup` file covering the French / Italian / Swiss Alps, with alpine difficulty tags (`{A}` / `{F}` / `{M}` / `{D}` / `{TD}` …) mapped to a four-colour scale.
+  - **ACPH Auvergne Outlanding Fields** — JSON catalog for the Auvergne region, difficulty read directly from the source.
+
+  OpenAIP takes precedence: outlanding entries within 400 m of an OpenAIP zone are dropped, and within each source entries closer than 250 m are merged (airfield / tagged entries preferred).
 - **Terrain elevation:** DEM grid prefetched around the flight bounding box, with bilinear sampling for AGL and glide computations. The backend is picked at runtime from the Settings panel and persisted per user:
   - **[AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)** (Terrarium) *(default)* — no API key required; PNG-encoded XYZ tiles served from a CloudFront-fronted S3 bucket. Mosaic of EU-DEM (~25 m over Europe, DTM), 3DEP (~10 m over USA), SRTM (~30 m elsewhere within ±60°). Typically the fastest option thanks to CDN caching and browser-native HTTP cache reuse on repeat loads — trade-off in Europe: EU-DEM is a DTM (bare-earth), so tree canopy and buildings are not represented.
   - **Microsoft Planetary Computer** — no API key required; serves **[Copernicus DEM GLO-30](https://planetarycomputer.microsoft.com/dataset/cop-dem-glo-30)** (WorldDEM DSM, ~30 m, EGM2008 geoid) via STAC + Cloud-Optimised GeoTIFF byte-range reads. **DSM** — includes canopy/buildings, safer for AGL and glide-plane clearance.
@@ -36,19 +40,23 @@ It helps flight instructors and pilots answer critical safety questions:
 - **In-local / marginal / out-of-local classification:** One shared rule across all surfaces — for each fix, pick the LZ with the highest projected arrival above ground, then colour by `arrival > safety height` (green) / `arrival > 0` (yellow) / `arrival ≤ 0` (red).
 - **Coloured track & barogram:** Track segments and altitude line coloured per phase (initial-climb, motor, final-glide) and status. Legend surfaces every colour.
 - **Out-of-local statistics:** Time / % out-of-local, mean & max missing height, first out-of-local time (click-to-seek).
-- **Configurable parameters:** Working L/D, safety arrival height, time step, ENL threshold — all persisted via `localStorage`. (Ground clearance is exposed but informational only; it does not gate status.)
-- **Escape path:** From the current replay position to the LZ with the highest arrival height above ground. Dashed polyline on the map (green/yellow/red per shared status rule). Computed as a **straight line** to the target LZ for now — terrain-collision detection along the path is not performed yet; the escape-path profile chart lets the pilot visually check whether the glide clips the ground.
-- **Escape-path profile chart:** Compact uPlot chart to the right of the barogram (30 / 70 width split). Draws the terrain profile and glide plane along the escape line, with a filled square marker at the LZ and a dashed arrival-target guide. Extends 20 % past the LZ for post-target context.
-- **Reachable zone:** From the current position, at user-selectable grid size (90 / 180 / 360 / 720 m) and extent (5–30 km). Rendered as a translucent green fill overlay under the track. Runs in a dedicated Web Worker with a 250 ms debounce on cursor moves.
+- **Configurable parameters (persisted via `localStorage`):** working L/D, safety arrival height, time step, ENL threshold, final-glide detection toggle, terrain-aware routing toggle, QNH recalibration toggle, terrain elevation source (AWS Terrain / Microsoft Planetary Computer), per-source outlanding-database toggles (Alpes, Auvergne), and per-overlay show/hide toggles (escape path, arrival heights, reachable zone with its grid size and diameter). Ground clearance is exposed but informational only; it does not gate status.
+- **Escape path:** From the current replay position to the LZ with the highest arrival height above ground. Dashed polyline on the map (green/yellow/red per shared status rule). Straight-line by default; when **terrain-aware routing** is enabled (see below), the path curves around ridges instead of clipping them.
+- **Escape-path profile chart:** Compact uPlot chart to the right of the barogram. Draws the terrain profile and glide plane along the escape line, with a filled square marker at the LZ and a dashed arrival-target guide. Extends 20 % past the LZ for post-target context.
+- **Reachable zone:** From the current position, at user-selectable grid size (90 / 180 / 360 / 720 m) and extent (5–30 km). Rendered as a translucent green fill overlay under the track. Runs in a dedicated Web Worker with a 250 ms debounce on cursor moves. With terrain-aware routing off, cells whose direct glide clips terrain are excluded; with it on, a single-source Dijkstra sweep discovers cells reachable via any-angle detours.
+- **Terrain-aware routing (optional):** Off by default. When enabled from the Settings panel, the app looks for a curved path around ridges instead of rejecting an LZ behind terrain:
+  - **Escape path, arrival heights, best-LZ picker in local check** → **Theta\*** (any-angle A\* on the elevation grid) per query. Line-of-sight backed by the same `glideClearsTerrain` primitive, so the glide plane must stay above terrain plus the ground-clearance buffer along the routed segment. Path length feeds directly into arrival height (`altitude − distance / L/D`).
+  - **Reachable zone** → one **single-source Dijkstra** outward from the pilot on the reachable-zone grid, marking every cell with its shortest routed distance in a single pass — dramatically faster than running Theta\* per cell.
+  - Trade-off: routing costs CPU and always yields a lower arrival height than the straight-line best case, so the toggle is off by default and only useful in mountainous flying.
 - **Arrival-height labels:** For every visible LZ, an SDF "pill" label shows the projected arrival height at the current fix, colour-coded by the shared status rule.
 - **QNH altitude recalibration:** Optional setting that estimates the day's QNH offset from the first ~8 stationary pre-takeoff fixes (comparing recorded baro altitude to terrain elevation at the takeoff position). When enabled, every pressure altitude in the flight is corrected in-app (raw IGC fixes are preserved); the computed offset is displayed under the toggle, and a warning is shown when pre-takeoff samples are insufficient.
 
 ### 🗺️ Planned features
 
 - **Airspace penetration detection & reporting** (imported OpenAir/GeoJSON).
+- **User-uploaded Landing Zone import** — SeeYou `.cup` files provided by the pilot, in addition to the built-in Alpes and Auvergne catalogs.
 - **Wind effect on glide,** manual entry or drift-derived.
 - **Downloadable debrief reports** — flight summary, out-of-local events, screenshots for club compliance.
-- **Terrain-avoiding poly-line escape routes** (current version ships straight-line only).
 
 ---
 

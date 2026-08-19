@@ -66,6 +66,14 @@ export interface EscapePathInputs {
    * intent is a terrain trace beyond the LZ. Default 0.
    */
   extraDistanceM?: number;
+  /**
+   * Optional terrain-aware route (list of lat/lon waypoints from source to
+   * LZ). When supplied, the profile is sampled along the polyline and
+   * `totalDistanceM` becomes the sum of segment lengths, so arrival height
+   * reflects the actual routed distance. First waypoint MUST match source
+   * and last MUST match LZ.
+   */
+  route?: Array<{ latitude: number; longitude: number }>;
 }
 
 /**
@@ -88,6 +96,7 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
     params,
     sampleStepM = 100,
     extraDistanceM = 0,
+    route,
   } = inputs;
 
   const lzElevM =
@@ -97,20 +106,75 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
       return isNaN(v) ? 0 : v;
     })();
 
-  const totalDistanceM = haversineDistanceM(
-    sourceLat,
-    sourceLon,
-    lz.latitude,
-    lz.longitude,
-  );
+  // Build the polyline the profile is sampled along. Without a route this
+  // is the straight source→LZ segment (two vertices); with routing it can
+  // be an arbitrary any-angle polyline emitted by Theta*.
+  const rawPolyline: Array<{ lat: number; lon: number }> =
+    route && route.length >= 2
+      ? route.map((p) => ({ lat: p.latitude, lon: p.longitude }))
+      : [
+          { lat: sourceLat, lon: sourceLon },
+          { lat: lz.latitude, lon: lz.longitude },
+        ];
+
+  // Precompute cumulative distance at each polyline vertex.
+  const cumulativeM: number[] = [0];
+  for (let i = 1; i < rawPolyline.length; i++) {
+    const seg = haversineDistanceM(
+      rawPolyline[i - 1].lat,
+      rawPolyline[i - 1].lon,
+      rawPolyline[i].lat,
+      rawPolyline[i].lon,
+    );
+    cumulativeM.push(cumulativeM[i - 1] + seg);
+  }
+  const totalDistanceM = cumulativeM[cumulativeM.length - 1];
 
   const arrivalHeightM =
     sourceAltM - lzElevM - totalDistanceM / params.workingLD;
 
-  const waypoints: EscapePathWaypoint[] = [
-    { lat: sourceLat, lon: sourceLon, distFromSourceM: 0 },
-    { lat: lz.latitude, lon: lz.longitude, distFromSourceM: totalDistanceM },
-  ];
+  const waypoints: EscapePathWaypoint[] = rawPolyline.map((p, i) => ({
+    lat: p.lat,
+    lon: p.lon,
+    distFromSourceM: cumulativeM[i],
+  }));
+
+  // Sample along the polyline at `sampleStepM` intervals. `posAt(distM)`
+  // linearly interpolates within whichever segment the sample falls in;
+  // beyond the last vertex we extrapolate along the last segment's bearing,
+  // preserving the pre-routing behaviour of the "context past target" band.
+  const lastSegStart = rawPolyline[rawPolyline.length - 2];
+  const lastSegEnd = rawPolyline[rawPolyline.length - 1];
+  const lastSegLenM = totalDistanceM - cumulativeM[cumulativeM.length - 2];
+
+  const posAt = (distM: number): { lat: number; lon: number } => {
+    if (distM <= 0) return { lat: rawPolyline[0].lat, lon: rawPolyline[0].lon };
+    if (distM >= totalDistanceM) {
+      const overshoot = distM - totalDistanceM;
+      const t = lastSegLenM > 0 ? overshoot / lastSegLenM : 0;
+      return {
+        lat: lastSegEnd.lat + t * (lastSegEnd.lat - lastSegStart.lat),
+        lon: lastSegEnd.lon + t * (lastSegEnd.lon - lastSegStart.lon),
+      };
+    }
+    // Binary-ish linear scan for the enclosing segment. Polylines are
+    // short (≤ a few dozen waypoints), so scanning is cheaper than a heap.
+    for (let i = 1; i < rawPolyline.length; i++) {
+      if (distM <= cumulativeM[i]) {
+        const segLen = cumulativeM[i] - cumulativeM[i - 1];
+        const t = segLen > 0 ? (distM - cumulativeM[i - 1]) / segLen : 0;
+        return {
+          lat:
+            rawPolyline[i - 1].lat +
+            t * (rawPolyline[i].lat - rawPolyline[i - 1].lat),
+          lon:
+            rawPolyline[i - 1].lon +
+            t * (rawPolyline[i].lon - rawPolyline[i - 1].lon),
+        };
+      }
+    }
+    return { lat: lastSegEnd.lat, lon: lastSegEnd.lon };
+  };
 
   const steps = Math.max(1, Math.ceil(totalDistanceM / sampleStepM));
   const extraSteps =
@@ -120,25 +184,17 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
 
   const totalSteps = steps + extraSteps;
   for (let s = 0; s <= totalSteps; s++) {
-    // `t` parameter along the source→LZ segment. Values > 1 sample past
-    // the LZ in the same direction; we still store the profile point so
-    // the chart can render the context band, but the terrain-clearance
-    // min-margin only considers the in-line source→LZ portion (t ≤ 1).
-    const t = s / steps;
-    const lat = sourceLat + t * (lz.latitude - sourceLat);
-    const lon = sourceLon + t * (lz.longitude - sourceLon);
-    const distFromSourceM = t * totalDistanceM;
+    const distFromSourceM = (s / steps) * totalDistanceM;
+    const { lat, lon } = posAt(distFromSourceM);
     const terrain = sampleElevation(grid, lat, lon);
     const terrainM = isNaN(terrain) ? null : terrain;
     const glideAltM = sourceAltM - distFromSourceM / params.workingLD;
 
     profile.push({ distFromSourceM, terrainM, glideAltM });
 
-    // `minMarginM` is the min glide-vs-terrain gap along the source→LZ
-    // segment. Ground clearance is intentionally NOT subtracted here —
-    // the safety buffer is a display concept and must not affect the
-    // green/yellow/red classification (see also `glide.ts`).
-    if (t <= 1 && terrainM !== null) {
+    // Min glide-vs-terrain gap along the source→LZ portion only (samples
+    // beyond the LZ are context and never gate the classification).
+    if (distFromSourceM <= totalDistanceM && terrainM !== null) {
       const margin = glideAltM - terrainM;
       if (margin < minMarginM) minMarginM = margin;
     }
@@ -171,7 +227,7 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
 
   if (import.meta.env.DEV) {
     console.log(
-      `[computeEscapePath] ${(performance.now() - startedAt).toFixed(2)} ms`,
+      `[computeEscapePath] ${(performance.now() - startedAt).toFixed(2)} ms`, path
     );
   }
 

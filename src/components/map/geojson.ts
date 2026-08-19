@@ -173,6 +173,17 @@ export function buildEscapePathGeoJSON(
   escapePath: EscapePath | null,
 ): GeoJSON.FeatureCollection {
   if (!escapePath) return EMPTY;
+  // Straight-line path (two vertices): keep the pre-routing behaviour so
+  // this remains byte-identical when terrain-aware routing is off. Only
+  // use the polyline waypoints when Theta* actually inserted detour
+  // vertices.
+  const coordinates: [number, number][] =
+    escapePath.waypoints.length > 2
+      ? escapePath.waypoints.map((w) => [w.lon, w.lat] as [number, number])
+      : [
+          [escapePath.sourceLon, escapePath.sourceLat],
+          [escapePath.lzLon, escapePath.lzLat],
+        ];
   return {
     type: 'FeatureCollection',
     features: [
@@ -184,10 +195,7 @@ export function buildEscapePathGeoJSON(
         },
         geometry: {
           type: 'LineString',
-          coordinates: [
-            [escapePath.sourceLon, escapePath.sourceLat],
-            [escapePath.lzLon, escapePath.lzLat],
-          ],
+          coordinates,
         },
       },
     ],

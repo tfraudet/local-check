@@ -22,6 +22,8 @@
     "groundClearanceHint": "Hauteur minimale au-dessus du terrain le long du plan de vol (défaut 150 m)",
     "detectFinalGlide": "Détecter l'arrivée finale",
     "detectFinalGlidedHint": "Active la détection automatique des arrivées finales vers les zones d'atterrissage sur la trace.",
+    "terrainAwareRouting": "Routage tenant compte du relief",
+    "terrainAwareRoutingHint": "Contourne les crêtes pour le chemin d'échappée, les hauteurs d'arrivée et la zone atteignable au lieu d'une simple ligne droite. Plus lent.",
     "recalibrateAltitude": "Recalibrer l'altitude sur le QNH local",
     "recalibrateAltitudeHint": "Compare l'altitude barométrique avant décollage à l'altitude du terrain pour estimer le décalage QNH du jour, puis corrige toutes les altitudes pression du vol.",
     "elevationSource": "Source d'élévation du terrain",

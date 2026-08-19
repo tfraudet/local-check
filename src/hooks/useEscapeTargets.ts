@@ -5,6 +5,7 @@ import { findCurrentFixIndex } from '@/domain/flight';
 import { haversineDistanceM, pickAltitude } from '@/domain/units';
 import { arrivalHeightAboveGroundM, classifyArrival, pickBestLandingZone } from '@/domain/arrival';
 import { computeEscapePath, type EscapePath } from '@/domain/escapePath';
+import { routeToLz } from '@/domain/routing/routeToLz';
 
 /** Skip arrival-height labels for LZs beyond this range — far LZs are
  * never reachable and only clutter the map. */
@@ -20,6 +21,8 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
   const currentTimeMs = useFlightStore((s) => s.currentTimeMs);
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
 
+  const elevationGrid = useFlightStore((s) => s.elevationGrid);
+
   const nextFeatures = useMemo<ArrivalHeightFeature[]>(() => {
     if (!showArrivalHeights || !flight) return [];
     const index = findCurrentFixIndex(flight, currentTimeMs);
@@ -28,7 +31,7 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
     const latitude = position.latitude;
     const longitude = position.longitude;
     const altM = pickAltitude(position, altitudeSource, flight.qnhOffsetM ?? 0);
-    if (altM === null) return [];   
+    if (altM === null) return [];
 
     const features: ArrivalHeightFeature[] = [];
     for (const lz of landingZones) {
@@ -40,12 +43,34 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
         lz.longitude,
       );
       if (distM > ARRIVAL_HEIGHT_MAX_DISTANCE_M) continue;
+
+      // Terrain-aware routing: use the routed distance when enabled and a
+      // grid is available. `routeToLz` short-circuits to straight-line when
+      // the direct segment already clears terrain, so the cost is only
+      // paid for LZs behind ridges.
+      let routedDistanceM: number | undefined;
+      if (settings.terrainAwareRouting && elevationGrid) {
+        const route = routeToLz({
+          sourceLat: latitude,
+          sourceLon: longitude,
+          sourceAltM: altM,
+          targetLat: lz.latitude,
+          targetLon: lz.longitude,
+          workingLD: settings.workingLD,
+          groundClearanceM: settings.groundClearanceM,
+          grid: elevationGrid,
+          maxNodes: 5_000,
+        });
+        if (route) routedDistanceM = route.distanceM;
+      }
+
       const heightM = arrivalHeightAboveGroundM(
         latitude,
         longitude,
         altM,
         lz,
         settings.workingLD,
+        routedDistanceM,
       );
       features.push({
         id: lz.id,
@@ -57,7 +82,7 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
     }
 
     return features;
-  }, [showArrivalHeights, landingZones, visibleLandingZoneIds, settings, flight, currentTimeMs, altitudeSource]);
+  }, [showArrivalHeights, landingZones, visibleLandingZoneIds, settings, flight, currentTimeMs, altitudeSource, elevationGrid]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -98,24 +123,63 @@ export function useCurrentEscapePath(): EscapePath | null {
     const altM = pickAltitude(position, altitudeSource, flight.qnhOffsetM ?? 0);
     if (altM === null) return null;   
 
+    // When terrain-aware routing is on, distance-based comparison uses
+    // routed metres so the best-LZ pick reflects real detour costs.
+    const distanceFn = settings.terrainAwareRouting
+      ? (lz: typeof landingZones[number]) => {
+          const route = routeToLz({
+            sourceLat: latitude,
+            sourceLon: longitude,
+            sourceAltM: altM,
+            targetLat: lz.latitude,
+            targetLon: lz.longitude,
+            workingLD: settings.workingLD,
+            groundClearanceM: settings.groundClearanceM,
+            grid: elevationGrid,
+            maxNodes: 5_000,
+          });
+          return route ? route.distanceM : null;
+        }
+      : undefined;
+
     const best = pickBestLandingZone(
       latitude,
       longitude,
       altM,
       landingZones.filter((z) => visibleLandingZoneIds.has(z.id)),
       settings.workingLD,
+      distanceFn,
     );
     if (!best) return null;
     const lz = best.lz;
 
+    // For the escape polyline, compute the full route (path + distance) to
+    // the chosen LZ. Cheap re-invocation: `routeToLz` short-circuits to
+    // straight-line when terrain isn't in the way.
+    const route = settings.terrainAwareRouting
+      ? routeToLz({
+          sourceLat: latitude,
+          sourceLon: longitude,
+          sourceAltM: altM,
+          targetLat: lz.latitude,
+          targetLon: lz.longitude,
+          workingLD: settings.workingLD,
+          groundClearanceM: settings.groundClearanceM,
+          grid: elevationGrid,
+          maxNodes: 5_000,
+        })
+      : null;
+
     // Extend the profile 20% beyond the source→LZ distance so the chart
     // always shows some post-LZ context, scaled to the escape length.
-    const targetDistM = haversineDistanceM(
-      position.latitude,
-      position.longitude,
-      lz.latitude,
-      lz.longitude,
-    );
+    const targetDistM = route
+      ? route.distanceM
+      : haversineDistanceM(
+          position.latitude,
+          position.longitude,
+          lz.latitude,
+          lz.longitude,
+        );
 
     const path = computeEscapePath({
       sourceFixIndex: index,
@@ -126,6 +190,7 @@ export function useCurrentEscapePath(): EscapePath | null {
       grid: elevationGrid,
       params: settings,
       extraDistanceM: targetDistM * 0.2,
+      route: route ? route.path : undefined,
     });
 
     // if (import.meta.env.DEV) {

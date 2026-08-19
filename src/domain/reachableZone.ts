@@ -23,6 +23,7 @@ import type { ElevationGrid } from './elevation';
 import { sampleElevation } from './elevation';
 import type { LocalCheckParams } from './localCheck';
 import { glideClearsTerrain } from './glide';
+import { MinHeap } from './routing/minHeap';
 import { haversineDistanceM } from './units';
 
 export type ReachableZoneGridSizeM = 90 | 180 | 360 | 720;
@@ -80,6 +81,11 @@ export interface ReachableZoneInputs {
   grid: ElevationGrid;
   params: LocalCheckParams;
   zoneParams: ReachableZoneParams;
+  /** When true, cells whose straight-line glide clips terrain are retried
+   * with terrain-aware routing (Theta*). A cell is reachable if *any*
+   * feasible any-angle path exists and its routed arrival height still
+   * exceeds `params.arrivalHeightM`. */
+  terrainAwareRouting?: boolean;
 }
 
 /**
@@ -138,7 +144,15 @@ export function resolveEffectiveParams(requested: ReachableZoneParams): {
 export function computeReachableZone(
   inputs: ReachableZoneInputs,
 ): ReachableZoneResult {
-  const { sourceLat, sourceLon, sourceAltM, grid, params, zoneParams } = inputs;
+  const {
+    sourceLat,
+    sourceLon,
+    sourceAltM,
+    grid,
+    params,
+    zoneParams,
+    terrainAwareRouting = false,
+  } = inputs;
 
   const { effective, degraded } = resolveEffectiveParams(zoneParams);
   const { gridSizeM, diameterKm } = effective;
@@ -164,6 +178,29 @@ export function computeReachableZone(
 
   const latStep = (maxLat - minLat) / (rows - 1);
   const lonStep = (maxLon - minLon) / (cols - 1);
+
+  // Terrain-aware routing: one Dijkstra outward from the pilot on the
+  // reachable-zone grid gives us the shortest routed distance to every
+  // cell in a single pass. Cells left at Infinity are unreachable via
+  // any feasible glide-clearing path. Falls back to straight-line for
+  // the classic behaviour when the toggle is off.
+  const routedDistM = terrainAwareRouting
+    ? computeRoutedDistances({
+        sourceLat,
+        sourceLon,
+        sourceAltM,
+        minLat,
+        minLon,
+        latStep,
+        lonStep,
+        cols,
+        rows,
+        radiusM,
+        grid,
+        workingLD: params.workingLD,
+        groundClearanceM: params.groundClearanceM,
+      })
+    : null;
 
   for (let r = 0; r < rows; r++) {
     const lat = minLat + r * latStep;
@@ -205,6 +242,16 @@ export function computeReachableZone(
           steps: RAY_CLEARANCE_SAMPLES,
         })
       ) {
+        // Straight-line blocked. Legacy behaviour: skip. With terrain-aware
+        // routing on, use the routed distance from the Dijkstra pass — a
+        // finite value means Dijkstra found a feasible detour to this cell.
+        if (!routedDistM) continue;
+        const d = routedDistM[idx];
+        if (!Number.isFinite(d)) continue;
+        const routedArrivalM = sourceAltM - d / params.workingLD - terrain;
+        if (routedArrivalM < params.arrivalHeightM) continue;
+        marginM[idx] = routedArrivalM;
+        reachableMask[idx] = 1;
         continue;
       }
 
@@ -237,6 +284,134 @@ export function computeReachableZone(
     degraded,
     computedAt: Date.now(),
   };
+}
+
+/**
+ * Single-source Dijkstra outward from the pilot on the reachable-zone
+ * grid. Returns a `Float32Array` of routed distances (metres) from the
+ * source to every grid cell, filled with `Infinity` for unreachable
+ * cells. Cells reachable only after a glide clip are excluded because
+ * the LOS check between adjacent cells uses `glideClearsTerrain` with
+ * the accumulated altitude at the current node.
+ *
+ * This replaces the naive "one Theta* per cell" approach: reachability
+ * is a single-source many-targets problem, and Dijkstra solves it in
+ * one pass at O(N log N).
+ */
+interface RoutedDistancesInput {
+  sourceLat: number;
+  sourceLon: number;
+  sourceAltM: number;
+  minLat: number;
+  minLon: number;
+  latStep: number;
+  lonStep: number;
+  cols: number;
+  rows: number;
+  radiusM: number;
+  grid: ElevationGrid;
+  workingLD: number;
+  groundClearanceM: number;
+}
+
+const DIJKSTRA_NEIGHBOR_OFFSETS: Array<[number, number]> = [
+  [-1, -1], [-1, 0], [-1, 1],
+  [0, -1],           [0, 1],
+  [1, -1],  [1, 0],  [1, 1],
+];
+
+function computeRoutedDistances(input: RoutedDistancesInput): Float32Array {
+  const {
+    sourceLat,
+    sourceLon,
+    sourceAltM,
+    minLat,
+    minLon,
+    latStep,
+    lonStep,
+    cols,
+    rows,
+    radiusM,
+    grid,
+    workingLD,
+    groundClearanceM,
+  } = input;
+
+  const size = cols * rows;
+  const gCost = new Float32Array(size).fill(Infinity);
+  const settled = new Uint8Array(size);
+
+  const srcR = Math.max(
+    0,
+    Math.min(rows - 1, Math.round((sourceLat - minLat) / latStep)),
+  );
+  const srcC = Math.max(
+    0,
+    Math.min(cols - 1, Math.round((sourceLon - minLon) / lonStep)),
+  );
+  const srcIdx = srcR * cols + srcC;
+  gCost[srcIdx] = 0;
+
+  const open = new MinHeap();
+  open.push(srcIdx, 0);
+
+  while (open.size() > 0) {
+    const cur = open.pop()!;
+    if (settled[cur]) continue;
+    settled[cur] = 1;
+
+    const r = (cur / cols) | 0;
+    const c = cur - r * cols;
+    const lat = minLat + r * latStep;
+    const lon = minLon + c * lonStep;
+    const gAtCur = gCost[cur];
+    const altAtCur = sourceAltM - gAtCur / workingLD;
+
+    for (const [dr, dc] of DIJKSTRA_NEIGHBOR_OFFSETS) {
+      const nr = r + dr;
+      const nc = c + dc;
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+      const nIdx = nr * cols + nc;
+      if (settled[nIdx]) continue;
+
+      const nLat = minLat + nr * latStep;
+      const nLon = minLon + nc * lonStep;
+
+      // Circle footprint: don't expand into cells outside the disc; the
+      // whole overlay is clipped there anyway.
+      if (haversineDistanceM(sourceLat, sourceLon, nLat, nLon) > radiusM)
+        continue;
+
+      const segDistM = haversineDistanceM(lat, lon, nLat, nLon);
+      const newG = gAtCur + segDistM;
+      if (newG >= gCost[nIdx]) continue;
+
+      // Glide plane from `altAtCur` at (lat, lon) must clear terrain
+      // (+ ground clearance) along the segment to the neighbour. Uses
+      // the coarse-but-accurate 200 m step from `glideClearsTerrain`.
+      if (
+        !glideClearsTerrain({
+          fromLat: lat,
+          fromLon: lon,
+          fromAltM: altAtCur,
+          toLat: nLat,
+          toLon: nLon,
+          distanceM: segDistM,
+          workingLD,
+          grid,
+          groundClearanceM,
+          stepM: 200,
+        })
+      ) {
+        continue;
+      }
+
+      gCost[nIdx] = newG;
+      open.push(nIdx, newG);
+    }
+  }
+
+  return gCost;
 }
 
 /**
