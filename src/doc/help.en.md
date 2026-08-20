@@ -114,6 +114,8 @@ A dashed polyline from the current replay position to the landing zone offering 
 
 By default the path is drawn as a **straight line**. When **Terrain-aware routing** is enabled in the Settings panel, the path curves around ridges that block the direct glide (see *Terrain-aware routing* below).
 
+With routing off, the straight-line glide may clip terrain before reaching the landing zone — this is visible on the profile chart but does **not** change the status colour, which is based solely on the projected arrival height versus the safety arrival height. Enable terrain-aware routing to obtain a path that actually clears the terrain.
+
 The **Escape Path Profile** chart (right of the barogram) shows:
 
 - Terrain elevation along the escape trajectory

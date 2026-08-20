@@ -114,6 +114,8 @@ Une ligne pointillée reliant la position de rejeu courante à la zone d'atterri
 
 Par défaut, la trajectoire est tracée en **ligne droite**. Lorsque le **Routage tenant compte du relief** est activé dans les Réglages, la trajectoire contourne les crêtes qui bloqueraient le plan direct (voir *Routage tenant compte du relief* ci-dessous).
 
+Lorsque le routage est désactivé, le plan en ligne droite peut heurter le relief avant d'atteindre la zone d'atterrissage — cela apparaît sur le graphique de profil mais ne modifie **pas** la couleur du statut, qui repose uniquement sur la hauteur d'arrivée projetée comparée à la hauteur d'arrivée de sécurité. Activez le routage tenant compte du relief pour obtenir une trajectoire qui passe effectivement au-dessus du terrain.
+
 Le graphique **Profil de la trajectoire de dégagement** (à droite du barogramme) montre :
 
 - L'élévation du terrain le long de la trajectoire de dégagement
