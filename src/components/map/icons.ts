@@ -22,17 +22,18 @@ export const LZ_ICON_RECT: Record<string, string> = {
  */
 export const ARRIVAL_PILL_ICON = 'arrival-height-pill';
 
-const SOLID_AIRFIELD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <circle cx="16" cy="16" r="11" fill="#3E6FC4"/>
-  <line x1="16" y1="1" x2="16" y2="31" stroke="#fff" stroke-width="8" transform="rotate(0 16 16)"/>
-  <line x1="16" y1="1" x2="16" y2="31" stroke="#3E6FC4" stroke-width="5" transform="rotate(0 16 16)"/>
-</svg>`;
+const SOLID_AIRFIELD_SVG =  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <circle cx="16" cy="16" r="11" fill="#3E6FC4" stroke="#fff" stroke-width="2"/>
+  <line x1="16" y1="2" x2="16" y2="30" stroke="#fff" stroke-width="9" stroke-linecap="square" transform="rotate(0 16 16)"/>
+  <line x1="16" y1="4" x2="16" y2="28" stroke="#3E6FC4" stroke-width="5" stroke-linecap="square" transform="rotate(0 16 16)"/>
+</svg>`
 
 const GRASS_AIRFIELD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <circle cx="16" cy="16" r="9" fill="#fff" stroke="#5B6470" stroke-width="3.6"/>
+  <circle cx="16" cy="16" r="11" fill="none" stroke="#fff" stroke-width="2"/>
+  <circle cx="16" cy="16" r="9" fill="none" stroke="#5B6470" stroke-width="4"/>
   <line x1="16" y1="1" x2="16" y2="31" stroke="#fff" stroke-width="6" transform="rotate(0 16 16)"/>
-  <line x1="16" y1="1" x2="16" y2="31" stroke="#5B6470" stroke-width="4" transform="rotate(0 16 16)"/>
-</svg>`;
+  <line x1="16" y1="2" x2="16" y2="30" stroke="#5B6470" stroke-width="4" transform="rotate(0 16 16)"/>
+</svg>`
 
 function squareSvg(fill: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="20">
