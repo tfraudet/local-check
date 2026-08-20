@@ -16,8 +16,11 @@ import {
 import { SettingsPanel } from './SettingsPanel';
 import { FlightPanel } from './FlightPanel';
 import { useTheme } from './theme-provider';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from './ui/avatar';
 import { track } from '@/lib/analytics';
+import { useFlightStore } from '@/state/useFlightStore';
+import { Badge } from './ui/badge';
+import { Spinner } from './ui/spinner';
 
 // Served from `public/`, so it keeps a stable, unhashed URL.
 const logoAcph = `${import.meta.env.BASE_URL}logo-acph.jpg`;
@@ -33,6 +36,10 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
   const [activeNav, setActiveNav] = useState<NavKey>('flight');
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  const result = useFlightStore((s) => s.localCheckResult);
+  const isComputing = useFlightStore((s) => s.isComputingLocalCheck);
+  
 
   const currentLang = i18n.resolvedLanguage?.split('-')[0] === 'fr' ? 'fr' : 'en';
 
@@ -107,6 +114,9 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
           <Avatar size="lg">
             <AvatarImage src={logoAcph} alt="ACPH logo" />
             <AvatarFallback>ACPH Logo</AvatarFallback>
+            { isComputing && (result!=null) && (
+              <AvatarBadge className="animate-bounce bg-green-600 dark:bg-green-800" />
+            )}
           </Avatar>
         </a>
 
@@ -177,8 +187,14 @@ export function AppSidebar({ onOpenHelp }: AppSidebarProps) {
         onClick={(event) => event.stopPropagation()}
       >
         <SidebarHeader className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">
-            {navItems.find((item) => item.key === activeNav)?.label ?? ''}
+          <h2 className="flex items-center justify-between gap-2 text-sm font-semibold">
+            <span>{navItems.find((item) => item.key === activeNav)?.label ?? ''}</span>
+            {isComputing && (result!=null) && (activeNav === 'settings') && (
+              <Badge variant="destructive" className="bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300">
+                  <Spinner data-icon="inline-start" />
+                  {t('upload.computing')}
+              </Badge>
+            )}
           </h2>
         </SidebarHeader>
         <SidebarContent>
