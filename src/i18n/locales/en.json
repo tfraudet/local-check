@@ -51,6 +51,7 @@
     "waiting": "Need landing zones to see the escape path.",
     "profileTitle": "Escape path profile",
     "profileSubtitle": "Straight glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
+    "profileSubtitleRouted": "Routed glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
     "terrainSeries": "Terrain",
     "glideSeries": "Glide plane",
     "groundClearanceSeries": "Ground clearance",

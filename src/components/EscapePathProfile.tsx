@@ -262,7 +262,11 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
       </div>
       <div className="px-2 pt-1 text-[10px] text-muted-foreground">
         <Trans
-          i18nKey="escapePath.profileSubtitle"
+          i18nKey={
+            escapePath.waypoints.length > 2
+              ? 'escapePath.profileSubtitleRouted'
+              : 'escapePath.profileSubtitle'
+          }
           values={{
             lzName,
             lzElevM: Math.round(escapePath.lzElevM),
