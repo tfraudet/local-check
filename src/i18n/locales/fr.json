@@ -52,6 +52,7 @@
     "profileSubtitle": "Vol plané direct vers <b>{{lzName}}</b> (alt : {{lzElevM}} m)",
     "terrainSeries": "Terrain",
     "glideSeries": "Plan de vol",
+    "groundClearanceSeries": "Garde au sol",
     "arrivalTarget": "Cible d'arrivée",
     "lzMarker": "Zone d'atterrissage",
     "arrivalHeight": "Hauteur d'arrivée",

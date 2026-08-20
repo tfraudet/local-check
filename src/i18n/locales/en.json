@@ -53,6 +53,7 @@
     "profileSubtitle": "Straight glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
     "terrainSeries": "Terrain",
     "glideSeries": "Glide plane",
+    "groundClearanceSeries": "Ground clearance",
     "arrivalTarget": "Arrival target",
     "lzMarker": "Landing zone",
     "arrivalHeight": "Arrival height",

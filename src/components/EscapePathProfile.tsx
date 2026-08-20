@@ -47,11 +47,13 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
   // MapLibre paint that keeps the arrival-height labels in sync.
   const escapePathRef = useRef<EscapePath | null>(escapePath);
   const arrivalHeightMRef = useRef(localCheckParams.arrivalHeightM);
+  const groundClearanceMRef = useRef(localCheckParams.groundClearanceM);
   // Sync refs in a layout effect so they are updated before the `setData`
   // effect below fires uPlot's `draw` hook.
   useEffect(() => {
     escapePathRef.current = escapePath;
     arrivalHeightMRef.current = localCheckParams.arrivalHeightM;
+    groundClearanceMRef.current = localCheckParams.groundClearanceM;
   });
 
   // Build the uPlot chart when it first has data or when the theme /
@@ -66,7 +68,13 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
     const distanceKm = initial.profile.map((p) => p.distFromSourceM / 1000);
     const terrain = initial.profile.map((p) => p.terrainM);
     const glide = initial.profile.map((p) => p.glideAltM);
-    const data: uPlot.AlignedData = [distanceKm, terrain, glide];
+    const initialClearance = groundClearanceMRef.current;
+    const clearance = initial.profile.map((p) =>
+      initialClearance > 0 && p.terrainM !== null
+        ? p.terrainM + initialClearance
+        : null,
+    );
+    const data: uPlot.AlignedData = [distanceKm, terrain, clearance, glide];
 
     const { axisStroke, gridStroke } = getChartColors(theme === 'dark');
 
@@ -80,6 +88,13 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
           stroke: 'rgba(160, 100, 40, 0.7)',
           fill: 'rgba(160, 100, 40, 0.3)',
           width: 1,
+          points: { show: false },
+        },
+        {
+          label: t('escapePath.groundClearanceSeries'),
+          stroke: 'rgba(147, 51, 234, 0.9)',
+          width: 1,
+          dash: [4, 4],
           points: { show: false },
         },
         {
@@ -201,8 +216,12 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
     const distanceKm = escapePath.profile.map((p) => p.distFromSourceM / 1000);
     const terrain = escapePath.profile.map((p) => p.terrainM);
     const glide = escapePath.profile.map((p) => p.glideAltM);
-    plot.setData([distanceKm, terrain, glide]);
-  }, [escapePath]);
+    const gc = localCheckParams.groundClearanceM;
+    const clearance = escapePath.profile.map((p) =>
+      gc > 0 && p.terrainM !== null ? p.terrainM + gc : null,
+    );
+    plot.setData([distanceKm, terrain, clearance, glide]);
+  }, [escapePath, localCheckParams.groundClearanceM]);
 
   if (!flight || !localCheckResult || landingZones.length === 0) {
     return (
