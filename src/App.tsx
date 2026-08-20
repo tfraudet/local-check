@@ -21,6 +21,7 @@ import { useAutoReachableZone } from "./hooks/useAutoReachableZone"
 import { HelpPanel } from "./components/HelpPanel"
 import { useState } from "react"
 import { useOutlandingDatabase } from "./hooks/useOutlandingDatabase"
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./components/ui/resizable"
 
 export function App() {
   const flight = useFlightStore((s) => s.flight);
@@ -52,24 +53,29 @@ export function App() {
 
         {/* CONTENU PRINCIPAL */}
         <SidebarInset className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
-
           {/* <SidebarTrigger /> */}
-          {/* <!-- Premiere div : 70% de hauteur, 100% de largeur --> */}
-          <MapView escapePath={escapePath} />
 
-          {/* <!-- Deuxieme div : h-48 + h-12 de hauteur, 100% de largeur --> */}
-          <div className="h-60 w-full shrink-0 flex flex-col">
-            <div className="h-48 shrink-0 flex border-b">
-              {flight && (
-                <>
-                  <Barogram />
-                  <EscapePathProfile escapePath={escapePath} />
-                </>
-              )}
-              {!flight &&  (
-                <NoFlight />
-              )}
-            </div>
+          <ResizablePanelGroup orientation="vertical" className="flex-1 min-h-0">
+            <ResizablePanel defaultSize="75%">
+              <MapView escapePath={escapePath} />            
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize="25%">
+              <div className="h-full min-h-48 shrink-0 flex">
+                {flight && (
+                  <>
+                    <Barogram />
+                    <EscapePathProfile escapePath={escapePath} />
+                  </>
+                )}
+                {!flight &&  (
+                  <NoFlight />
+                )}
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+                   
+          <div className="h-12 w-full shrink-0 flex  border-t "> 
             <ReplayControls />
           </div>
       </SidebarInset>
