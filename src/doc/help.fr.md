@@ -151,6 +151,7 @@ Compromis :
 
 - Le routage est coûteux en CPU et introduit une latence visible sur le panneau de dégagement et sur la zone atteignable, en particulier sur de grands vols ou avec une grille fine.
 - Une hauteur d'arrivée détournée est toujours ≤ à celle en ligne droite. En terrain plat, le routage dégénère en ligne droite et les valeurs sont identiques.
+- **Court-circuit ligne droite** : dès que le vol plané direct depuis la position courante passe déjà au-dessus du terrain + garde au sol tout le long du segment, Theta\* n'est pas exécuté et la ligne droite est retournée — un détour ne peut jamais faire mieux (il est plus long, donc sa hauteur d'arrivée serait inférieure). Conséquence : le libellé du profil de dégagement peut basculer entre *Vol plané direct* et *Vol plané détourné* pendant le rejeu même avec le routage activé : quand vous êtes assez haut pour franchir une crête en direct, il affiche *Vol plané direct* ; quand vous descendez sous ce seuil et qu'un contournement devient nécessaire, il passe à *Vol plané détourné*. Le libellé reflète la géométrie du moment, pas l'état du switch.
 - Laissez l'option désactivée pour les vols en plaine ; activez-la pour le vol en montagne où une ligne droite couperait une crête alors qu'un détour par une vallée ou un col est en pratique réalisable.
 
 ---
