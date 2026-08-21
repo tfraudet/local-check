@@ -10,11 +10,17 @@ import {
   type EscapeRouting,
 } from '@/domain/escapePath';
 import { routeToLz } from '@/domain/routing/routeToLz';
+import { useThrottledValue } from './useThrottledValue';
 
 /** Skip arrival-height labels for LZs beyond this range — far LZs are
  * never reachable and only clutter the map. */
 const ARRIVAL_HEIGHT_MAX_DISTANCE_KM = 60;
 const ARRIVAL_HEIGHT_MAX_DISTANCE_M = ARRIVAL_HEIGHT_MAX_DISTANCE_KM * 1000;
+
+/** Recompute at most this often during replay — terrain-aware routing runs a
+ * Theta* search per visible LZ, synchronously on the main thread, so redoing
+ * it on every ~16ms animation frame causes visible jank. */
+const ESCAPE_PATH_RECOMPUTE_THROTTLE_MS = 200;
 
 export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
   const showArrivalHeights = useFlightStore((s) => s.settings.showArrivalHeights);
@@ -27,9 +33,11 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
 
   const elevationGrid = useFlightStore((s) => s.elevationGrid);
 
+  const throttledTimeMs = useThrottledValue(currentTimeMs, ESCAPE_PATH_RECOMPUTE_THROTTLE_MS);
+
   const nextFeatures = useMemo<ArrivalHeightFeature[]>(() => {
     if (!showArrivalHeights || !flight) return [];
-    const index = findCurrentFixIndex(flight, currentTimeMs);
+    const index = findCurrentFixIndex(flight, throttledTimeMs);
     if (index < 0) return [];
     const position = flight.fixes[index];
     const latitude = position.latitude;
@@ -87,7 +95,7 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
     }
 
     return features;
-  }, [showArrivalHeights, landingZones, visibleLandingZoneIds, settings, flight, currentTimeMs, altitudeSource, elevationGrid]);
+  }, [showArrivalHeights, landingZones, visibleLandingZoneIds, settings, flight, throttledTimeMs, altitudeSource, elevationGrid]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -113,6 +121,7 @@ export function useCurrentEscapePath(): EscapePath | null {
   const flight = useFlightStore((s) => s.flight);
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
 
+  const throttledTimeMs = useThrottledValue(currentTimeMs, ESCAPE_PATH_RECOMPUTE_THROTTLE_MS);
 
   const nextPath = useMemo<EscapePath | null>(() => {
     // const startTime = import.meta.env.DEV ? performance.now() : 0;
@@ -120,7 +129,7 @@ export function useCurrentEscapePath(): EscapePath | null {
     if ( !flight) return null;
     if (!elevationGrid || !localCheckResult) return null;
 
-    const index = findCurrentFixIndex(flight, currentTimeMs);
+    const index = findCurrentFixIndex(flight, throttledTimeMs);
     if (index < 0) return null;
     const position = flight.fixes[index];
     const latitude = position.latitude;
@@ -232,7 +241,7 @@ export function useCurrentEscapePath(): EscapePath | null {
     // }
 
     return path;
-  }, [elevationGrid, localCheckResult, landingZones, visibleLandingZoneIds, settings, flight, currentTimeMs, altitudeSource]);
+  }, [elevationGrid, localCheckResult, landingZones, visibleLandingZoneIds, settings, flight, throttledTimeMs, altitudeSource]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
