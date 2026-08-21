@@ -13,7 +13,7 @@ import { createWorkerChannel } from './workerChannel';
 import { DEFAULT_REACHABLE_ZONE_PARAMS, recommendedReachableZoneParams, type ReachableZoneInputs, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
 import { pickAltitude } from '@/domain/units';
 import { applyQnhOffsetToFlight, computeQnhOffset, QNH_DEFAULT_SAMPLES, QNH_MIN_SAMPLES, type QnhCorrectionError } from '@/domain/qnhCorrection';
-import { DEFAULT_ELEVATION_SOURCE, SUPPORTED_ELEVATION_SOURCES, type ElevationSource } from '@/services/elevationApi';
+import { DEFAULT_ELEVATION_SOURCE, type ElevationSource } from '@/services/elevationApi';
 
 function describeQnhError(err: QnhCorrectionError): string {
   switch (err.kind) {
@@ -665,56 +665,13 @@ export const useFlightStore = create<FlightStoreState>()(
     },
     {
       name: 'flight-store',
-      version: 3,
+      version: 1,
 
       // Pick only the properties you want to keep in localStorage
       partialize: (state) => ({
         playbackSpeed: state.playbackSpeed ,
         settings: state.settings,
       }),
-
-      // Fill in fields added in newer versions with defaults so existing
-      // users don't lose their persisted settings when the shape changes.
-      migrate: (persistedState, fromVersion) => {
-        const state = (persistedState ?? {}) as { settings?: Partial<Settings> };
-        if (fromVersion < 2) {
-          const source = state.settings?.elevationSource;
-          const valid =
-            source && SUPPORTED_ELEVATION_SOURCES.includes(source)
-              ? source
-              : DEFAULT_ELEVATION_SOURCE;
-          state.settings = {
-            ...DEFAULT_SETTINGS,
-            ...(state.settings ?? {}),
-            elevationSource: valid,
-          };
-        }
-        if (fromVersion < 3) {
-          // v3 adds `terrainAwareRouting` (default off). Existing settings
-          // are merged over the new defaults so no user preference is lost.
-          state.settings = {
-            ...DEFAULT_SETTINGS,
-            ...(state.settings ?? {}),
-          };
-        }
-        return state as never;
-      },
-      // merge: (persistedState, currentState) => {
-      //   const persisted = persistedState as Partial<FlightStoreState>;
-
-      //   return {
-      //     ...currentState,
-      //     ...persisted,
-      //     settings: {
-      //       ...currentState.settings,
-      //       ...persisted.settings,
-      //       enabledSources: {
-      //         ...currentState.settings.enabledSources,
-      //         ...persisted.settings?.enabledSources,
-      //       },
-      //     },
-      //   };
-      // },
 
     }
   )
