@@ -7,9 +7,13 @@
  * evaluated as:
  *
  *   glideAltAtCell = sourceAltM − distM / workingLD
- *   marginM        = glideAltAtCell − terrainM − groundClearanceM
- *   reachable      = marginM ≥ arrivalHeightM AND straight-line terrain
- *                    clearance passes
+ *   marginM        = glideAltAtCell − terrainM
+ *   reachable      = marginM ≥ arrivalHeightM AND the glide to the cell
+ *                    clears terrain + groundClearanceM all the way
+ *
+ * `groundClearanceM` gates the *en-route* clearance only, not the arrival
+ * margin — arriving at `arrivalHeightM` above the field is the landing
+ * criterion, matching how landing zones are classified.
  *
  * The result carries the raw mask plus a `MultiPolygon` built as one
  * rectangular ring per reachable cell — MapLibre's fill layer renders it
@@ -22,7 +26,7 @@
 import type { ElevationGrid } from './elevation';
 import { sampleElevation } from './elevation';
 import type { LocalCheckParams } from './localCheck';
-import { glideClearsTerrain } from './glide';
+import { glideClearsTerrain, terrainStepFor } from './glide';
 import { MinHeap } from './routing/minHeap';
 import { haversineDistanceM } from './units';
 
@@ -35,10 +39,14 @@ export const REACHABLE_ZONE_GRID_SIZES: ReachableZoneGridSizeM[] = [
 export const REACHABLE_ZONE_CELL_CAP = 100_000;
 export const REACHABLE_ZONE_MAX_DIAMETER_KM = 60;
 export const REACHABLE_ZONE_MIN_DIAMETER_KM = 10;
+/**
+ * Granularity of the diameter, in km. `resolveEffectiveParams` shrinks by
+ * this amount per degradation step and the settings panel offers the same
+ * increments, so a diameter picked in the UI always lands on a value the
+ * degradation ladder can represent.
+ */
+export const REACHABLE_ZONE_DIAMETER_STEP_KM = 5;
 
-/** Samples taken along each source→cell ray for the terrain-clearance
- * check. Deliberately sparse: it runs once per grid cell. */
-const RAY_CLEARANCE_SAMPLES = 10;
 
 export interface ReachableZoneParams {
   gridSizeM: ReachableZoneGridSizeM;
@@ -121,7 +129,10 @@ export function resolveEffectiveParams(requested: ReachableZoneParams): {
       continue;
     }
     if (diameterKm > REACHABLE_ZONE_MIN_DIAMETER_KM) {
-      diameterKm = Math.max(REACHABLE_ZONE_MIN_DIAMETER_KM, diameterKm - 5);
+      diameterKm = Math.max(
+        REACHABLE_ZONE_MIN_DIAMETER_KM,
+        diameterKm - REACHABLE_ZONE_DIAMETER_STEP_KM,
+      );
       degraded = true;
       continue;
     }
@@ -135,6 +146,82 @@ export function resolveEffectiveParams(requested: ReachableZoneParams): {
       sizes[sizeIdx] !== requested.gridSizeM ||
       diameterKm !== requested.diameterKm,
   };
+}
+
+/**
+ * Finest grid size that carries real terrain information for a DEM of
+ * `demResolutionM` metres: the smallest offered step not below the DEM's own
+ * cell size.
+ *
+ * Zone cells closer together than one DEM cell are bilinearly interpolated
+ * from the same four DEM corners (see `sampleElevation`), so they add no
+ * terrain detail — only a smoother polygon edge drawn over invented values,
+ * at 4× the compute per halving. Note the en-route clearance check is
+ * unaffected either way: it derives its own step from `terrainStepFor`, not
+ * from the zone grid, so this is a precision/cost trade-off and not a safety
+ * one.
+ *
+ * `demResolutionM` is the DEM's *meridional* step; east-west ground spacing
+ * is `resolutionM × cos(lat)` and therefore finer, which is why we round up
+ * to the next offered step rather than down.
+ */
+export function finestUsefulGridSizeM(
+  demResolutionM: number,
+): ReachableZoneGridSizeM {
+  if (!Number.isFinite(demResolutionM) || demResolutionM <= 0) {
+    return DEFAULT_REACHABLE_ZONE_PARAMS.gridSizeM;
+  }
+  const sizes = REACHABLE_ZONE_GRID_SIZES;
+  return sizes.find((s) => s >= demResolutionM) ?? sizes[sizes.length - 1];
+}
+
+/**
+ * Largest diameter that fits `REACHABLE_ZONE_CELL_CAP` at `gridSizeM`,
+ * snapped down to `REACHABLE_ZONE_DIAMETER_STEP_KM` and clamped to the
+ * offered range. Staying within this bound guarantees that
+ * `resolveEffectiveParams` has nothing left to degrade.
+ */
+export function maxDiameterKmForGridSize(gridSizeM: number): number {
+  // cells = (ceil(d × 1000 / s) + 1)² ≤ cap  ⟹  d ≤ (√cap − 1) × s / 1000
+  const maxCellsPerSide = Math.floor(Math.sqrt(REACHABLE_ZONE_CELL_CAP));
+  const rawKm = ((maxCellsPerSide - 1) * gridSizeM) / 1000;
+  const snappedKm =
+    Math.floor(rawKm / REACHABLE_ZONE_DIAMETER_STEP_KM) *
+    REACHABLE_ZONE_DIAMETER_STEP_KM;
+  return Math.max(
+    REACHABLE_ZONE_MIN_DIAMETER_KM,
+    Math.min(REACHABLE_ZONE_MAX_DIAMETER_KM, snappedKm),
+  );
+}
+
+/**
+ * Coarsest grid size offered — the fastest to compute and the one
+ * `recommendedReachableZoneParams` defaults to. Unlike `finestUsefulGridSizeM`
+ * this doesn't depend on the DEM: the coarsest step is always a safe (if
+ * imprecise) choice, whatever the terrain data's own resolution.
+ */
+export function coarsestUsefulGridSizeM(): ReachableZoneGridSizeM {
+  const sizes = REACHABLE_ZONE_GRID_SIZES;
+  return sizes[sizes.length - 1];
+}
+
+/**
+ * Default zone parameters for a freshly loaded flight: the coarsest offered
+ * grid — fewest cells, fastest terrain-aware recompute during replay —
+ * keeping the caller's diameter but clamping it to what fits the cell budget
+ * at that grid size. Users who want finer detail can still pick a smaller
+ * grid size in the settings panel (bounded below by `finestUsefulGridSizeM`
+ * so it never drops below what the DEM actually supports).
+ */
+export function recommendedReachableZoneParams(
+  requestedDiameterKm: number = DEFAULT_REACHABLE_ZONE_PARAMS.diameterKm,
+): ReachableZoneParams {
+  const gridSizeM = coarsestUsefulGridSizeM();
+  const diameterKm = Math.max(
+    REACHABLE_ZONE_MIN_DIAMETER_KM,
+    Math.min(maxDiameterKmForGridSize(gridSizeM), requestedDiameterKm),
+  );
+  return { gridSizeM, diameterKm };
 }
 
 /**
@@ -179,6 +266,8 @@ export function computeReachableZone(
   const latStep = (maxLat - minLat) / (rows - 1);
   const lonStep = (maxLon - minLon) / (cols - 1);
 
+  const terrainStepM = terrainStepFor(grid);
+
   // Terrain-aware routing: one Dijkstra outward from the pilot on the
   // reachable-zone grid gives us the shortest routed distance to every
   // cell in a single pass. Cells left at Infinity are unreachable via
@@ -199,6 +288,7 @@ export function computeReachableZone(
         grid,
         workingLD: params.workingLD,
         groundClearanceM: params.groundClearanceM,
+        terrainStepM,
       })
     : null;
 
@@ -227,8 +317,11 @@ export function computeReachableZone(
 
       if (margin < params.arrivalHeightM) continue;
 
-      // Sparse ray check: ~10 samples rather than the accurate 200 m step,
-      // because this runs once per grid cell (accuracy vs speed tradeoff).
+      // Direct ray, sampled at DEM resolution and subject to the same
+      // ground-clearance buffer as the routed pass below. A fixed sample
+      // count (this used to take 10, whatever the range) spaces samples
+      // ~900 m apart on a 9 km ray, so a whole ridge fits between two of
+      // them and terrain-blocked cells were painted as reachable.
       if (
         !glideClearsTerrain({
           fromLat: sourceLat,
@@ -239,7 +332,8 @@ export function computeReachableZone(
           distanceM: distM,
           workingLD: params.workingLD,
           grid,
-          steps: RAY_CLEARANCE_SAMPLES,
+          groundClearanceM: params.groundClearanceM,
+          stepM: terrainStepM,
         })
       ) {
         // Straight-line blocked. Legacy behaviour: skip. With terrain-aware
@@ -312,6 +406,7 @@ interface RoutedDistancesInput {
   grid: ElevationGrid;
   workingLD: number;
   groundClearanceM: number;
+  terrainStepM: number;
 }
 
 const DIJKSTRA_NEIGHBOR_OFFSETS: Array<[number, number]> = [
@@ -335,6 +430,7 @@ function computeRoutedDistances(input: RoutedDistancesInput): Float32Array {
     grid,
     workingLD,
     groundClearanceM,
+    terrainStepM,
   } = input;
 
   const size = cols * rows;
@@ -350,10 +446,21 @@ function computeRoutedDistances(input: RoutedDistancesInput): Float32Array {
     Math.min(cols - 1, Math.round((sourceLon - minLon) / lonStep)),
   );
   const srcIdx = srcR * cols + srcC;
-  gCost[srcIdx] = 0;
+  // Seed with the distance from the true position to the snapped cell centre
+  // (up to ~0.7 cell). Starting at 0 would hand the routed branch a free
+  // head start the straight-line branch — measured from the real source —
+  // never gets, so a detour could report a *better* arrival than the direct
+  // glide, which is physically impossible.
+  const srcOffsetM = haversineDistanceM(
+    sourceLat,
+    sourceLon,
+    minLat + srcR * latStep,
+    minLon + srcC * lonStep,
+  );
+  gCost[srcIdx] = srcOffsetM;
 
   const open = new MinHeap();
-  open.push(srcIdx, 0);
+  open.push(srcIdx, srcOffsetM);
 
   while (open.size() > 0) {
     const cur = open.pop()!;
@@ -387,8 +494,8 @@ function computeRoutedDistances(input: RoutedDistancesInput): Float32Array {
       if (newG >= gCost[nIdx]) continue;
 
       // Glide plane from `altAtCur` at (lat, lon) must clear terrain
-      // (+ ground clearance) along the segment to the neighbour. Uses
-      // the coarse-but-accurate 200 m step from `glideClearsTerrain`.
+      // (+ ground clearance) along the segment to the neighbour, sampled at
+      // DEM resolution.
       if (
         !glideClearsTerrain({
           fromLat: lat,
@@ -400,7 +507,7 @@ function computeRoutedDistances(input: RoutedDistancesInput): Float32Array {
           workingLD,
           grid,
           groundClearanceM,
-          stepM: 200,
+          stepM: terrainStepM,
         })
       ) {
         continue;

@@ -13,6 +13,20 @@ const STATUS_COLOR_FOR_PATH: Record<EscapePath['status'], string> = {
   'out-of-local': STATUS_COLORS['out-of-local'],
 };
 
+/**
+ * Glide-plane series, cut off at the LZ.
+ *
+ * The profile is sampled ~20 % past the target to give the terrain trace some
+ * context, but the glide plane has no meaning there — the glider has landed.
+ * Extending it makes the line dive into the terrain beyond the field, which
+ * reads exactly like an escape path flying into the ground.
+ */
+function glideSeries(escapePath: EscapePath): Array<number | null> {
+  return escapePath.profile.map((p) =>
+    p.distFromSourceM <= escapePath.totalDistanceM + 1 ? p.glideAltM : null,
+  );
+}
+
 function getChartColors(isDark: boolean) {
   return {
     axisStroke: isDark ? '#a1a1aa' : '#52525b',
@@ -47,11 +61,13 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
   // MapLibre paint that keeps the arrival-height labels in sync.
   const escapePathRef = useRef<EscapePath | null>(escapePath);
   const arrivalHeightMRef = useRef(localCheckParams.arrivalHeightM);
+  const groundClearanceMRef = useRef(localCheckParams.groundClearanceM);
   // Sync refs in a layout effect so they are updated before the `setData`
   // effect below fires uPlot's `draw` hook.
   useEffect(() => {
     escapePathRef.current = escapePath;
     arrivalHeightMRef.current = localCheckParams.arrivalHeightM;
+    groundClearanceMRef.current = localCheckParams.groundClearanceM;
   });
 
   // Build the uPlot chart when it first has data or when the theme /
@@ -65,8 +81,14 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
 
     const distanceKm = initial.profile.map((p) => p.distFromSourceM / 1000);
     const terrain = initial.profile.map((p) => p.terrainM);
-    const glide = initial.profile.map((p) => p.glideAltM);
-    const data: uPlot.AlignedData = [distanceKm, terrain, glide];
+    const glide = glideSeries(initial);
+    const initialClearance = groundClearanceMRef.current;
+    const clearance = initial.profile.map((p) =>
+      initialClearance > 0 && p.terrainM !== null
+        ? p.terrainM + initialClearance
+        : null,
+    );
+    const data: uPlot.AlignedData = [distanceKm, terrain, clearance, glide];
 
     const { axisStroke, gridStroke } = getChartColors(theme === 'dark');
 
@@ -80,6 +102,13 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
           stroke: 'rgba(160, 100, 40, 0.7)',
           fill: 'rgba(160, 100, 40, 0.3)',
           width: 1,
+          points: { show: false },
+        },
+        {
+          label: t('escapePath.groundClearanceSeries'),
+          stroke: 'rgba(147, 51, 234, 0.9)',
+          width: 1,
+          dash: [4, 4],
           points: { show: false },
         },
         {
@@ -200,9 +229,13 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
     if (!plot || !escapePath) return;
     const distanceKm = escapePath.profile.map((p) => p.distFromSourceM / 1000);
     const terrain = escapePath.profile.map((p) => p.terrainM);
-    const glide = escapePath.profile.map((p) => p.glideAltM);
-    plot.setData([distanceKm, terrain, glide]);
-  }, [escapePath]);
+    const glide = glideSeries(escapePath);
+    const gc = localCheckParams.groundClearanceM;
+    const clearance = escapePath.profile.map((p) =>
+      gc > 0 && p.terrainM !== null ? p.terrainM + gc : null,
+    );
+    plot.setData([distanceKm, terrain, clearance, glide]);
+  }, [escapePath, localCheckParams.groundClearanceM]);
 
   if (!flight || !localCheckResult || landingZones.length === 0) {
     return (
@@ -241,9 +274,21 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
           {statusLabel}
         </span>
       </div>
-      <div className="px-2 pt-1 text-[10px] text-muted-foreground">
+      <div
+        className={
+          escapePath.routing === 'no-safe-path'
+            ? 'px-2 pt-1 text-[10px] font-medium text-destructive'
+            : 'px-2 pt-1 text-[10px] text-muted-foreground'
+        }
+      >
         <Trans
-          i18nKey="escapePath.profileSubtitle"
+          i18nKey={
+            escapePath.routing === 'no-safe-path'
+              ? 'escapePath.profileSubtitleNoSafePath'
+              : escapePath.routing === 'routed'
+                ? 'escapePath.profileSubtitleRouted'
+                : 'escapePath.profileSubtitle'
+          }
           values={{
             lzName,
             lzElevM: Math.round(escapePath.lzElevM),

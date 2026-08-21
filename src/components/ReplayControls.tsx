@@ -67,7 +67,7 @@ export function ReplayControls() {
 
   return (
     <>
-        <div className="h-12 flex items-center gap-2 p-2">
+        <div className="h-12 flex w-full items-center gap-2 p-2">
             <Button 
                 variant="secondary" 
                 size="icon"

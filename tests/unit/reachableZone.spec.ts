@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   computeReachableZone,
   resolveEffectiveParams,
+  finestUsefulGridSizeM,
+  coarsestUsefulGridSizeM,
+  maxDiameterKmForGridSize,
+  recommendedReachableZoneParams,
   REACHABLE_ZONE_CELL_CAP,
+  REACHABLE_ZONE_GRID_SIZES,
+  REACHABLE_ZONE_MIN_DIAMETER_KM,
   DEFAULT_REACHABLE_ZONE_PARAMS,
   buildCellPolygons,
   type ReachableZoneGridSizeM,
@@ -55,6 +61,107 @@ describe('resolveEffectiveParams', () => {
       diameterKm: 999,
     });
     expect(effective.diameterKm).toBeLessThanOrEqual(60);
+  });
+});
+
+describe('finestUsefulGridSizeM', () => {
+  // The resolutions the elevation backends actually produce: they start at
+  // 1 arcsec (~31 m) and double the step until the grid fits their sample
+  // budget, so only powers of two of 31 m ever appear.
+  it.each([
+    [62, 90], // local flight
+    [124, 180], // ~100 km XC
+    [247, 360], // most XC
+    [494, 720], // very long XC
+  ])('maps a %i m DEM to a %i m grid', (demResolutionM, expected) => {
+    expect(finestUsefulGridSizeM(demResolutionM)).toBe(expected);
+  });
+
+  it('never returns a size below the DEM resolution', () => {
+    for (const dem of [31, 62, 100, 124, 200, 247, 359, 494]) {
+      expect(finestUsefulGridSizeM(dem)).toBeGreaterThanOrEqual(
+        Math.min(dem, REACHABLE_ZONE_GRID_SIZES[0]),
+      );
+    }
+  });
+
+  it('falls back to the coarsest size for a DEM coarser than every option', () => {
+    expect(finestUsefulGridSizeM(5000)).toBe(720);
+  });
+
+  it('falls back to the default for a missing or absurd resolution', () => {
+    expect(finestUsefulGridSizeM(NaN)).toBe(
+      DEFAULT_REACHABLE_ZONE_PARAMS.gridSizeM,
+    );
+    expect(finestUsefulGridSizeM(0)).toBe(
+      DEFAULT_REACHABLE_ZONE_PARAMS.gridSizeM,
+    );
+  });
+});
+
+describe('maxDiameterKmForGridSize', () => {
+  it('produces a diameter that resolveEffectiveParams never degrades', () => {
+    for (const gridSizeM of REACHABLE_ZONE_GRID_SIZES) {
+      const diameterKm = maxDiameterKmForGridSize(gridSizeM);
+      const { effective, degraded } = resolveEffectiveParams({
+        gridSizeM,
+        diameterKm,
+      });
+      expect(effective).toEqual({ gridSizeM, diameterKm });
+      expect(degraded).toBe(false);
+    }
+  });
+
+  it('is the largest step-aligned diameter that fits the cap', () => {
+    for (const gridSizeM of REACHABLE_ZONE_GRID_SIZES) {
+      const diameterKm = maxDiameterKmForGridSize(gridSizeM);
+      const cellsFor = (dKm: number) => {
+        const n = Math.ceil((dKm * 1000) / gridSizeM) + 1;
+        return n * n;
+      };
+      expect(cellsFor(diameterKm)).toBeLessThanOrEqual(REACHABLE_ZONE_CELL_CAP);
+      // One step further is either over the cap or past the offered maximum.
+      const next = diameterKm + 5;
+      expect(next > 60 || cellsFor(next) > REACHABLE_ZONE_CELL_CAP).toBe(true);
+    }
+  });
+
+  it('never drops below the minimum diameter', () => {
+    expect(maxDiameterKmForGridSize(1)).toBe(REACHABLE_ZONE_MIN_DIAMETER_KM);
+  });
+});
+
+describe('coarsestUsefulGridSizeM', () => {
+  it('is the largest offered grid size', () => {
+    expect(coarsestUsefulGridSizeM()).toBe(
+      REACHABLE_ZONE_GRID_SIZES[REACHABLE_ZONE_GRID_SIZES.length - 1],
+    );
+  });
+});
+
+describe('recommendedReachableZoneParams', () => {
+  it('defaults every flight to the coarsest (fastest) grid', () => {
+    expect(recommendedReachableZoneParams(40)).toEqual({
+      gridSizeM: coarsestUsefulGridSizeM(),
+      diameterKm: 40,
+    });
+  });
+
+  it('preserves a diameter that already fits', () => {
+    expect(recommendedReachableZoneParams(20).diameterKm).toBe(20);
+  });
+
+  it('passes through the max offered diameter unclamped at the coarsest grid', () => {
+    // At 720 m the cell cap allows well past 60 km, so the full offered
+    // range fits without degradation.
+    expect(recommendedReachableZoneParams(60).diameterKm).toBe(60);
+  });
+
+  it('is a fixed point of resolveEffectiveParams for every requested diameter', () => {
+    for (const requested of [10, 20, 40, 60]) {
+      const params = recommendedReachableZoneParams(requested);
+      expect(resolveEffectiveParams(params).degraded).toBe(false);
+    }
   });
 });
 
@@ -116,6 +223,120 @@ describe('computeReachableZone', () => {
     expect(result.cols * result.rows).toBeLessThanOrEqual(
       REACHABLE_ZONE_CELL_CAP,
     );
+  });
+});
+
+/**
+ * ~110 m DEM, flat at sea level except one north–south ridge of height
+ * `crestM` and width `widthDeg` at lon 6.05 — about 4 km east of a source
+ * placed at (43, 6).
+ */
+function ridgeDem(crestM: number, widthDeg: number): ElevationGrid {
+  const stepDeg = 1 / 1000;
+  const minLon = 5.8;
+  const minLat = 42.8;
+  const cols = 401;
+  const rows = 401;
+  const data = new Float32Array(cols * rows);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const lon = minLon + c * stepDeg;
+      data[r * cols + c] = Math.abs(lon - 6.05) <= widthDeg / 2 ? crestM : 0;
+    }
+  }
+  return {
+    bbox: [
+      minLon,
+      minLat,
+      minLon + (cols - 1) * stepDeg,
+      minLat + (rows - 1) * stepDeg,
+    ],
+    cols,
+    rows,
+    resolutionM: 110,
+    data,
+    crs: 'EPSG:4326',
+  };
+}
+
+function isReachableAt(
+  zone: ReturnType<typeof computeReachableZone>,
+  lat: number,
+  lon: number,
+): boolean {
+  const [minLon, minLat, maxLon, maxLat] = zone.bbox;
+  const r = Math.round(
+    (lat - minLat) / ((maxLat - minLat) / (zone.rows - 1)),
+  );
+  const c = Math.round(
+    (lon - minLon) / ((maxLon - minLon) / (zone.cols - 1)),
+  );
+  return zone.reachableMask[r * zone.cols + c] === 1;
+}
+
+describe('computeReachableZone terrain clearance', () => {
+  // Regression: the per-cell ray used to omit `groundClearanceM` entirely,
+  // while the terrain-aware Dijkstra pass applied it — so cells in direct
+  // view were held to a laxer standard than cells behind a ridge.
+  it('applies the ground-clearance buffer to the direct ray', () => {
+    // Crest 2000 m, 4 km east. At 2250 m and L/D 20 the ray passes the crest
+    // at 2050 m — 50 m of clearance, against a 150 m setting.
+    for (const terrainAwareRouting of [false, true]) {
+      const zone = computeReachableZone({
+        sourceLat: 43,
+        sourceLon: 6,
+        sourceAltM: 2250,
+        grid: ridgeDem(2000, 0.01),
+        params: { ...PARAMS, arrivalHeightM: 0 },
+        zoneParams: { gridSizeM: 180, diameterKm: 20 },
+        terrainAwareRouting,
+      });
+      expect(isReachableAt(zone, 43, 6.09)).toBe(false);
+    }
+  });
+
+  // Regression: the ray took a fixed 10 samples whatever the range, so on a
+  // 9 km ray they sat ~900 m apart and a whole ridge could fall between two.
+  it('does not step over a narrow ridge', () => {
+    for (const widthDeg of [0.04, 0.004]) {
+      const zone = computeReachableZone({
+        sourceLat: 43,
+        sourceLon: 6,
+        sourceAltM: 1500,
+        grid: ridgeDem(3000, widthDeg),
+        params: { ...PARAMS, arrivalHeightM: 0 },
+        zoneParams: { gridSizeM: 180, diameterKm: 20 },
+        terrainAwareRouting: true,
+      });
+      // The glider is 1500 m below the crest: nothing beyond it is reachable,
+      // by any path, at any ridge width.
+      expect(isReachableAt(zone, 43, 6.09)).toBe(false);
+    }
+  });
+
+  it('never reports a routed arrival better than the direct glide', () => {
+    // Source deliberately off-lattice, flat terrain: the routed pass must not
+    // gain distance from snapping its origin to the nearest cell centre.
+    const zone = computeReachableZone({
+      sourceLat: 43.0007,
+      sourceLon: 6.0007,
+      sourceAltM: 3000,
+      grid: ridgeDem(0, 0),
+      params: PARAMS,
+      zoneParams: { gridSizeM: 180, diameterKm: 20 },
+      terrainAwareRouting: true,
+    });
+    const straight = computeReachableZone({
+      sourceLat: 43.0007,
+      sourceLon: 6.0007,
+      sourceAltM: 3000,
+      grid: ridgeDem(0, 0),
+      params: PARAMS,
+      zoneParams: { gridSizeM: 180, diameterKm: 20 },
+      terrainAwareRouting: false,
+    });
+    const count = (m: Uint8Array) => m.reduce((a, b) => a + b, 0);
+    expect(count(zone.reachableMask)).toBe(count(straight.reachableMask));
   });
 });
 

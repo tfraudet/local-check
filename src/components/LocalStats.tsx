@@ -7,6 +7,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Progress } from './ui/progress';
+import { Spinner } from './ui/spinner';
 
 export function LocalStats() {
   const { t } = useTranslation();
@@ -26,9 +27,13 @@ export function LocalStats() {
 
   if (isComputing || !result) {
     return (
-      <p className="animate-pulse text-xs text-muted-foreground">
+      // <p className="animate-pulse text-xs text-muted-foreground">
+      //   {t('upload.computing')}
+      // </p>
+      <Badge variant="destructive" className="bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300">
+        <Spinner data-icon="inline-start" />
         {t('upload.computing')}
-      </p>
+      </Badge>
     );
   }
 

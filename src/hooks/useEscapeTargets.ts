@@ -4,13 +4,23 @@ import { useFlightStore } from '@/state/useFlightStore';
 import { findCurrentFixIndex } from '@/domain/flight';
 import { haversineDistanceM, pickAltitude } from '@/domain/units';
 import { arrivalHeightAboveGroundM, classifyArrival, pickBestLandingZone } from '@/domain/arrival';
-import { computeEscapePath, type EscapePath } from '@/domain/escapePath';
+import {
+  computeEscapePath,
+  type EscapePath,
+  type EscapeRouting,
+} from '@/domain/escapePath';
 import { routeToLz } from '@/domain/routing/routeToLz';
+import { useThrottledValue } from './useThrottledValue';
 
 /** Skip arrival-height labels for LZs beyond this range — far LZs are
  * never reachable and only clutter the map. */
 const ARRIVAL_HEIGHT_MAX_DISTANCE_KM = 60;
 const ARRIVAL_HEIGHT_MAX_DISTANCE_M = ARRIVAL_HEIGHT_MAX_DISTANCE_KM * 1000;
+
+/** Recompute at most this often during replay — terrain-aware routing runs a
+ * Theta* search per visible LZ, synchronously on the main thread, so redoing
+ * it on every ~16ms animation frame causes visible jank. */
+const ESCAPE_PATH_RECOMPUTE_THROTTLE_MS = 200;
 
 export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
   const showArrivalHeights = useFlightStore((s) => s.settings.showArrivalHeights);
@@ -23,9 +33,11 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
 
   const elevationGrid = useFlightStore((s) => s.elevationGrid);
 
+  const throttledTimeMs = useThrottledValue(currentTimeMs, ESCAPE_PATH_RECOMPUTE_THROTTLE_MS);
+
   const nextFeatures = useMemo<ArrivalHeightFeature[]>(() => {
     if (!showArrivalHeights || !flight) return [];
-    const index = findCurrentFixIndex(flight, currentTimeMs);
+    const index = findCurrentFixIndex(flight, throttledTimeMs);
     if (index < 0) return [];
     const position = flight.fixes[index];
     const latitude = position.latitude;
@@ -60,6 +72,7 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
           groundClearanceM: settings.groundClearanceM,
           grid: elevationGrid,
           maxNodes: 5_000,
+          targetElevM: lz.elevationM ?? undefined,
         });
         if (route) routedDistanceM = route.distanceM;
       }
@@ -82,7 +95,7 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
     }
 
     return features;
-  }, [showArrivalHeights, landingZones, visibleLandingZoneIds, settings, flight, currentTimeMs, altitudeSource, elevationGrid]);
+  }, [showArrivalHeights, landingZones, visibleLandingZoneIds, settings, flight, throttledTimeMs, altitudeSource, elevationGrid]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -108,6 +121,7 @@ export function useCurrentEscapePath(): EscapePath | null {
   const flight = useFlightStore((s) => s.flight);
   const altitudeSource = useFlightStore((s) => s.altitudeSource);
 
+  const throttledTimeMs = useThrottledValue(currentTimeMs, ESCAPE_PATH_RECOMPUTE_THROTTLE_MS);
 
   const nextPath = useMemo<EscapePath | null>(() => {
     // const startTime = import.meta.env.DEV ? performance.now() : 0;
@@ -115,7 +129,7 @@ export function useCurrentEscapePath(): EscapePath | null {
     if ( !flight) return null;
     if (!elevationGrid || !localCheckResult) return null;
 
-    const index = findCurrentFixIndex(flight, currentTimeMs);
+    const index = findCurrentFixIndex(flight, throttledTimeMs);
     if (index < 0) return null;
     const position = flight.fixes[index];
     const latitude = position.latitude;
@@ -137,6 +151,7 @@ export function useCurrentEscapePath(): EscapePath | null {
             groundClearanceM: settings.groundClearanceM,
             grid: elevationGrid,
             maxNodes: 5_000,
+            targetElevM: lz.elevationM ?? undefined,
           });
           return route ? route.distanceM : null;
         }
@@ -156,6 +171,12 @@ export function useCurrentEscapePath(): EscapePath | null {
     // For the escape polyline, compute the full route (path + distance) to
     // the chosen LZ. Cheap re-invocation: `routeToLz` short-circuits to
     // straight-line when terrain isn't in the way.
+    //
+    // Larger node budget than the per-LZ loops above: this is one search per
+    // replay tick, not one per visible LZ, and it is the path actually drawn
+    // on the map. A coarse search grid stays *safe* (every segment is still
+    // clearance-checked at DEM resolution) but snaps detours to a ~800 m
+    // lattice and gives up on valleys it cannot thread.
     const route = settings.terrainAwareRouting
       ? routeToLz({
           sourceLat: latitude,
@@ -166,9 +187,28 @@ export function useCurrentEscapePath(): EscapePath | null {
           workingLD: settings.workingLD,
           groundClearanceM: settings.groundClearanceM,
           grid: elevationGrid,
-          maxNodes: 5_000,
+          maxNodes: 30_000,
+          targetElevM: lz.elevationM ?? undefined,
+          onFailure: import.meta.env.DEV
+            ? (reason) =>
+                console.log(
+                  `[useCurrentEscapePath] no route to ${lz.id}: ${reason}`,
+                )
+            : undefined,
         })
       : null;
+
+    // Which of the four outcomes we are in. `isStraightLine` means the direct
+    // segment was *verified* clear (short-circuit, or the search returning it
+    // unchanged); a null route means nothing safe was found and the straight
+    // line below is reference geometry only.
+    const routing: EscapeRouting = !settings.terrainAwareRouting
+      ? 'off'
+      : route === null
+        ? 'no-safe-path'
+        : route.isStraightLine
+          ? 'straight-clear'
+          : 'routed';
 
     // Extend the profile 20% beyond the source→LZ distance so the chart
     // always shows some post-LZ context, scaled to the escape length.
@@ -191,6 +231,7 @@ export function useCurrentEscapePath(): EscapePath | null {
       params: settings,
       extraDistanceM: targetDistM * 0.2,
       route: route ? route.path : undefined,
+      routing,
     });
 
     // if (import.meta.env.DEV) {
@@ -200,7 +241,7 @@ export function useCurrentEscapePath(): EscapePath | null {
     // }
 
     return path;
-  }, [elevationGrid, localCheckResult, landingZones, visibleLandingZoneIds, settings, flight, currentTimeMs, altitudeSource]);
+  }, [elevationGrid, localCheckResult, landingZones, visibleLandingZoneIds, settings, flight, throttledTimeMs, altitudeSource]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {

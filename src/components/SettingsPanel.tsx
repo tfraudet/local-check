@@ -6,7 +6,7 @@ import { Separator } from './ui/separator';
 import { useFlightStore } from '@/state/useFlightStore';
 import { Switch } from './ui/switch';
 import { Button } from './ui/button';
-import { REACHABLE_ZONE_CELL_CAP, REACHABLE_ZONE_GRID_SIZES, REACHABLE_ZONE_MAX_DIAMETER_KM, REACHABLE_ZONE_MIN_DIAMETER_KM, type ReachableZoneGridSizeM } from '@/domain/reachableZone';
+import { finestUsefulGridSizeM, maxDiameterKmForGridSize, REACHABLE_ZONE_CELL_CAP, REACHABLE_ZONE_DIAMETER_STEP_KM, REACHABLE_ZONE_GRID_SIZES, REACHABLE_ZONE_MIN_DIAMETER_KM, type ReachableZoneGridSizeM } from '@/domain/reachableZone';
 import { LandingZonesPanel } from './LandingZonesPanel';
 import { track } from '@/lib/analytics';
 import type { ElevationSource } from '@/services/elevationApi';
@@ -95,10 +95,23 @@ export function SettingsPanel() {
   const enabledSources = useFlightStore((s) => s.settings.enabledSources);
   const setSourceEnabled = useFlightStore((s) => s.setSourceEnabled);
   const result = useFlightStore((s) => s.reachableZoneResult);
+  const demResolutionM = useFlightStore(
+    (s) => s.elevationGrid?.resolutionM ?? null,
+  );
 
   const update = (patch: Parameters<typeof setSettings>[0]) => {
     setSettings(patch);
   };
+
+  // Grid sizes below the DEM's own cell size add no terrain detail — they
+  // bilinearly interpolate the same cells at 4× the cost per halving — so
+  // they are offered only until the terrain resolution is known.
+  const finestUsefulM =
+    demResolutionM === null ? null : finestUsefulGridSizeM(demResolutionM);
+  const { gridSizeM, diameterKm } = settings.reachableZoneParams;
+  // Keep the diameter within the cell budget for the selected grid size so
+  // the worker never has to silently degrade a combination picked here.
+  const maxDiameterKm = maxDiameterKmForGridSize(gridSizeM);
 
   return (
     <>
@@ -257,29 +270,52 @@ export function SettingsPanel() {
                   {t('reachableZone.gridSize')}
               </label>
               <div className="flex gap-1">
-                {REACHABLE_ZONE_GRID_SIZES.map((size) => (
-                  <button
-                    key={size}
-                    type="button"
-                    onClick={() =>
-                      update({
-                        reachableZoneParams: {
-                          ...settings.reachableZoneParams,
-                          gridSizeM: size as ReachableZoneGridSizeM,
-                        },
-                      })
-                    }
-                    className={
-                      'flex-1 rounded border px-2 py-1 text-xs transition ' +
-                      (settings.reachableZoneParams.gridSizeM === size
-                        ? 'border-primary bg-primary/10 font-semibold'
-                        : 'border-border hover:bg-accent/40')
-                    }
-                  >
-                    {size} m
-                  </button>
-                ))}
-              </div>           
+                {REACHABLE_ZONE_GRID_SIZES.map((size) => {
+                  const tooFine = finestUsefulM !== null && size < finestUsefulM;
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      disabled={tooFine}
+                      title={
+                        tooFine
+                          ? t('reachableZone.gridSizeTooFineHint', {
+                              resolutionM: demResolutionM,
+                            })
+                          : undefined
+                      }
+                      onClick={() =>
+                        update({
+                          reachableZoneParams: {
+                            gridSizeM: size as ReachableZoneGridSizeM,
+                            diameterKm: Math.min(
+                              diameterKm,
+                              maxDiameterKmForGridSize(size),
+                            ),
+                          },
+                        })
+                      }
+                      className={
+                        'flex-1 rounded border px-2 py-1 text-xs transition ' +
+                        (tooFine
+                          ? 'cursor-not-allowed border-border text-muted-foreground/40'
+                          : gridSizeM === size
+                            ? 'border-primary bg-primary/10 font-semibold'
+                            : 'border-border hover:bg-accent/40')
+                      }
+                    >
+                      {size} m
+                    </button>
+                  );
+                })}
+              </div>
+              {demResolutionM !== null && (
+                <p className="text-[10px] text-muted-foreground">
+                  {t('reachableZone.demResolution', {
+                    resolutionM: demResolutionM,
+                  })}
+                </p>
+              )}
             </div>
             
             <div className="space-y-1">
@@ -293,9 +329,9 @@ export function SettingsPanel() {
               <input
                 type="number"
                 min={REACHABLE_ZONE_MIN_DIAMETER_KM}
-                max={REACHABLE_ZONE_MAX_DIAMETER_KM}
-                step={10}
-                value={settings.reachableZoneParams.diameterKm}
+                max={maxDiameterKm}
+                step={REACHABLE_ZONE_DIAMETER_STEP_KM}
+                value={diameterKm}
                 onChange={(e) => {
                   const n = parseFloat(e.target.value);
                   if (!isNaN(n)) {
@@ -304,7 +340,7 @@ export function SettingsPanel() {
                         ...settings.reachableZoneParams,
                         diameterKm: Math.max(
                           REACHABLE_ZONE_MIN_DIAMETER_KM,
-                          Math.min(REACHABLE_ZONE_MAX_DIAMETER_KM, n),
+                          Math.min(maxDiameterKm, n),
                         ),
                       },
                     });
@@ -317,9 +353,9 @@ export function SettingsPanel() {
               <input
                 type="range"
                 min={REACHABLE_ZONE_MIN_DIAMETER_KM}
-                max={REACHABLE_ZONE_MAX_DIAMETER_KM}
-                step={10}
-                value={settings.reachableZoneParams.diameterKm}
+                max={maxDiameterKm}
+                step={REACHABLE_ZONE_DIAMETER_STEP_KM}
+                value={diameterKm}
                 onChange={(e) =>
                   update({
                     reachableZoneParams: {

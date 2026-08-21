@@ -92,6 +92,24 @@ Métriques affichées :
 - **Hauteur manquante max** — Plus grand déficit enregistré
 - **Nombre de sorties** — Combien d'épisodes hors local distincts se sont produits
 - **Aller à la première sortie** — Cliquer pour positionner le rejeu au premier instant hors local
+- **Marge la plus faible** — À quel point le vol s'est approché de la sortie du local, même s'il n'en est jamais sorti (croisière uniquement, voir ci-dessous)
+
+### Phases de vol et prise en compte dans les statistiques
+
+Le vol est échantillonné selon le **Pas de temps** configuré, et chaque échantillon reçoit une phase de vol avant d'être classé. **Seule la phase de croisière est évaluée sur la géométrie du plané.** Les autres phases sont toujours comptées *dans le local*, quelle que soit leur hauteur d'arrivée :
+
+| Phase | Détection | Effet sur les statistiques |
+|-------|-----------|----------------------------|
+| **Montée initiale** (remorqué / treuil) | Uniquement si l'enregistrement commence planeur à l'arrêt. À partir du roulage, on cherche une montée soutenue (Vz ≥ 1,5 m/s pendant 15 s, ou 50 m gagnés), puis le largage est détecté sur la trace altimétrique — altitude restant 10 m sous son maximum courant pendant 5 s — ou sur le virage de dégagement qui le suit (> 8 °/s), avec une limite haute à 900 m gagnés. Tout ce qui va du premier point au largage est marqué, points au sol inclus. | Compté dans le local. Sans cela, un planeur à l'arrêt sur la piste et le début du remorquage seraient comptés hors local. |
+| **Moteur** | Valeur ENL / MOP du fichier IGC supérieure ou égale au **Seuil ENL**. | Compté dans le local : c'est le moteur, et non un plané, qui maintient l'appareil en l'air. |
+| **Arrivée finale** | Uniquement si **Détecter l'arrivée finale** est activé. En remontant depuis le dernier point tant que l'on est sous 300 m sol et à moins de 3 km du point d'atterrissage (le circuit d'atterrissage), puis prolongée plus en amont sur la descente engagée — sans reprise d'altitude de plus de 50 m — à condition que cette descente totalise au moins 200 m. | Compté dans le local : passer sous la hauteur d'arrivée de sécurité en rejoignant le terrain est l'intention, pas une infraction. |
+| **Croisière** | Tout le reste. | Évalué sur la hauteur d'arrivée : dans le local / marginal / hors local. |
+
+À retenir :
+
+- **Activer *Détecter l'arrivée finale* augmente le pourcentage dans le local**, car les dernières minutes à basse hauteur cessent d'être évaluées par rapport à un terrain sur lequel le planeur est déjà en train de se poser. Option désactivée, cette descente reste de la croisière et sera le plus souvent rapportée marginale ou hors local.
+- **Le hors local, le marginal, le nombre de sorties, les hauteurs manquantes min/max et la marge la plus faible ne portent que sur la croisière.** Un circuit d'atterrissage à 300 m sol ne fait pas baisser la *Marge la plus faible*.
+- Chaque échantillon compte pour le temps réellement écoulé jusqu'au suivant : les trois pourcentages se partagent donc la durée du vol et **totalisent toujours 100 %** — un trou dans l'enregistrement du logger ou un point sans altitude exploitable ne disparaît plus silencieusement du total.
 
 ### Coloration de la trace
 
@@ -104,6 +122,8 @@ La trace sur la carte est colorée selon la phase et le statut de sécurité :
 - Hors local
 - Arrivée finale (si la détection est activée)
 
+Les couleurs de phase sont prioritaires sur le statut de sécurité : un segment de montée initiale, moteur ou arrivée finale conserve sa propre couleur et n'est jamais tracé en jaune ou en rouge — cohérent avec la façon dont ces phases sont comptées dans les statistiques.
+
 ---
 
 ## Trajectoire de dégagement & zone atteignable
@@ -113,6 +133,8 @@ La trace sur la carte est colorée selon la phase et le statut de sécurité :
 Une ligne pointillée reliant la position de rejeu courante à la zone d'atterrissage offrant la **hauteur d'arrivée projetée la plus élevée** au-dessus du sol. Elle se met à jour en continu pendant le rejeu et est colorée selon le statut (dans le local / marginal / hors local).
 
 Par défaut, la trajectoire est tracée en **ligne droite**. Lorsque le **Routage tenant compte du relief** est activé dans les Réglages, la trajectoire contourne les crêtes qui bloqueraient le plan direct (voir *Routage tenant compte du relief* ci-dessous).
+
+Lorsque le routage est désactivé, le plan en ligne droite peut heurter le relief avant d'atteindre la zone d'atterrissage — cela apparaît sur le graphique de profil mais ne modifie **pas** la couleur du statut, qui repose uniquement sur la hauteur d'arrivée projetée comparée à la hauteur d'arrivée de sécurité. Activez le routage tenant compte du relief pour obtenir une trajectoire qui passe effectivement au-dessus du terrain.
 
 Le graphique **Profil de la trajectoire de dégagement** (à droite du barogramme) montre :
 
@@ -149,6 +171,9 @@ Compromis :
 
 - Le routage est coûteux en CPU et introduit une latence visible sur le panneau de dégagement et sur la zone atteignable, en particulier sur de grands vols ou avec une grille fine.
 - Une hauteur d'arrivée détournée est toujours ≤ à celle en ligne droite. En terrain plat, le routage dégénère en ligne droite et les valeurs sont identiques.
+- **Court-circuit ligne droite** : dès que le vol plané direct depuis la position courante passe déjà au-dessus du terrain + garde au sol tout le long du segment, Theta\* n'est pas exécuté et la ligne droite est retournée — un détour ne peut jamais faire mieux (il est plus long, donc sa hauteur d'arrivée serait inférieure). Conséquence : le libellé du profil de dégagement peut basculer entre *Vol plané direct* et *Vol plané détourné* pendant le rejeu même avec le routage activé : quand vous êtes assez haut pour franchir une crête en direct, il affiche *Vol plané direct* ; quand vous descendez sous ce seuil et qu'un contournement devient nécessaire, il passe à *Vol plané détourné*. Le libellé reflète la géométrie du moment, pas l'état du switch.
+- **Borne de portée** : aucune route ne peut dépasser `(altitude courante − altitude du terrain) × finesse de travail`, puisque le planeur doit encore arriver au niveau du terrain ou au-dessus. La recherche est bornée par ce budget : un terrain hors d'atteinte derrière une crête est écarté immédiatement au lieu de l'être après un balayage exhaustif.
+- **Trois issues distinctes, trois libellés distincts**. *Vol plané direct* n'est annoncé **que** si le segment direct a été vérifié dégagé du terrain + garde au sol. *Vol plané détourné* signifie qu'un détour a été trouvé et vérifié. Si aucun des deux ne tient, le panneau affiche **Aucune trajectoire sûre** et la ligne droite est tracée en estompé sur la carte : c'est une géométrie de référence, pas une trajectoire — le graphique montre le plan de plané traversant le relief. Ne lisez jamais ce troisième cas comme un plané direct sûr.
 - Laissez l'option désactivée pour les vols en plaine ; activez-la pour le vol en montagne où une ligne droite couperait une crête alors qu'un détour par une vallée ou un col est en pratique réalisable.
 
 ---
@@ -163,8 +188,8 @@ Tous les réglages sont conservés dans votre navigateur (localStorage).
 |-----------|--------|-------------|
 | **Finesse** | 20 | Finesse utilisée pour le calcul du local |
 | **Hauteur d'arrivée de sécurité** | 300 m | Hauteur minimale au-dessus de la zone d'atterrissage à l'arrivée |
-| **Garde au sol** | 150 m | Hauteur minimale au-dessus du terrain le long du plan (informatif) |
-| **Détecter l'arrivée finale** | On | Détecter et marquer automatiquement l'arrivée finale |
+| **Garde au sol** | 150 m | Hauteur minimale au-dessus du terrain le long du plan. Conditionne la garde en route (routage et zone atteignable), pas la classification d'arrivée |
+| **Détecter l'arrivée finale** | On | Détecter et marquer automatiquement l'arrivée finale. Ces échantillons sont alors comptés dans le local au lieu d'être évalués sur la hauteur d'arrivée — voir *Phases de vol et prise en compte dans les statistiques* |
 | **Routage tenant compte du relief** | Off | Contourne les crêtes pour la trajectoire de dégagement, les hauteurs d'arrivée et la zone atteignable au lieu d'un simple calcul en ligne droite. Plus lent — laisser désactivé en plaine (voir *Routage tenant compte du relief* ci-dessus) |
 | **Pas de temps** | 20 s | Intervalle d'échantillonnage pour le local check (min 1 s) |
 | **Seuil ENL** | 500 | Niveau sonore moteur au-dessus duquel le moteur est considéré en marche |
@@ -349,7 +374,7 @@ La boîte de dialogue de chargement affiche la progression de chaque étape et s
 
 - Les zones d'atterrissage sont recherchées uniquement dans les bases configurées — veillez à activer les régions pertinentes.
 - Réduire la taille de grille de la zone atteignable augmente fortement le coût de calcul ; commencez par 360 m et affinez au besoin.
-- Le paramètre Garde au sol est informatif et n'influe pas sur la classification du local check.
+- Le paramètre Garde au sol n'influe pas sur la classification du local check (seule la hauteur d'arrivée la détermine), mais il conditionne bien la garde au relief **en route** : le plan de plané doit rester au-dessus du terrain + garde au sol sur chaque segment détourné et sur chaque rayon de la zone atteignable. L'augmenter réduit la zone atteignable et rend les détours plus difficiles à trouver.
 - Les données d'élévation sont chargées à la demande ; la boîte de dialogue indique la progression pour l'élévation, la base des zones d'atterrissage et le calcul du local check.
 - Les données OpenAIP par pays sont mises en cache côté client dans `localStorage` (24 h) — vider le stockage du navigateur force une nouvelle récupération au prochain chargement. Les données d'élévation sont re-téléchargées à chaque import.
 - Des statistiques d'usage anonymes et sans cookies peuvent être collectées via [Umami](https://umami.is) (aucune donnée personnelle, aucun contenu de vol, aucun cookie) afin que le club puisse voir quelles fonctionnalités sont réellement utilisées.

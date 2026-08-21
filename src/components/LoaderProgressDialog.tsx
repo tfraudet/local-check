@@ -57,16 +57,38 @@ export function LoaderProgressDialog() {
 
   const isComputingLocalCheck = useFlightStore((s) => s.isComputingLocalCheck);
   const localCheckResult = useFlightStore((s) => s.localCheckResult);
+  const landingZones = useFlightStore((s) => s.landingZones);
 
   const [dismissed, setDismissed] = useState(false);
+
+  // A completed run — not a non-null result — is the reliable "local check is
+  // over" signal: the worker channel answers with no result when the
+  // computation fails, so waiting on `localCheckResult` alone would keep the
+  // dialog open forever after an error.
+  const [localCheckRan, setLocalCheckRan] = useState(false);
+  const wasComputingRef = useRef(false);
+  useEffect(() => {
+    if (isComputingLocalCheck) wasComputingRef.current = true;
+    else if (wasComputingRef.current) setLocalCheckRan(true);
+  }, [isComputingLocalCheck]);
 
   const hasError =
     flight === null
       ? loadError !== null
       : elevationLoadError !== null || airportsLoadError !== null;
-  // const isReady = flight !== null && localCheckResult !== null && !hasError;
+
+  // `runLocalCheck` returns immediately while the landing-zone catalog is
+  // empty, so there is nothing to wait for in that case. Zones arriving later
+  // flip this back to "pending" and the auto-close timer below re-arms.
+  const isLocalCheckDone =
+    !isComputingLocalCheck && (landingZones.length === 0 || localCheckRan);
+
   const isReady =
-    flight !== null && elevationGrid !== null && hasLoadedAirports && !hasError;
+    flight !== null &&
+    elevationGrid !== null &&
+    hasLoadedAirports &&
+    isLocalCheckDone &&
+    !hasError;
 
   // Re-arm the dialog when a new file is being parsed, or when the flight
   // transitions from absent to present (upload complete). Settings-driven
@@ -76,7 +98,11 @@ export function LoaderProgressDialog() {
   useEffect(() => {
     const isNewLoad =
       isParsingIgc || (flight !== null && previousFlightRef.current === null);
-    if (isNewLoad) setDismissed(false);
+    if (isNewLoad) {
+      setDismissed(false);
+      setLocalCheckRan(false);
+      wasComputingRef.current = false;
+    }
     previousFlightRef.current = flight;
   }, [isParsingIgc, flight]);
 
@@ -123,11 +149,11 @@ export function LoaderProgressDialog() {
         ? 'in-progress'
         : 'not-started';
 
-  const statusComputing: TaskStatus = localCheckResult
-    ? 'success' 
-    : isComputingLocalCheck 
-      ?  'in-progress' 
-      :  'not-started' ;    
+  const statusComputing: TaskStatus = isComputingLocalCheck
+    ? 'in-progress'
+    : localCheckResult
+      ? 'success'
+      : 'not-started';
 
   return (
     <Dialog

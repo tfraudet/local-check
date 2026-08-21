@@ -92,6 +92,24 @@ Key metrics displayed:
 - **Maximum missing height** — Largest deficit recorded
 - **Number of exits** — How many separate out-of-local events occurred
 - **Jump to first breach** — Click to seek the replay to the first out-of-local moment
+- **Lowest margin** — How close the flight came to breaching local even when it never did (cruise only, see below)
+
+### Flight phases and how they are scored
+
+The flight is sampled at the configured **Time Step**, and each sample is tagged with a flight phase before being classified. **Only the cruise phase is scored on glide geometry.** The other phases are always counted as *within local*, whatever their arrival height says:
+
+| Phase | How it is detected | Effect on the statistics |
+|-------|--------------------|--------------------------|
+| **Initial climb** (tow / winch) | Only if the recording starts with the glider stationary. From the takeoff roll, a sustained climb (Vz ≥ 1.5 m/s for 15 s, or 50 m gained) is looked for, then release is detected on the altitude trace — altitude staying 10 m below its running maximum for 5 s — or on the break turn that follows it (> 8 °/s), with a hard cap at 900 m gained. Everything from the first fix to the release point is tagged, ground fixes included. | Counted as within local. Without this, a glider sitting on the runway and the low part of the tow would score out of local. |
+| **Motor** | ENL / MOP value in the IGC file at or above the **ENL Threshold**. | Counted as within local: the engine, not a glide, is keeping the aircraft up. |
+| **Final glide** | Only when **Detect Final Glide** is on. Backwards from the last fix while below 300 m AGL and within 3 km of the landing point (the circuit), then extended further back over the committed descent — no re-climb greater than 50 m — provided that descent totals at least 200 m. | Counted as within local: being below the safety arrival height on the way into the field is the intent, not a breach. |
+| **Cruise** | Everything else. | Scored on arrival height: within local / marginal / out of local. |
+
+Consequences worth knowing:
+
+- **Turning *Detect Final Glide* on raises the percentage within local**, because the last low-level minutes stop being scored against a landing zone they are already landing at. With the option off, that descent is ordinary cruise and will usually be reported as marginal or out of local.
+- **Out of local, marginal, number of exits, min/max missing height, and lowest margin are all cruise-only figures.** A 300 m AGL circuit does not pull the *Lowest margin* down.
+- Each sample accounts for the real time elapsed until the next sample, so the three percentages partition the flight duration and **always total 100 %** — a gap in the logger recording or a fix without a usable altitude no longer silently disappears from the total.
 
 ### Track Colouring
 
@@ -104,6 +122,8 @@ The flight track on the map is colour-coded by phase and safety status:
 - Out of local
 - Final glide (if detection is enabled)
 
+Phase colours take precedence over the safety status: an initial-climb, motor, or final-glide segment keeps its own colour and is never drawn yellow or red — consistent with the way those phases are counted in the statistics.
+
 ---
 
 ## Escape Path & Reachable Zone
@@ -113,6 +133,8 @@ The flight track on the map is colour-coded by phase and safety status:
 A dashed polyline from the current replay position to the landing zone offering the **highest projected arrival height** above ground. It updates continuously during replay and is colour-coded by status (in-local / marginal / out-of-local).
 
 By default the path is drawn as a **straight line**. When **Terrain-aware routing** is enabled in the Settings panel, the path curves around ridges that block the direct glide (see *Terrain-aware routing* below).
+
+With routing off, the straight-line glide may clip terrain before reaching the landing zone — this is visible on the profile chart but does **not** change the status colour, which is based solely on the projected arrival height versus the safety arrival height. Enable terrain-aware routing to obtain a path that actually clears the terrain.
 
 The **Escape Path Profile** chart (right of the barogram) shows:
 
@@ -149,6 +171,9 @@ Trade-offs:
 
 - Routing is CPU-intensive and adds visible latency to the escape-path panel and the reachable-zone overlay, especially on large flights or fine grid sizes.
 - A routed arrival height is always ≤ the straight-line arrival height. In flat terrain the routing degenerates to a straight line and the numbers are identical.
+- **Straight-line short-circuit**: whenever the direct glide from the current position already clears terrain + ground clearance along the whole segment, Theta\* is skipped and the straight line is returned — routing can never improve on it (any detour is longer, so its arrival height would be lower). As a result, the escape-path label may switch between *Straight glide* and *Routed glide* during replay even with terrain-aware routing enabled: when you are high enough to clear a ridge directly, it reads *Straight glide*; when you sink below that threshold and a detour becomes necessary, it switches to *Routed glide*. The label reflects the current geometry, not the toggle state.
+- **Range bound**: no route can be longer than `(current altitude − field elevation) × working L/D`, since the glider still has to arrive at or above the field. The search is bounded by that budget, so an LZ that is simply out of reach behind a ridge is rejected immediately instead of after an exhaustive sweep.
+- **Three distinct outcomes, three distinct labels**. *Straight glide* is claimed **only** when the direct segment was verified clear of terrain + ground clearance. *Routed glide* means a detour was found and verified. When neither holds, the panel reads **No terrain-safe path** and the straight line is drawn faint on the map: it is reference geometry, not a trajectory — the chart shows the glide plane crossing the terrain. Never read that third case as a safe direct glide.
 - Leave the toggle off for lowland flights; enable it when flying near mountains where a straight line would clip a ridge but a valley/saddle detour is actually feasible.
 
 ---
@@ -163,8 +188,8 @@ All settings are persisted in your browser (localStorage).
 |---------|---------|-------------|
 | **Working L/D** | 20 | Glide ratio used for local-check computations |
 | **Safety Arrival Height** | 300 m | Minimum height above the landing zone on arrival |
-| **Ground Clearance** | 150 m | Minimum height above terrain along the glide path (informational) |
-| **Detect Final Glide** | On | Automatically detect and mark final glide |
+| **Ground Clearance** | 150 m | Minimum height above terrain along the glide path. Gates en-route clearance (routing and reachable zone); not the arrival classification |
+| **Detect Final Glide** | On | Automatically detect and mark the final glide. Those samples are then counted as within local instead of being scored on arrival height — see *Flight phases and how they are scored* |
 | **Terrain-aware routing** | Off | Route escape path, arrival heights and reachable zone around ridges instead of straight-line only. Slower — leave off in flat terrain (see *Terrain-aware routing* above) |
 | **Time Step** | 20 s | Sampling interval for the local check (minimum 1 s) |
 | **ENL Threshold** | 500 | Engine noise level above which the engine is considered on |
@@ -349,7 +374,7 @@ The loading dialog reports the progress of each step and closes on its own when 
 
 - Landing zones are matched using the configured databases only — make sure the relevant regions are enabled.
 - Reducing the reachable-zone grid size dramatically increases computation cost; start with 360 m and refine if needed.
-- The Ground Clearance parameter is informational and does not affect the local-check classification.
+- The Ground Clearance parameter does not affect the local-check classification (arrival height alone decides that), but it *does* gate **en-route** terrain clearance: the glide plane must stay above terrain + ground clearance along every routed segment and along every reachable-zone ray. Raising it shrinks the reachable-zone overlay and makes detours harder to find.
 - Elevation data is loaded on demand; the loading dialog reports progress across elevation, landing-zone database, and local-check computation.
 - OpenAIP country payloads are cached client-side in `localStorage` (24 h) — clearing your browser storage forces a fresh fetch on the next upload. Elevation data is re-fetched on every upload.
 - Anonymous, cookieless usage statistics may be collected via [Umami](https://umami.is) (no personal data, no flight content, no cookies) so the club can see which features are actually used.

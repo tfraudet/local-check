@@ -10,7 +10,7 @@ import type { ZonesBySource, ToggleableSource, SourceToggles } from './landingZo
 import type { LocalCheckInput, LocalCheckResult } from '@/domain/localCheck';
 
 import { createWorkerChannel } from './workerChannel';
-import { DEFAULT_REACHABLE_ZONE_PARAMS, type ReachableZoneInputs, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
+import { DEFAULT_REACHABLE_ZONE_PARAMS, recommendedReachableZoneParams, type ReachableZoneInputs, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
 import { pickAltitude } from '@/domain/units';
 import { applyQnhOffsetToFlight, computeQnhOffset, QNH_DEFAULT_SAMPLES, QNH_MIN_SAMPLES, type QnhCorrectionError } from '@/domain/qnhCorrection';
 import { DEFAULT_ELEVATION_SOURCE, SUPPORTED_ELEVATION_SOURCES, type ElevationSource } from '@/services/elevationApi';
@@ -489,7 +489,31 @@ export const useFlightStore = create<FlightStoreState>()(
         // elevation grid management
         setElevationGrid: (grid) => {
           set({ elevationGrid: grid, elevationLoadError: null });
-          if (grid) reapplyQnhCorrection();
+          if (!grid) return;
+
+          // Default the reachable-zone grid to the coarsest (fastest) size on
+          // every new flight, so the first terrain-aware recompute — and
+          // every one after it during replay — stays cheap. Users who want
+          // finer detail can still pick a smaller grid size in the settings
+          // panel.
+          //
+          // Deliberately runs on elevation load, i.e. once per flight, so a
+          // manual choice made afterwards sticks until the next flight.
+          const prevSettings = get().settings;
+          const prevParams = prevSettings.reachableZoneParams;
+          const nextParams = recommendedReachableZoneParams(
+            prevParams.diameterKm,
+          );
+          if (
+            nextParams.gridSizeM !== prevParams.gridSizeM ||
+            nextParams.diameterKm !== prevParams.diameterKm
+          ) {
+            set({
+              settings: { ...prevSettings, reachableZoneParams: nextParams },
+            });
+          }
+
+          reapplyQnhCorrection();
         },
 
         setElevationLoadError: (message) =>

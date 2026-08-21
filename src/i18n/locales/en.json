@@ -42,7 +42,6 @@
     "showAuvergneFields": "Auvergne outlanding fields",
     "showAuvergneFieldsHint": "Include the ACHh Auvergne outlanding-fields database on the map and in local-check computation",
     "resetToDefaults": "Reset to defaults"
-
   },
   "escapePath": {
     "title": "Escape path",
@@ -51,8 +50,11 @@
     "waiting": "Need landing zones to see the escape path.",
     "profileTitle": "Escape path profile",
     "profileSubtitle": "Straight glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
+    "profileSubtitleRouted": "Routed glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
+    "profileSubtitleNoSafePath": "No terrain-safe path to <b>{{lzName}}</b> (alt: {{lzElevM}} m) — direct line shown for reference",
     "terrainSeries": "Terrain",
     "glideSeries": "Glide plane",
+    "groundClearanceSeries": "Ground clearance",
     "arrivalTarget": "Arrival target",
     "lzMarker": "Landing zone",
     "arrivalHeight": "Arrival height",
@@ -63,13 +65,15 @@
       "marginal": "Marginal",
       "outOfLocal": "Out of local"
     }
-},
+  },
   "reachableZone": {
     "title": "Reachable zone",
     "toggle": "Show reachable zone",
     "toggleHint": "Overlay the area reachable in a glide from the current replay position, given L/D and terrain",
     "gridSize": "Grid size",
     "gridSizeHint": "Sampling cell size for the reachable-zone grid. Smaller = more detail but slower.",
+    "gridSizeTooFineHint": "Finer than the {{resolutionM}} m terrain data — sampling below it only interpolates the same cells",
+    "demResolution": "Terrain data: {{resolutionM}} m",
     "diameter": "Diameter (km)",
     "diameterHint": "Diameter of the circular sampled area around the current position",
     "degradedHint": "Grid downgraded to fit the {{cellCap}}-cell budget: {{gridSizeM}} m / {{diameterKm}} km"
@@ -109,7 +113,7 @@
       "impact": {
         "elevation": "Terrain data will not be available, so the local check cannot run.",
         "openaip": "Public airports will be missing from the map."
-      }     
+      }
     }
   },
   "summary": {
