@@ -195,20 +195,28 @@ export function maxDiameterKmForGridSize(gridSizeM: number): number {
 }
 
 /**
- * Zone parameters matched to the DEM that was actually loaded: the finest
- * grid the terrain data supports, keeping the caller's diameter but clamping
- * it to what fits the cell budget at that grid size.
- *
- * Worth re-deriving per flight because the DEM resolution is not fixed — the
- * elevation backends coarsen their output step (×2 per step) until the grid
- * fits a sample budget, so a local flight yields ~62 m while a long XC
- * yields ~247 m for the same source.
+ * Coarsest grid size offered — the fastest to compute and the one
+ * `recommendedReachableZoneParams` defaults to. Unlike `finestUsefulGridSizeM`
+ * this doesn't depend on the DEM: the coarsest step is always a safe (if
+ * imprecise) choice, whatever the terrain data's own resolution.
+ */
+export function coarsestUsefulGridSizeM(): ReachableZoneGridSizeM {
+  const sizes = REACHABLE_ZONE_GRID_SIZES;
+  return sizes[sizes.length - 1];
+}
+
+/**
+ * Default zone parameters for a freshly loaded flight: the coarsest offered
+ * grid — fewest cells, fastest terrain-aware recompute during replay —
+ * keeping the caller's diameter but clamping it to what fits the cell budget
+ * at that grid size. Users who want finer detail can still pick a smaller
+ * grid size in the settings panel (bounded below by `finestUsefulGridSizeM`
+ * so it never drops below what the DEM actually supports).
  */
 export function recommendedReachableZoneParams(
-  demResolutionM: number,
   requestedDiameterKm: number = DEFAULT_REACHABLE_ZONE_PARAMS.diameterKm,
 ): ReachableZoneParams {
-  const gridSizeM = finestUsefulGridSizeM(demResolutionM);
+  const gridSizeM = coarsestUsefulGridSizeM();
   const diameterKm = Math.max(
     REACHABLE_ZONE_MIN_DIAMETER_KM,
     Math.min(maxDiameterKmForGridSize(gridSizeM), requestedDiameterKm),

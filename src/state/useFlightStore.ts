@@ -491,19 +491,17 @@ export const useFlightStore = create<FlightStoreState>()(
           set({ elevationGrid: grid, elevationLoadError: null });
           if (!grid) return;
 
-          // Match the reachable-zone grid to the DEM this flight actually
-          // got. Backends coarsen their step to a sample budget, so the
-          // resolution depends on the flight's bounding box: ~62 m for a
-          // local flight, ~247 m for a long XC. A fixed default is therefore
-          // either wasteful (sampling below the DEM only interpolates the
-          // same cells) or needlessly coarse.
+          // Default the reachable-zone grid to the coarsest (fastest) size on
+          // every new flight, so the first terrain-aware recompute — and
+          // every one after it during replay — stays cheap. Users who want
+          // finer detail can still pick a smaller grid size in the settings
+          // panel.
           //
           // Deliberately runs on elevation load, i.e. once per flight, so a
           // manual choice made afterwards sticks until the next flight.
           const prevSettings = get().settings;
           const prevParams = prevSettings.reachableZoneParams;
           const nextParams = recommendedReachableZoneParams(
-            grid.resolutionM,
             prevParams.diameterKm,
           );
           if (

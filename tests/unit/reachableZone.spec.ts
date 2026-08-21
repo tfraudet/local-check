@@ -3,6 +3,7 @@ import {
   computeReachableZone,
   resolveEffectiveParams,
   finestUsefulGridSizeM,
+  coarsestUsefulGridSizeM,
   maxDiameterKmForGridSize,
   recommendedReachableZoneParams,
   REACHABLE_ZONE_CELL_CAP,
@@ -130,31 +131,36 @@ describe('maxDiameterKmForGridSize', () => {
   });
 });
 
-describe('recommendedReachableZoneParams', () => {
-  it('gives a local flight the finest grid its DEM supports', () => {
-    expect(recommendedReachableZoneParams(62, 40)).toEqual({
-      gridSizeM: 90,
-      diameterKm: 25, // clamped: 90 m over 40 km would blow the cell cap
-    });
+describe('coarsestUsefulGridSizeM', () => {
+  it('is the largest offered grid size', () => {
+    expect(coarsestUsefulGridSizeM()).toBe(
+      REACHABLE_ZONE_GRID_SIZES[REACHABLE_ZONE_GRID_SIZES.length - 1],
+    );
   });
+});
 
-  it('keeps the default grid for a typical XC DEM', () => {
-    expect(recommendedReachableZoneParams(247, 40)).toEqual({
-      gridSizeM: 360,
+describe('recommendedReachableZoneParams', () => {
+  it('defaults every flight to the coarsest (fastest) grid', () => {
+    expect(recommendedReachableZoneParams(40)).toEqual({
+      gridSizeM: coarsestUsefulGridSizeM(),
       diameterKm: 40,
     });
   });
 
   it('preserves a diameter that already fits', () => {
-    expect(recommendedReachableZoneParams(247, 20).diameterKm).toBe(20);
+    expect(recommendedReachableZoneParams(20).diameterKm).toBe(20);
   });
 
-  it('is a fixed point of resolveEffectiveParams for every DEM resolution', () => {
-    for (const dem of [31, 62, 124, 247, 494, 1000]) {
-      for (const requested of [10, 20, 40, 60]) {
-        const params = recommendedReachableZoneParams(dem, requested);
-        expect(resolveEffectiveParams(params).degraded).toBe(false);
-      }
+  it('passes through the max offered diameter unclamped at the coarsest grid', () => {
+    // At 720 m the cell cap allows well past 60 km, so the full offered
+    // range fits without degradation.
+    expect(recommendedReachableZoneParams(60).diameterKm).toBe(60);
+  });
+
+  it('is a fixed point of resolveEffectiveParams for every requested diameter', () => {
+    for (const requested of [10, 20, 40, 60]) {
+      const params = recommendedReachableZoneParams(requested);
+      expect(resolveEffectiveParams(params).degraded).toBe(false);
     }
   });
 });
