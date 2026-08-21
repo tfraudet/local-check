@@ -88,6 +88,44 @@ describe('glideClearsTerrain', () => {
     expect(glideClearsTerrain({ ...query, groundClearanceM: 200 })).toBe(false);
   });
 
+  // Regression: `sampleCount` used to be `max(1, ceil(dist / stepM))` while
+  // the loop samples only the segment interior (s = 1 .. sampleCount-1). Any
+  // segment at or below `stepM` therefore got zero samples and was reported
+  // clear — which is precisely the grid-neighbour hop the routing
+  // line-of-sight predicate asks about, so terrain avoidance silently
+  // stopped working and escape paths were drawn through rock.
+  it('still samples a segment shorter than the step', () => {
+    expect(
+      glideClearsTerrain({
+        fromLat: 43,
+        fromLon: 5.98,
+        fromAltM: 500, // far below the 3000 m centre cell
+        toLat: 43,
+        toLon: 6.02,
+        distanceM: 3_000,
+        workingLD: 20,
+        grid: mountainGrid(),
+        stepM: 3_000, // one step covers the whole segment
+      }),
+    ).toBe(false);
+  });
+
+  it('never reports clear for a zero-sample step count', () => {
+    expect(
+      glideClearsTerrain({
+        fromLat: 43,
+        fromLon: 5.98,
+        fromAltM: 500,
+        toLat: 43,
+        toLon: 6.02,
+        distanceM: 3_000,
+        workingLD: 20,
+        grid: mountainGrid(),
+        steps: 1,
+      }),
+    ).toBe(false);
+  });
+
   it('accepts an explicit sample count', () => {
     expect(
       glideClearsTerrain({

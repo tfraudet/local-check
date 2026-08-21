@@ -55,7 +55,12 @@ export function glideClearsTerrain(query: GlideClearanceQuery): boolean {
     stepM = 200,
   } = query;
 
-  const sampleCount = steps ?? Math.max(1, Math.ceil(distanceM / stepM));
+  // At least 2 slots, always. The loop below samples the *interior* of the
+  // segment (s = 1 .. sampleCount-1), so a single slot yields zero samples
+  // and the function reports "clear" for a segment flying straight into a
+  // wall. That happens for every segment shorter than `stepM` — which is
+  // exactly the grid-neighbour hops the routing LOS predicate asks about.
+  const sampleCount = Math.max(2, steps ?? Math.ceil(distanceM / stepM));
 
   for (let s = 1; s < sampleCount; s++) {
     const t = s / sampleCount;

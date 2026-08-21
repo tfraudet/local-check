@@ -60,6 +60,7 @@ export function useArrivalHeightFeatures(): ArrivalHeightFeature[] {
           groundClearanceM: settings.groundClearanceM,
           grid: elevationGrid,
           maxNodes: 5_000,
+          targetElevM: lz.elevationM ?? undefined,
         });
         if (route) routedDistanceM = route.distanceM;
       }
@@ -137,6 +138,7 @@ export function useCurrentEscapePath(): EscapePath | null {
             groundClearanceM: settings.groundClearanceM,
             grid: elevationGrid,
             maxNodes: 5_000,
+            targetElevM: lz.elevationM ?? undefined,
           });
           return route ? route.distanceM : null;
         }
@@ -156,6 +158,12 @@ export function useCurrentEscapePath(): EscapePath | null {
     // For the escape polyline, compute the full route (path + distance) to
     // the chosen LZ. Cheap re-invocation: `routeToLz` short-circuits to
     // straight-line when terrain isn't in the way.
+    //
+    // Larger node budget than the per-LZ loops above: this is one search per
+    // replay tick, not one per visible LZ, and it is the path actually drawn
+    // on the map. A coarse search grid stays *safe* (every segment is still
+    // clearance-checked at DEM resolution) but snaps detours to a ~800 m
+    // lattice and gives up on valleys it cannot thread.
     const route = settings.terrainAwareRouting
       ? routeToLz({
           sourceLat: latitude,
@@ -166,7 +174,8 @@ export function useCurrentEscapePath(): EscapePath | null {
           workingLD: settings.workingLD,
           groundClearanceM: settings.groundClearanceM,
           grid: elevationGrid,
-          maxNodes: 5_000,
+          maxNodes: 30_000,
+          targetElevM: lz.elevationM ?? undefined,
         })
       : null;
 

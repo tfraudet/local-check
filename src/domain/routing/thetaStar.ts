@@ -39,6 +39,14 @@ export interface ThetaStarOptions {
   heuristic(a: GridPoint): number;
   /** Cap on nodes expanded; guards against runaway searches. */
   maxExpanded?: number;
+  /**
+   * Upper bound on the total cost of an acceptable path. Successors whose
+   * `g + heuristic` exceeds it are pruned. Because `heuristic` is admissible
+   * this never discards a path that would have come in under the bound, and
+   * it turns a hopeless search (goal simply out of range) from a full grid
+   * sweep into a handful of expansions.
+   */
+  maxCost?: number;
 }
 
 const NEIGHBOR_OFFSETS: Array<[number, number]> = [
@@ -59,6 +67,7 @@ export function thetaStar(opts: ThetaStarOptions): GridPoint[] | null {
     cost,
     heuristic,
     maxExpanded = 50_000,
+    maxCost = Infinity,
   } = opts;
 
   const idx = (r: number, c: number) => r * cols + c;
@@ -104,6 +113,18 @@ export function thetaStar(opts: ThetaStarOptions): GridPoint[] | null {
       if (closed[nIdx]) continue;
       const succ: GridPoint = { r: nr, c: nc };
 
+      // Range prune before the (expensive) line-of-sight checks: no path
+      // through this successor can finish under `maxCost`. Bound on the
+      // cheapest g either candidate parent could yield — path 2 (via the
+      // grandparent) is never dearer than path 1, by the triangle
+      // inequality — so the prune never discards a viable path.
+      const hSucc = heuristic(succ);
+      const gLowerBound =
+        parentIdx !== currentIdx
+          ? g[parentIdx] + cost(parentPt, succ)
+          : g[currentIdx] + cost(current, succ);
+      if (gLowerBound + hSucc > maxCost) continue;
+
       // Path 2 (Theta*): try straight line from parent(current) to
       // successor. If LOS holds, adopt the grandparent as the successor's
       // parent — this smooths out grid-axis kinks.
@@ -125,7 +146,7 @@ export function thetaStar(opts: ThetaStarOptions): GridPoint[] | null {
       if (newG < g[nIdx]) {
         g[nIdx] = newG;
         parent[nIdx] = newParentIdx;
-        open.push(nIdx, newG + heuristic(succ));
+        open.push(nIdx, newG + hSucc);
       }
     }
   }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ElevationGrid } from '../../src/domain/elevation';
-import { routeToLz } from '../../src/domain/routing/routeToLz';
+import {
+  polylineClearsTerrain,
+  routeToLz,
+} from '../../src/domain/routing/routeToLz';
 import { thetaStar, type GridPoint } from '../../src/domain/routing/thetaStar';
 import { haversineDistanceM } from '../../src/domain/units';
 
@@ -15,25 +18,34 @@ const FLAT_GRID: ElevationGrid = {
 };
 
 /**
- * Grid with a north–south ridge (a full row of tall cells across the
- * middle of the grid) between the source in the west and the LZ in the
- * east. A pilot at moderate altitude must fly around it.
+ * Grid with a north–south ridge between the source in the west and the LZ
+ * in the east. The ridge is *finite* — ~2 km wide, ~11 km tall, centred on
+ * lat 45 — so a pilot with enough altitude can round its northern or
+ * southern tip, and both tips sit inside the routing search bbox (which only
+ * inflates the source→LZ box by half the straight-line distance). A ridge
+ * spanning the whole grid would make the LZ unreachable, not detour-able.
+ *
+ * 201 × 201 cells over 1° × 1° → ~550 m lat / ~390 m lon steps.
  */
+const RIDGE_ALT_M = 3_000;
+
 function ridgeGrid(): ElevationGrid {
-  const cols = 41;
-  const rows = 41;
+  const cols = 201;
+  const rows = 201;
   const data = new Float32Array(cols * rows).fill(0);
-  const ridgeCol = Math.floor(cols / 2);
-  for (let r = 5; r < rows - 5; r++) {
-    data[r * cols + ridgeCol] = 3_000;
-    data[r * cols + ridgeCol + 1] = 3_000;
-    data[r * cols + ridgeCol - 1] = 3_000;
+  const stepDeg = 1 / 200;
+  const colOf = (lon: number) => Math.round((lon - 5) / stepDeg);
+  const rowOf = (lat: number) => Math.round((lat - 44.5) / stepDeg);
+  for (let r = rowOf(44.95); r <= rowOf(45.05); r++) {
+    for (let c = colOf(5.49); c <= colOf(5.51); c++) {
+      data[r * cols + c] = RIDGE_ALT_M;
+    }
   }
   return {
-    bbox: [5, 44, 7, 46],
+    bbox: [5, 44.5, 6, 45.5],
     cols,
     rows,
-    resolutionM: 5_000,
+    resolutionM: 500,
     data,
     crs: 'EPSG:4326',
   };
@@ -116,34 +128,83 @@ describe('routeToLz', () => {
 
   it('finds a detour around a ridge that blocks the straight glide', () => {
     const grid = ridgeGrid();
-    // Source in the west, LZ in the east, altitude just enough that a
-    // straight glide clips the 3000 m ridge but a north/south detour fits.
+    // Source in the west, LZ in the east, altitude chosen so the straight
+    // glide clips the 3000 m ridge but rounding its northern tip fits.
     const result = routeToLz({
       sourceLat: 45,
-      sourceLon: 5.2,
-      sourceAltM: 3300,
+      sourceLon: 5.3,
+      sourceAltM: 3_400,
       targetLat: 45,
-      targetLon: 6.8,
+      targetLon: 5.7,
       workingLD: 30,
       groundClearanceM: 100,
       grid,
     });
 
-    // Either a detour was found, or terrain is truly impassable — in this
-    // test we set up altitude so a route should exist.
     if (result === null) {
-      // The routing has to at least *attempt* a detour; a null result
-      // means it gave up before finding one. That's a regression.
       throw new Error('expected a routed path around the ridge, got null');
     }
     expect(result.isStraightLine).toBe(false);
     // A routed detour should be longer than the straight line.
-    const straight = haversineDistanceM(45, 5.2, 45, 6.8);
+    const straight = haversineDistanceM(45, 5.3, 45, 5.7);
     expect(result.distanceM).toBeGreaterThan(straight);
     // Arrival altitude follows distance / L/D — verify the arithmetic.
     expect(result.arrivalAltitudeM).toBeCloseTo(
-      3300 - result.distanceM / 30,
+      3_400 - result.distanceM / 30,
       3,
     );
+  });
+
+  // Regression: `glideClearsTerrain` used to take zero samples on segments
+  // shorter than its step, and the routing LOS predicate used to step at the
+  // *search cell* size — so every grid-neighbour hop was declared clear and
+  // Theta* degenerated into shortest-path-through-rock.
+  it('never returns a path that cuts through terrain', () => {
+    const grid = ridgeGrid();
+    for (const sourceAltM of [1_500, 2_000, 2_500, 3_000, 3_300, 3_600, 4_500]) {
+      const result = routeToLz({
+        sourceLat: 45,
+        sourceLon: 5.3,
+        sourceAltM,
+        targetLat: 45,
+        targetLon: 5.7,
+        workingLD: 30,
+        groundClearanceM: 100,
+        grid,
+      });
+      if (!result) continue;
+      expect(
+        polylineClearsTerrain(result.path, sourceAltM, 30, 100, grid, 100),
+      ).toBe(true);
+    }
+  });
+
+  it('returns null when the ridge is genuinely out of reach', () => {
+    // 3300 m with L/D 30 buys 6 km of glide above the 3100 m crest
+    // requirement, but the ridge is 59 km away — no route exists.
+    const cols = 41;
+    const rows = 41;
+    const data = new Float32Array(cols * rows).fill(0);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 19; c <= 21; c++) data[r * cols + c] = 3_000;
+    }
+    const result = routeToLz({
+      sourceLat: 45,
+      sourceLon: 5.2,
+      sourceAltM: 3_300,
+      targetLat: 45,
+      targetLon: 6.8,
+      workingLD: 30,
+      groundClearanceM: 100,
+      grid: {
+        bbox: [5, 44, 7, 46],
+        cols,
+        rows,
+        resolutionM: 5_000,
+        data,
+        crs: 'EPSG:4326',
+      },
+    });
+    expect(result).toBeNull();
   });
 });

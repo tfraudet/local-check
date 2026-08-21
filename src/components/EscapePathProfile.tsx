@@ -13,6 +13,20 @@ const STATUS_COLOR_FOR_PATH: Record<EscapePath['status'], string> = {
   'out-of-local': STATUS_COLORS['out-of-local'],
 };
 
+/**
+ * Glide-plane series, cut off at the LZ.
+ *
+ * The profile is sampled ~20 % past the target to give the terrain trace some
+ * context, but the glide plane has no meaning there — the glider has landed.
+ * Extending it makes the line dive into the terrain beyond the field, which
+ * reads exactly like an escape path flying into the ground.
+ */
+function glideSeries(escapePath: EscapePath): Array<number | null> {
+  return escapePath.profile.map((p) =>
+    p.distFromSourceM <= escapePath.totalDistanceM + 1 ? p.glideAltM : null,
+  );
+}
+
 function getChartColors(isDark: boolean) {
   return {
     axisStroke: isDark ? '#a1a1aa' : '#52525b',
@@ -67,7 +81,7 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
 
     const distanceKm = initial.profile.map((p) => p.distFromSourceM / 1000);
     const terrain = initial.profile.map((p) => p.terrainM);
-    const glide = initial.profile.map((p) => p.glideAltM);
+    const glide = glideSeries(initial);
     const initialClearance = groundClearanceMRef.current;
     const clearance = initial.profile.map((p) =>
       initialClearance > 0 && p.terrainM !== null
@@ -215,7 +229,7 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
     if (!plot || !escapePath) return;
     const distanceKm = escapePath.profile.map((p) => p.distFromSourceM / 1000);
     const terrain = escapePath.profile.map((p) => p.terrainM);
-    const glide = escapePath.profile.map((p) => p.glideAltM);
+    const glide = glideSeries(escapePath);
     const gc = localCheckParams.groundClearanceM;
     const clearance = escapePath.profile.map((p) =>
       gc > 0 && p.terrainM !== null ? p.terrainM + gc : null,
