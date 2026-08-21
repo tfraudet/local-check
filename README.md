@@ -23,7 +23,7 @@ It helps flight instructors and pilots answer critical safety questions:
 ### ✨ Implemented features
 
 - **IGC Parsing:** Client-side parsing of standard IGC flight records, off the main thread via a Web Worker.
-- **Interactive Replay:** Play/pause, step forward/backward, reset, adjustable playback speed (1×–16×), and timeline scrubbing, with keyboard shortcuts (Space, ←/→, Home).
+- **Interactive Replay:** Play/pause, step forward/backward, reset, adjustable playback speed (1×–32×), and timeline scrubbing, with keyboard shortcuts (Space, ←/→, Home).
 - **Map View:** Flight track rendered on MapLibre GL, with a live position marker synced to replay time. Five basemap styles are switchable at runtime: **OpenStreetMap**, **Liberty**, **Positron** and **Dark** (all three via [OpenFreeMap](https://openfreemap.org)), plus **Satellite (Esri World Imagery)**.
 - **Barogram:** Interactive altitude-over-time chart with a replay-synced cursor and click/hover-to-seek.
 - **Telemetry & Flight Summary Panels:** Live time, position, altitude (pressure/GNSS), ground speed, and vario, plus overall flight stats (date, pilot, glider, duration, min/max altitude, max speed, total distance).
@@ -40,10 +40,10 @@ It helps flight instructors and pilots answer critical safety questions:
 - **In-local / marginal / out-of-local classification:** One shared rule across all surfaces — for each fix, pick the LZ with the highest projected arrival above ground, then colour by `arrival > safety height` (green) / `arrival > 0` (yellow) / `arrival ≤ 0` (red).
 - **Coloured track & barogram:** Track segments and altitude line coloured per phase (initial-climb, motor, final-glide) and status. Legend surfaces every colour.
 - **Out-of-local statistics:** Time / % out-of-local, mean & max missing height, first out-of-local time (click-to-seek).
-- **Configurable parameters (persisted via `localStorage`):** working L/D, safety arrival height, time step, ENL threshold, final-glide detection toggle, terrain-aware routing toggle, QNH recalibration toggle, terrain elevation source (AWS Terrain / Microsoft Planetary Computer), per-source outlanding-database toggles (Alpes, Auvergne), and per-overlay show/hide toggles (escape path, arrival heights, reachable zone with its grid size and diameter). Ground clearance is exposed but informational only; it does not gate status.
+- **Configurable parameters (persisted via `localStorage`):** working L/D, safety arrival height, ground clearance, time step, ENL threshold, final-glide detection toggle, terrain-aware routing toggle, QNH recalibration toggle, terrain elevation source (AWS Terrain / Microsoft Planetary Computer), per-source outlanding-database toggles (Alpes, Auvergne), and per-overlay show/hide toggles (escape path, arrival heights, reachable zone with its grid size and diameter).
 - **Escape path:** From the current replay position to the LZ with the highest arrival height above ground. Dashed polyline on the map (green/yellow/red per shared status rule). Straight-line by default; when **terrain-aware routing** is enabled (see below), the path curves around ridges instead of clipping them.
 - **Escape-path profile chart:** Compact uPlot chart to the right of the barogram. Draws the terrain profile and glide plane along the escape line, with a filled square marker at the LZ and a dashed arrival-target guide. Extends 20 % past the LZ for post-target context.
-- **Reachable zone:** From the current position, at user-selectable grid size (90 / 180 / 360 / 720 m) and extent (5–30 km). Rendered as a translucent green fill overlay under the track. Runs in a dedicated Web Worker with a 250 ms debounce on cursor moves. With terrain-aware routing off, cells whose direct glide clips terrain are excluded; with it on, a single-source Dijkstra sweep discovers cells reachable via any-angle detours.
+- **Reachable zone:** From the current position, at user-selectable grid size (90 / 180 / 360 / 720 m) and extent (10–60 km). Rendered as a translucent green fill overlay under the track. Runs in a dedicated Web Worker with a 250 ms debounce on cursor moves. With terrain-aware routing off, cells whose direct glide clips terrain are excluded; with it on, a single-source Dijkstra sweep discovers cells reachable via any-angle detours.
 - **Terrain-aware routing (optional):** Off by default. When enabled from the Settings panel, the app looks for a curved path around ridges instead of rejecting an LZ behind terrain:
   - **Escape path, arrival heights, best-LZ picker in local check** → **Theta\*** (any-angle A\* on the elevation grid) per query. Line-of-sight backed by the same `glideClearsTerrain` primitive, so the glide plane must stay above terrain plus the ground-clearance buffer along the routed segment. Path length feeds directly into arrival height (`altitude − distance / L/D`).
   - **Reachable zone** → one **single-source Dijkstra** outward from the pilot on the reachable-zone grid, marking every cell with its shortest routed distance in a single pass — dramatically faster than running Theta\* per cell.
@@ -67,7 +67,7 @@ npm install
 npm run dev
 ```
 
-Open the printed local URL, then upload an IGC file (e.g. `fixtures/sample-flights/simple-flight.igc`) to try the replay.
+Open the printed local URL, then upload an IGC file (e.g. `fixtures/sample-flights/2026-07-19-XNA-200296-01.igc`) to try the replay.
 
 ### Available scripts
 
