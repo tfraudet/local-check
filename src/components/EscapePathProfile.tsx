@@ -274,12 +274,20 @@ export function EscapePathProfile({ escapePath }: EscapePathProfileProps) {
           {statusLabel}
         </span>
       </div>
-      <div className="px-2 pt-1 text-[10px] text-muted-foreground">
+      <div
+        className={
+          escapePath.routing === 'no-safe-path'
+            ? 'px-2 pt-1 text-[10px] font-medium text-destructive'
+            : 'px-2 pt-1 text-[10px] text-muted-foreground'
+        }
+      >
         <Trans
           i18nKey={
-            escapePath.waypoints.length > 2
-              ? 'escapePath.profileSubtitleRouted'
-              : 'escapePath.profileSubtitle'
+            escapePath.routing === 'no-safe-path'
+              ? 'escapePath.profileSubtitleNoSafePath'
+              : escapePath.routing === 'routed'
+                ? 'escapePath.profileSubtitleRouted'
+                : 'escapePath.profileSubtitle'
           }
           values={{
             lzName,

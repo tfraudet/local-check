@@ -45,7 +45,22 @@ export interface RouteToLzInput {
    * elevation). Used only to bound the search range; defaults to a DEM
    * sample at the target. */
   targetElevM?: number;
+  /** Called with the reason whenever the function returns `null`. */
+  onFailure?: (reason: RouteFailureReason) => void;
 }
+
+/** Why `routeToLz` gave up. Surfaced so callers can tell "the direct glide
+ * is safe" apart from "we found nothing safe at all" — the two used to be
+ * indistinguishable, both arriving as a plain straight line. */
+export type RouteFailureReason =
+  /** Even the straight line exceeds the altitude budget to the field. */
+  | 'out-of-range'
+  /** Search grid would not fit under `maxNodes` at any cell size. */
+  | 'grid-too-large'
+  /** Theta* exhausted the reachable graph without reaching the LZ. */
+  | 'no-path'
+  /** A path was found but the final polyline failed terrain validation. */
+  | 'unsafe-polyline';
 
 export interface RouteToLzResult {
   path: LatLon[];
@@ -61,6 +76,27 @@ const DEFAULT_MAX_NODES = 30_000;
 /** Slack on the LZ elevation used to bound the search range, absorbing DEM
  * error so a viable detour is never pruned on a bad elevation sample. */
 const RANGE_ELEV_TOLERANCE_M = 300;
+
+/**
+ * Does the glide plane clear terrain + buffer at a single waypoint?
+ *
+ * `glideClearsTerrain` samples a segment's *interior* only, so a crest
+ * sitting exactly on a waypoint is invisible to it. Both the search's
+ * line-of-sight predicate and the final polyline gate use this, so the two
+ * agree on what a legal waypoint is — otherwise the search proposes paths
+ * the gate then discards wholesale, and reachability flickers between
+ * neighbouring replay frames.
+ */
+function vertexClears(
+  grid: ElevationGrid,
+  lat: number,
+  lon: number,
+  altAtVertexM: number,
+  groundClearanceM: number,
+): boolean {
+  const terrain = sampleElevation(grid, lat, lon);
+  return isNaN(terrain) || altAtVertexM >= terrain + groundClearanceM;
+}
 
 /**
  * Verify an entire polyline against the glide plane, at terrain resolution.
@@ -108,18 +144,20 @@ export function polylineClearsTerrain(
       }
       cumulativeM += segM;
     }
-    // Intermediate vertices are the blind spot of the per-segment check
-    // (both segment endpoints are skipped), so a vertex parked on a summit
-    // would slip through. The LZ itself is excluded on purpose: clearance
-    // over the touchdown point is the arrival-height criterion's job.
-    if (i < waypoints.length - 1) {
-      const terrain = sampleElevation(grid, b.latitude, b.longitude);
-      if (
-        !isNaN(terrain) &&
-        sourceAltM - cumulativeM / workingLD < terrain + groundClearanceM
-      ) {
-        return false;
-      }
+    // Intermediate vertices are the blind spot of the per-segment check.
+    // The LZ itself is excluded on purpose: clearance over the touchdown
+    // point is the arrival-height criterion's job.
+    if (
+      i < waypoints.length - 1 &&
+      !vertexClears(
+        grid,
+        b.latitude,
+        b.longitude,
+        sourceAltM - cumulativeM / workingLD,
+        groundClearanceM,
+      )
+    ) {
+      return false;
     }
   }
   return true;
@@ -142,6 +180,11 @@ export function routeToLz(input: RouteToLzInput): RouteToLzResult | null {
     grid,
     maxNodes = DEFAULT_MAX_NODES,
   } = input;
+
+  const fail = (reason: RouteFailureReason): null => {
+    input.onFailure?.(reason);
+    return null;
+  };
 
   const straightDistM = haversineDistanceM(
     sourceLat,
@@ -198,7 +241,7 @@ export function routeToLz(input: RouteToLzInput): RouteToLzResult | null {
     })();
   const maxRangeM =
     (sourceAltM - (targetElevM - RANGE_ELEV_TOLERANCE_M)) * workingLD;
-  if (maxRangeM < straightDistM) return null;
+  if (maxRangeM < straightDistM) return fail('out-of-range');
 
   // Build a local search grid around the source→LZ bbox, inflated to allow
   // detours up to ~2× the straight-line distance.
@@ -246,7 +289,7 @@ export function routeToLz(input: RouteToLzInput): RouteToLzResult | null {
     if (rows * cols <= maxNodes) break;
     cellSizeM *= 1.5;
   }
-  if (rows * cols > maxNodes) return null;
+  if (rows * cols > maxNodes) return fail('grid-too-large');
 
   const gridPointToLatLon = (p: GridPoint): LatLon => ({
     latitude: minLat + p.r * latStep,
@@ -291,6 +334,19 @@ export function routeToLz(input: RouteToLzInput): RouteToLzResult | null {
     // altitude is `sourceAltM - gAtA/workingLD`. glideClearsTerrain then
     // enforces the glide plane over the segment.
     const fromAltM = sourceAltM - gAtA / workingLD;
+    // Destination vertex first: cheap, and it keeps the search from adopting
+    // waypoints the final gate would reject (see `vertexClears`).
+    if (
+      !vertexClears(
+        grid,
+        B.latitude,
+        B.longitude,
+        sourceAltM - (gAtA + segDistM) / workingLD,
+        groundClearanceM,
+      )
+    ) {
+      return false;
+    }
     return glideClearsTerrain({
       fromLat: A.latitude,
       fromLon: A.longitude,
@@ -316,7 +372,7 @@ export function routeToLz(input: RouteToLzInput): RouteToLzResult | null {
     maxCost: maxRangeM,
   });
 
-  if (!path) return null;
+  if (!path) return fail('no-path');
 
   // Convert the grid path back to lat/lon. The start node *is* the source
   // (the grid is anchored on it), so only the tail needs fixing up: the
@@ -356,7 +412,7 @@ export function routeToLz(input: RouteToLzInput): RouteToLzResult | null {
       terrainStepM,
     )
   ) {
-    return null;
+    return fail('unsafe-polyline');
   }
 
   // Sum segment lengths.

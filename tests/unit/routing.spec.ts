@@ -179,9 +179,36 @@ describe('routeToLz', () => {
     }
   });
 
+  // Regression: `glideClearsTerrain` samples a segment's interior only, so a
+  // crest sitting exactly on a lattice node was invisible to Theta*'s
+  // line-of-sight but caught by the final polyline gate. The search then
+  // proposed paths the gate discarded wholesale, and whether a route existed
+  // flipped with the lattice alignment — i.e. between replay frames.
+  it('never discards a found path at the final gate', () => {
+    const grid = ridgeGrid();
+    const reasons: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      for (const sourceAltM of [2_600, 3_000, 3_400, 3_800]) {
+        routeToLz({
+          sourceLat: 45 + i * 0.001,
+          sourceLon: 5.3,
+          sourceAltM,
+          targetLat: 45,
+          targetLon: 5.7,
+          workingLD: 30,
+          groundClearanceM: 100,
+          grid,
+          onFailure: (r) => reasons.push(r),
+        });
+      }
+    }
+    expect(reasons).not.toContain('unsafe-polyline');
+  });
+
   it('returns null when the ridge is genuinely out of reach', () => {
     // 3300 m with L/D 30 buys 6 km of glide above the 3100 m crest
     // requirement, but the ridge is 59 km away — no route exists.
+    const reasons: string[] = [];
     const cols = 41;
     const rows = 41;
     const data = new Float32Array(cols * rows).fill(0);
@@ -196,6 +223,7 @@ describe('routeToLz', () => {
       targetLon: 6.8,
       workingLD: 30,
       groundClearanceM: 100,
+      onFailure: (r) => reasons.push(r),
       grid: {
         bbox: [5, 44, 7, 46],
         cols,
@@ -206,5 +234,7 @@ describe('routeToLz', () => {
       },
     });
     expect(result).toBeNull();
+    // Rejected on the altitude budget, before any graph search.
+    expect(reasons).toEqual(['out-of-range']);
   });
 });

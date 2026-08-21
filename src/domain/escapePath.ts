@@ -26,6 +26,23 @@ export interface EscapePathWaypoint {
   distFromSourceM: number;
 }
 
+/**
+ * How the displayed path was obtained. Distinguishing these matters for
+ * safety: a straight line drawn because the direct glide was *verified*
+ * clear and one drawn because routing found nothing safe look identical on
+ * screen, and the pilot must not read the second as the first.
+ */
+export type EscapeRouting =
+  /** Terrain-aware routing disabled — plain straight line, no claim made. */
+  | 'off'
+  /** Direct glide verified clear of terrain + ground clearance. */
+  | 'straight-clear'
+  /** A detour was found and verified clear. */
+  | 'routed'
+  /** Routing found no terrain-safe path; the straight line is shown for
+   * reference only and may well cut through terrain. */
+  | 'no-safe-path';
+
 export interface EscapePathProfilePoint {
   distFromSourceM: number;
   terrainM: number | null;
@@ -47,6 +64,7 @@ export interface EscapePath {
   arrivalHeightM: number;
   minMarginM: number;
   status: LocalStatus;
+  routing: EscapeRouting;
 }
 
 export interface EscapePathInputs {
@@ -74,6 +92,8 @@ export interface EscapePathInputs {
    * and last MUST match LZ.
    */
   route?: Array<{ latitude: number; longitude: number }>;
+  /** How `route` was obtained; defaults to `'off'`. See `EscapeRouting`. */
+  routing?: EscapeRouting;
 }
 
 /**
@@ -97,6 +117,7 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
     sampleStepM = 100,
     extraDistanceM = 0,
     route,
+    routing = 'off',
   } = inputs;
 
   const lzElevM =
@@ -223,6 +244,7 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
     arrivalHeightM,
     minMarginM,
     status,
+    routing,
   };
 
   if (import.meta.env.DEV) {

@@ -42,7 +42,6 @@
     "showAuvergneFields": "Auvergne outlanding fields",
     "showAuvergneFieldsHint": "Include the ACHh Auvergne outlanding-fields database on the map and in local-check computation",
     "resetToDefaults": "Reset to defaults"
-
   },
   "escapePath": {
     "title": "Escape path",
@@ -52,6 +51,7 @@
     "profileTitle": "Escape path profile",
     "profileSubtitle": "Straight glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
     "profileSubtitleRouted": "Routed glide to <b>{{lzName}}</b> (alt: {{lzElevM}} m)",
+    "profileSubtitleNoSafePath": "No terrain-safe path to <b>{{lzName}}</b> (alt: {{lzElevM}} m) — direct line shown for reference",
     "terrainSeries": "Terrain",
     "glideSeries": "Glide plane",
     "groundClearanceSeries": "Ground clearance",
@@ -65,7 +65,7 @@
       "marginal": "Marginal",
       "outOfLocal": "Out of local"
     }
-},
+  },
   "reachableZone": {
     "title": "Reachable zone",
     "toggle": "Show reachable zone",
@@ -111,7 +111,7 @@
       "impact": {
         "elevation": "Terrain data will not be available, so the local check cannot run.",
         "openaip": "Public airports will be missing from the map."
-      }     
+      }
     }
   },
   "summary": {

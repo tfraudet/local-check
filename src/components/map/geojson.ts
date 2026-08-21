@@ -192,6 +192,10 @@ export function buildEscapePathGeoJSON(
         properties: {
           color: STATUS_COLORS[escapePath.status],
           status: escapePath.status,
+          // Lets the map dim a straight line that is only reference geometry
+          // (routing found nothing terrain-safe) instead of drawing it like a
+          // verified trajectory.
+          routing: escapePath.routing,
         },
         geometry: {
           type: 'LineString',

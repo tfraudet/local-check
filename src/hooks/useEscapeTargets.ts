@@ -4,7 +4,11 @@ import { useFlightStore } from '@/state/useFlightStore';
 import { findCurrentFixIndex } from '@/domain/flight';
 import { haversineDistanceM, pickAltitude } from '@/domain/units';
 import { arrivalHeightAboveGroundM, classifyArrival, pickBestLandingZone } from '@/domain/arrival';
-import { computeEscapePath, type EscapePath } from '@/domain/escapePath';
+import {
+  computeEscapePath,
+  type EscapePath,
+  type EscapeRouting,
+} from '@/domain/escapePath';
 import { routeToLz } from '@/domain/routing/routeToLz';
 
 /** Skip arrival-height labels for LZs beyond this range — far LZs are
@@ -176,8 +180,26 @@ export function useCurrentEscapePath(): EscapePath | null {
           grid: elevationGrid,
           maxNodes: 30_000,
           targetElevM: lz.elevationM ?? undefined,
+          onFailure: import.meta.env.DEV
+            ? (reason) =>
+                console.log(
+                  `[useCurrentEscapePath] no route to ${lz.id}: ${reason}`,
+                )
+            : undefined,
         })
       : null;
+
+    // Which of the four outcomes we are in. `isStraightLine` means the direct
+    // segment was *verified* clear (short-circuit, or the search returning it
+    // unchanged); a null route means nothing safe was found and the straight
+    // line below is reference geometry only.
+    const routing: EscapeRouting = !settings.terrainAwareRouting
+      ? 'off'
+      : route === null
+        ? 'no-safe-path'
+        : route.isStraightLine
+          ? 'straight-clear'
+          : 'routed';
 
     // Extend the profile 20% beyond the source→LZ distance so the chart
     // always shows some post-LZ context, scaled to the escape length.
@@ -200,6 +222,7 @@ export function useCurrentEscapePath(): EscapePath | null {
       params: settings,
       extraDistanceM: targetDistM * 0.2,
       route: route ? route.path : undefined,
+      routing,
     });
 
     // if (import.meta.env.DEV) {

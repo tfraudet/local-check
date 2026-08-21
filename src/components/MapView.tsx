@@ -796,7 +796,12 @@ export function MapView({ escapePath }: MapViewProps) {
         paint: {
           'line-color': ['get', 'color'],
           'line-width': 8,
-          'line-opacity': 0.25,
+          'line-opacity': [
+            'case',
+            ['==', ['get', 'routing'], 'no-safe-path'],
+            0.1,
+            0.25,
+          ],
         },
       });
       map.addLayer({
@@ -807,6 +812,14 @@ export function MapView({ escapePath }: MapViewProps) {
           'line-color': ['get', 'color'],
           'line-width': 3,
           'line-dasharray': [2, 1.5],
+          // Reference geometry (no terrain-safe path found) is drawn faint so
+          // it cannot be mistaken for a validated escape trajectory.
+          'line-opacity': [
+            'case',
+            ['==', ['get', 'routing'], 'no-safe-path'],
+            0.4,
+            1,
+          ],
         },
       });
     },

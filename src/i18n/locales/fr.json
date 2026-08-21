@@ -51,6 +51,7 @@
     "profileTitle": "Profil de la trajectoire de dégagement",
     "profileSubtitle": "Vol plané direct vers <b>{{lzName}}</b> (alt : {{lzElevM}} m)",
     "profileSubtitleRouted": "Vol plané détourné vers <b>{{lzName}}</b> (alt : {{lzElevM}} m)",
+    "profileSubtitleNoSafePath": "Aucune trajectoire sûre vers <b>{{lzName}}</b> (alt : {{lzElevM}} m) — ligne directe affichée à titre indicatif",
     "terrainSeries": "Terrain",
     "glideSeries": "Plan de vol",
     "groundClearanceSeries": "Garde au sol",
