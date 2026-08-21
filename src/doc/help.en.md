@@ -168,7 +168,7 @@ All settings are persisted in your browser (localStorage).
 |---------|---------|-------------|
 | **Working L/D** | 20 | Glide ratio used for local-check computations |
 | **Safety Arrival Height** | 300 m | Minimum height above the landing zone on arrival |
-| **Ground Clearance** | 150 m | Minimum height above terrain along the glide path (informational) |
+| **Ground Clearance** | 150 m | Minimum height above terrain along the glide path. Gates en-route clearance (routing and reachable zone); not the arrival classification |
 | **Detect Final Glide** | On | Automatically detect and mark final glide |
 | **Terrain-aware routing** | Off | Route escape path, arrival heights and reachable zone around ridges instead of straight-line only. Slower — leave off in flat terrain (see *Terrain-aware routing* above) |
 | **Time Step** | 20 s | Sampling interval for the local check (minimum 1 s) |
@@ -354,7 +354,7 @@ The loading dialog reports the progress of each step and closes on its own when 
 
 - Landing zones are matched using the configured databases only — make sure the relevant regions are enabled.
 - Reducing the reachable-zone grid size dramatically increases computation cost; start with 360 m and refine if needed.
-- The Ground Clearance parameter is informational and does not affect the local-check classification.
+- The Ground Clearance parameter does not affect the local-check classification (arrival height alone decides that), but it *does* gate **en-route** terrain clearance: the glide plane must stay above terrain + ground clearance along every routed segment and along every reachable-zone ray. Raising it shrinks the reachable-zone overlay and makes detours harder to find.
 - Elevation data is loaded on demand; the loading dialog reports progress across elevation, landing-zone database, and local-check computation.
 - OpenAIP country payloads are cached client-side in `localStorage` (24 h) — clearing your browser storage forces a fresh fetch on the next upload. Elevation data is re-fetched on every upload.
 - Anonymous, cookieless usage statistics may be collected via [Umami](https://umami.is) (no personal data, no flight content, no cookies) so the club can see which features are actually used.

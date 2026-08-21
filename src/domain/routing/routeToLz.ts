@@ -17,7 +17,7 @@
 
 import type { ElevationGrid } from '../elevation';
 import { sampleElevation } from '../elevation';
-import { glideClearsTerrain } from '../glide';
+import { glideClearsTerrain, terrainStepFor } from '../glide';
 import { haversineDistanceM } from '../units';
 import { thetaStar, type GridPoint } from './thetaStar';
 
@@ -58,22 +58,9 @@ export interface RouteToLzResult {
 
 const DEFAULT_MAX_NODES = 30_000;
 
-/** Bounds on the terrain-sampling step used by every clearance check.
- * Finer than the DEM buys nothing; coarser than ~200 m starts stepping over
- * ridge crests, which is how a "cleared" route ends up cutting rock. */
-const MIN_TERRAIN_STEP_M = 50;
-const MAX_TERRAIN_STEP_M = 200;
-
 /** Slack on the LZ elevation used to bound the search range, absorbing DEM
  * error so a viable detour is never pruned on a bad elevation sample. */
 const RANGE_ELEV_TOLERANCE_M = 300;
-
-function terrainStepFor(grid: ElevationGrid): number {
-  return Math.max(
-    MIN_TERRAIN_STEP_M,
-    Math.min(grid.resolutionM, MAX_TERRAIN_STEP_M),
-  );
-}
 
 /**
  * Verify an entire polyline against the glide plane, at terrain resolution.

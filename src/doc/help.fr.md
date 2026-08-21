@@ -168,7 +168,7 @@ Tous les réglages sont conservés dans votre navigateur (localStorage).
 |-----------|--------|-------------|
 | **Finesse** | 20 | Finesse utilisée pour le calcul du local |
 | **Hauteur d'arrivée de sécurité** | 300 m | Hauteur minimale au-dessus de la zone d'atterrissage à l'arrivée |
-| **Garde au sol** | 150 m | Hauteur minimale au-dessus du terrain le long du plan (informatif) |
+| **Garde au sol** | 150 m | Hauteur minimale au-dessus du terrain le long du plan. Conditionne la garde en route (routage et zone atteignable), pas la classification d'arrivée |
 | **Détecter l'arrivée finale** | On | Détecter et marquer automatiquement l'arrivée finale |
 | **Routage tenant compte du relief** | Off | Contourne les crêtes pour la trajectoire de dégagement, les hauteurs d'arrivée et la zone atteignable au lieu d'un simple calcul en ligne droite. Plus lent — laisser désactivé en plaine (voir *Routage tenant compte du relief* ci-dessus) |
 | **Pas de temps** | 20 s | Intervalle d'échantillonnage pour le local check (min 1 s) |
@@ -354,7 +354,7 @@ La boîte de dialogue de chargement affiche la progression de chaque étape et s
 
 - Les zones d'atterrissage sont recherchées uniquement dans les bases configurées — veillez à activer les régions pertinentes.
 - Réduire la taille de grille de la zone atteignable augmente fortement le coût de calcul ; commencez par 360 m et affinez au besoin.
-- Le paramètre Garde au sol est informatif et n'influe pas sur la classification du local check.
+- Le paramètre Garde au sol n'influe pas sur la classification du local check (seule la hauteur d'arrivée la détermine), mais il conditionne bien la garde au relief **en route** : le plan de plané doit rester au-dessus du terrain + garde au sol sur chaque segment détourné et sur chaque rayon de la zone atteignable. L'augmenter réduit la zone atteignable et rend les détours plus difficiles à trouver.
 - Les données d'élévation sont chargées à la demande ; la boîte de dialogue indique la progression pour l'élévation, la base des zones d'atterrissage et le calcul du local check.
 - Les données OpenAIP par pays sont mises en cache côté client dans `localStorage` (24 h) — vider le stockage du navigateur force une nouvelle récupération au prochain chargement. Les données d'élévation sont re-téléchargées à chaque import.
 - Des statistiques d'usage anonymes et sans cookies peuvent être collectées via [Umami](https://umami.is) (aucune donnée personnelle, aucun contenu de vol, aucun cookie) afin que le club puisse voir quelles fonctionnalités sont réellement utilisées.

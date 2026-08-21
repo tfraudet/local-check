@@ -11,6 +11,27 @@
 import { sampleElevation } from './elevation';
 import type { ElevationGrid } from './elevation';
 
+/** Bounds on the terrain-sampling step used by clearance checks. Finer than
+ * the DEM buys nothing; coarser than ~200 m starts stepping over ridge
+ * crests, which is how a "cleared" glide ends up cutting rock. */
+const MIN_TERRAIN_STEP_M = 50;
+const MAX_TERRAIN_STEP_M = 200;
+
+/**
+ * Sampling step to use with `glideClearsTerrain` for a given DEM.
+ *
+ * Every caller should derive its step from this rather than from its own
+ * working resolution (search-grid cell, reachable-zone cell, …): a coarse
+ * working grid only costs precision, whereas coarse *terrain* sampling costs
+ * safety — a 900 m step walks straight over a 300 m-wide ridge.
+ */
+export function terrainStepFor(grid: ElevationGrid): number {
+  return Math.max(
+    MIN_TERRAIN_STEP_M,
+    Math.min(grid.resolutionM, MAX_TERRAIN_STEP_M),
+  );
+}
+
 export interface GlideClearanceQuery {
   fromLat: number;
   fromLon: number;

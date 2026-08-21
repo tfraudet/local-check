@@ -119,6 +119,120 @@ describe('computeReachableZone', () => {
   });
 });
 
+/**
+ * ~110 m DEM, flat at sea level except one north–south ridge of height
+ * `crestM` and width `widthDeg` at lon 6.05 — about 4 km east of a source
+ * placed at (43, 6).
+ */
+function ridgeDem(crestM: number, widthDeg: number): ElevationGrid {
+  const stepDeg = 1 / 1000;
+  const minLon = 5.8;
+  const minLat = 42.8;
+  const cols = 401;
+  const rows = 401;
+  const data = new Float32Array(cols * rows);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const lon = minLon + c * stepDeg;
+      data[r * cols + c] = Math.abs(lon - 6.05) <= widthDeg / 2 ? crestM : 0;
+    }
+  }
+  return {
+    bbox: [
+      minLon,
+      minLat,
+      minLon + (cols - 1) * stepDeg,
+      minLat + (rows - 1) * stepDeg,
+    ],
+    cols,
+    rows,
+    resolutionM: 110,
+    data,
+    crs: 'EPSG:4326',
+  };
+}
+
+function isReachableAt(
+  zone: ReturnType<typeof computeReachableZone>,
+  lat: number,
+  lon: number,
+): boolean {
+  const [minLon, minLat, maxLon, maxLat] = zone.bbox;
+  const r = Math.round(
+    (lat - minLat) / ((maxLat - minLat) / (zone.rows - 1)),
+  );
+  const c = Math.round(
+    (lon - minLon) / ((maxLon - minLon) / (zone.cols - 1)),
+  );
+  return zone.reachableMask[r * zone.cols + c] === 1;
+}
+
+describe('computeReachableZone terrain clearance', () => {
+  // Regression: the per-cell ray used to omit `groundClearanceM` entirely,
+  // while the terrain-aware Dijkstra pass applied it — so cells in direct
+  // view were held to a laxer standard than cells behind a ridge.
+  it('applies the ground-clearance buffer to the direct ray', () => {
+    // Crest 2000 m, 4 km east. At 2250 m and L/D 20 the ray passes the crest
+    // at 2050 m — 50 m of clearance, against a 150 m setting.
+    for (const terrainAwareRouting of [false, true]) {
+      const zone = computeReachableZone({
+        sourceLat: 43,
+        sourceLon: 6,
+        sourceAltM: 2250,
+        grid: ridgeDem(2000, 0.01),
+        params: { ...PARAMS, arrivalHeightM: 0 },
+        zoneParams: { gridSizeM: 180, diameterKm: 20 },
+        terrainAwareRouting,
+      });
+      expect(isReachableAt(zone, 43, 6.09)).toBe(false);
+    }
+  });
+
+  // Regression: the ray took a fixed 10 samples whatever the range, so on a
+  // 9 km ray they sat ~900 m apart and a whole ridge could fall between two.
+  it('does not step over a narrow ridge', () => {
+    for (const widthDeg of [0.04, 0.004]) {
+      const zone = computeReachableZone({
+        sourceLat: 43,
+        sourceLon: 6,
+        sourceAltM: 1500,
+        grid: ridgeDem(3000, widthDeg),
+        params: { ...PARAMS, arrivalHeightM: 0 },
+        zoneParams: { gridSizeM: 180, diameterKm: 20 },
+        terrainAwareRouting: true,
+      });
+      // The glider is 1500 m below the crest: nothing beyond it is reachable,
+      // by any path, at any ridge width.
+      expect(isReachableAt(zone, 43, 6.09)).toBe(false);
+    }
+  });
+
+  it('never reports a routed arrival better than the direct glide', () => {
+    // Source deliberately off-lattice, flat terrain: the routed pass must not
+    // gain distance from snapping its origin to the nearest cell centre.
+    const zone = computeReachableZone({
+      sourceLat: 43.0007,
+      sourceLon: 6.0007,
+      sourceAltM: 3000,
+      grid: ridgeDem(0, 0),
+      params: PARAMS,
+      zoneParams: { gridSizeM: 180, diameterKm: 20 },
+      terrainAwareRouting: true,
+    });
+    const straight = computeReachableZone({
+      sourceLat: 43.0007,
+      sourceLon: 6.0007,
+      sourceAltM: 3000,
+      grid: ridgeDem(0, 0),
+      params: PARAMS,
+      zoneParams: { gridSizeM: 180, diameterKm: 20 },
+      terrainAwareRouting: false,
+    });
+    const count = (m: Uint8Array) => m.reduce((a, b) => a + b, 0);
+    expect(count(zone.reachableMask)).toBe(count(straight.reachableMask));
+  });
+});
+
 describe('buildCellPolygons', () => {
   it('emits one closed quad per reachable cell', () => {
     const mask = new Uint8Array([0, 0, 0, 0, 1, 0, 0, 0, 0]);

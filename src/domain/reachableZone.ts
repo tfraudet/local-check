@@ -7,9 +7,13 @@
  * evaluated as:
  *
  *   glideAltAtCell = sourceAltM − distM / workingLD
- *   marginM        = glideAltAtCell − terrainM − groundClearanceM
- *   reachable      = marginM ≥ arrivalHeightM AND straight-line terrain
- *                    clearance passes
+ *   marginM        = glideAltAtCell − terrainM
+ *   reachable      = marginM ≥ arrivalHeightM AND the glide to the cell
+ *                    clears terrain + groundClearanceM all the way
+ *
+ * `groundClearanceM` gates the *en-route* clearance only, not the arrival
+ * margin — arriving at `arrivalHeightM` above the field is the landing
+ * criterion, matching how landing zones are classified.
  *
  * The result carries the raw mask plus a `MultiPolygon` built as one
  * rectangular ring per reachable cell — MapLibre's fill layer renders it
@@ -22,7 +26,7 @@
 import type { ElevationGrid } from './elevation';
 import { sampleElevation } from './elevation';
 import type { LocalCheckParams } from './localCheck';
-import { glideClearsTerrain } from './glide';
+import { glideClearsTerrain, terrainStepFor } from './glide';
 import { MinHeap } from './routing/minHeap';
 import { haversineDistanceM } from './units';
 
@@ -36,9 +40,6 @@ export const REACHABLE_ZONE_CELL_CAP = 100_000;
 export const REACHABLE_ZONE_MAX_DIAMETER_KM = 60;
 export const REACHABLE_ZONE_MIN_DIAMETER_KM = 10;
 
-/** Samples taken along each source→cell ray for the terrain-clearance
- * check. Deliberately sparse: it runs once per grid cell. */
-const RAY_CLEARANCE_SAMPLES = 10;
 
 export interface ReachableZoneParams {
   gridSizeM: ReachableZoneGridSizeM;
@@ -179,6 +180,8 @@ export function computeReachableZone(
   const latStep = (maxLat - minLat) / (rows - 1);
   const lonStep = (maxLon - minLon) / (cols - 1);
 
+  const terrainStepM = terrainStepFor(grid);
+
   // Terrain-aware routing: one Dijkstra outward from the pilot on the
   // reachable-zone grid gives us the shortest routed distance to every
   // cell in a single pass. Cells left at Infinity are unreachable via
@@ -199,6 +202,7 @@ export function computeReachableZone(
         grid,
         workingLD: params.workingLD,
         groundClearanceM: params.groundClearanceM,
+        terrainStepM,
       })
     : null;
 
@@ -227,8 +231,11 @@ export function computeReachableZone(
 
       if (margin < params.arrivalHeightM) continue;
 
-      // Sparse ray check: ~10 samples rather than the accurate 200 m step,
-      // because this runs once per grid cell (accuracy vs speed tradeoff).
+      // Direct ray, sampled at DEM resolution and subject to the same
+      // ground-clearance buffer as the routed pass below. A fixed sample
+      // count (this used to take 10, whatever the range) spaces samples
+      // ~900 m apart on a 9 km ray, so a whole ridge fits between two of
+      // them and terrain-blocked cells were painted as reachable.
       if (
         !glideClearsTerrain({
           fromLat: sourceLat,
@@ -239,7 +246,8 @@ export function computeReachableZone(
           distanceM: distM,
           workingLD: params.workingLD,
           grid,
-          steps: RAY_CLEARANCE_SAMPLES,
+          groundClearanceM: params.groundClearanceM,
+          stepM: terrainStepM,
         })
       ) {
         // Straight-line blocked. Legacy behaviour: skip. With terrain-aware
@@ -312,6 +320,7 @@ interface RoutedDistancesInput {
   grid: ElevationGrid;
   workingLD: number;
   groundClearanceM: number;
+  terrainStepM: number;
 }
 
 const DIJKSTRA_NEIGHBOR_OFFSETS: Array<[number, number]> = [
@@ -335,6 +344,7 @@ function computeRoutedDistances(input: RoutedDistancesInput): Float32Array {
     grid,
     workingLD,
     groundClearanceM,
+    terrainStepM,
   } = input;
 
   const size = cols * rows;
@@ -350,10 +360,21 @@ function computeRoutedDistances(input: RoutedDistancesInput): Float32Array {
     Math.min(cols - 1, Math.round((sourceLon - minLon) / lonStep)),
   );
   const srcIdx = srcR * cols + srcC;
-  gCost[srcIdx] = 0;
+  // Seed with the distance from the true position to the snapped cell centre
+  // (up to ~0.7 cell). Starting at 0 would hand the routed branch a free
+  // head start the straight-line branch — measured from the real source —
+  // never gets, so a detour could report a *better* arrival than the direct
+  // glide, which is physically impossible.
+  const srcOffsetM = haversineDistanceM(
+    sourceLat,
+    sourceLon,
+    minLat + srcR * latStep,
+    minLon + srcC * lonStep,
+  );
+  gCost[srcIdx] = srcOffsetM;
 
   const open = new MinHeap();
-  open.push(srcIdx, 0);
+  open.push(srcIdx, srcOffsetM);
 
   while (open.size() > 0) {
     const cur = open.pop()!;
@@ -387,8 +408,8 @@ function computeRoutedDistances(input: RoutedDistancesInput): Float32Array {
       if (newG >= gCost[nIdx]) continue;
 
       // Glide plane from `altAtCur` at (lat, lon) must clear terrain
-      // (+ ground clearance) along the segment to the neighbour. Uses
-      // the coarse-but-accurate 200 m step from `glideClearsTerrain`.
+      // (+ ground clearance) along the segment to the neighbour, sampled at
+      // DEM resolution.
       if (
         !glideClearsTerrain({
           fromLat: lat,
@@ -400,7 +421,7 @@ function computeRoutedDistances(input: RoutedDistancesInput): Float32Array {
           workingLD,
           grid,
           groundClearanceM,
-          stepM: 200,
+          stepM: terrainStepM,
         })
       ) {
         continue;
