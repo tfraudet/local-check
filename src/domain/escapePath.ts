@@ -14,7 +14,20 @@ import { sampleElevation } from './elevation';
 import type { LandingZone } from './landingZone';
 import type { LocalCheckParams } from './localCheck';
 import { classifyArrival, type LocalStatus } from './arrival';
+import { terrainStepFor } from './glide';
 import { haversineDistanceM } from './units';
+
+/**
+ * Upper bound on the profile sampling step, in meters.
+ *
+ * The effective step is `min(this, terrainStepFor(grid))`, so the chart is
+ * never coarser than the clearance checks that gate routing — otherwise the
+ * profile can show a clean margin over a spike the routing gate rejected the
+ * path for, leaving "no terrain-safe path" with no visible cause. Fine DEMs
+ * (a local flight keeps the native ~31 m grid) are exactly where a flat
+ * 100 m step used to undersample.
+ */
+const MAX_PROFILE_STEP_M = 100;
 
 /** @deprecated Use `LocalStatus` from `domain/arrival`. Kept as an alias so
  * existing `EscapePath['status']` consumers keep compiling. */
@@ -62,6 +75,9 @@ export interface EscapePath {
   profile: EscapePathProfilePoint[];
   totalDistanceM: number;
   arrivalHeightM: number;
+  /** Smallest glide-plane-minus-BARE-terrain gap between source and LZ.
+   * Excludes `groundClearanceM` on purpose — it is a "how close to the
+   * ground" figure, not the legality criterion (that is `routing`). */
   minMarginM: number;
   status: LocalStatus;
   routing: EscapeRouting;
@@ -75,7 +91,8 @@ export interface EscapePathInputs {
   lz: LandingZone;
   grid: ElevationGrid;
   params: LocalCheckParams;
-  /** Sampling step along the straight line, in meters. Default 100 m. */
+  /** Sampling step along the path, in meters. Defaults to
+   * `min(100, terrainStepFor(grid))` — see `MAX_PROFILE_STEP_M`. */
   sampleStepM?: number;
   /**
    * Extra distance past the LZ to keep sampling terrain, for the profile
@@ -97,11 +114,13 @@ export interface EscapePathInputs {
 }
 
 /**
- * Compute the straight-line escape path from source to LZ.
+ * Compute the escape path from source to LZ (straight, or along `route`).
  *
- * The path terrain profile is sampled every `sampleStepM` metres (default
- * 100 m). Points with `NaN` terrain propagate as `null` in the profile and
- * are conservatively excluded from the min-margin computation.
+ * The terrain profile is sampled every `sampleStepM` metres, defaulting to
+ * `min(100, terrainStepFor(grid))` so it tracks the DEM and stays at least as
+ * fine as the routing clearance checks. Points with `NaN` terrain propagate
+ * as `null` in the profile and are conservatively excluded from the
+ * min-margin computation.
  */
 export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
   const startedAt = performance.now();
@@ -114,7 +133,7 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
     lz,
     grid,
     params,
-    sampleStepM = 100,
+    sampleStepM = Math.min(MAX_PROFILE_STEP_M, terrainStepFor(inputs.grid)),
     extraDistanceM = 0,
     route,
     routing = 'off',
@@ -213,8 +232,11 @@ export function computeEscapePath(inputs: EscapePathInputs): EscapePath {
 
     profile.push({ distFromSourceM, terrainM, glideAltM });
 
-    // Min glide-vs-terrain gap along the source→LZ portion only (samples
-    // beyond the LZ are context and never gate the classification).
+    // Min glide-vs-BARE-terrain gap along the source→LZ portion only (samples
+    // beyond the LZ are context and never gate the classification). Note this
+    // deliberately excludes `groundClearanceM`: it answers "how close did the
+    // glide plane come to the ground", not "is the path legal" — the latter is
+    // enforced in `routeToLz` and surfaced via `routing`.
     if (distFromSourceM <= totalDistanceM && terrainM !== null) {
       const margin = glideAltM - terrainM;
       if (margin < minMarginM) minMarginM = margin;

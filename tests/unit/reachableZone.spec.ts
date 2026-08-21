@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   computeReachableZone,
   resolveEffectiveParams,
+  finestUsefulGridSizeM,
+  maxDiameterKmForGridSize,
+  recommendedReachableZoneParams,
   REACHABLE_ZONE_CELL_CAP,
+  REACHABLE_ZONE_GRID_SIZES,
+  REACHABLE_ZONE_MIN_DIAMETER_KM,
   DEFAULT_REACHABLE_ZONE_PARAMS,
   buildCellPolygons,
   type ReachableZoneGridSizeM,
@@ -55,6 +60,102 @@ describe('resolveEffectiveParams', () => {
       diameterKm: 999,
     });
     expect(effective.diameterKm).toBeLessThanOrEqual(60);
+  });
+});
+
+describe('finestUsefulGridSizeM', () => {
+  // The resolutions the elevation backends actually produce: they start at
+  // 1 arcsec (~31 m) and double the step until the grid fits their sample
+  // budget, so only powers of two of 31 m ever appear.
+  it.each([
+    [62, 90], // local flight
+    [124, 180], // ~100 km XC
+    [247, 360], // most XC
+    [494, 720], // very long XC
+  ])('maps a %i m DEM to a %i m grid', (demResolutionM, expected) => {
+    expect(finestUsefulGridSizeM(demResolutionM)).toBe(expected);
+  });
+
+  it('never returns a size below the DEM resolution', () => {
+    for (const dem of [31, 62, 100, 124, 200, 247, 359, 494]) {
+      expect(finestUsefulGridSizeM(dem)).toBeGreaterThanOrEqual(
+        Math.min(dem, REACHABLE_ZONE_GRID_SIZES[0]),
+      );
+    }
+  });
+
+  it('falls back to the coarsest size for a DEM coarser than every option', () => {
+    expect(finestUsefulGridSizeM(5000)).toBe(720);
+  });
+
+  it('falls back to the default for a missing or absurd resolution', () => {
+    expect(finestUsefulGridSizeM(NaN)).toBe(
+      DEFAULT_REACHABLE_ZONE_PARAMS.gridSizeM,
+    );
+    expect(finestUsefulGridSizeM(0)).toBe(
+      DEFAULT_REACHABLE_ZONE_PARAMS.gridSizeM,
+    );
+  });
+});
+
+describe('maxDiameterKmForGridSize', () => {
+  it('produces a diameter that resolveEffectiveParams never degrades', () => {
+    for (const gridSizeM of REACHABLE_ZONE_GRID_SIZES) {
+      const diameterKm = maxDiameterKmForGridSize(gridSizeM);
+      const { effective, degraded } = resolveEffectiveParams({
+        gridSizeM,
+        diameterKm,
+      });
+      expect(effective).toEqual({ gridSizeM, diameterKm });
+      expect(degraded).toBe(false);
+    }
+  });
+
+  it('is the largest step-aligned diameter that fits the cap', () => {
+    for (const gridSizeM of REACHABLE_ZONE_GRID_SIZES) {
+      const diameterKm = maxDiameterKmForGridSize(gridSizeM);
+      const cellsFor = (dKm: number) => {
+        const n = Math.ceil((dKm * 1000) / gridSizeM) + 1;
+        return n * n;
+      };
+      expect(cellsFor(diameterKm)).toBeLessThanOrEqual(REACHABLE_ZONE_CELL_CAP);
+      // One step further is either over the cap or past the offered maximum.
+      const next = diameterKm + 5;
+      expect(next > 60 || cellsFor(next) > REACHABLE_ZONE_CELL_CAP).toBe(true);
+    }
+  });
+
+  it('never drops below the minimum diameter', () => {
+    expect(maxDiameterKmForGridSize(1)).toBe(REACHABLE_ZONE_MIN_DIAMETER_KM);
+  });
+});
+
+describe('recommendedReachableZoneParams', () => {
+  it('gives a local flight the finest grid its DEM supports', () => {
+    expect(recommendedReachableZoneParams(62, 40)).toEqual({
+      gridSizeM: 90,
+      diameterKm: 25, // clamped: 90 m over 40 km would blow the cell cap
+    });
+  });
+
+  it('keeps the default grid for a typical XC DEM', () => {
+    expect(recommendedReachableZoneParams(247, 40)).toEqual({
+      gridSizeM: 360,
+      diameterKm: 40,
+    });
+  });
+
+  it('preserves a diameter that already fits', () => {
+    expect(recommendedReachableZoneParams(247, 20).diameterKm).toBe(20);
+  });
+
+  it('is a fixed point of resolveEffectiveParams for every DEM resolution', () => {
+    for (const dem of [31, 62, 124, 247, 494, 1000]) {
+      for (const requested of [10, 20, 40, 60]) {
+        const params = recommendedReachableZoneParams(dem, requested);
+        expect(resolveEffectiveParams(params).degraded).toBe(false);
+      }
+    }
   });
 });
 

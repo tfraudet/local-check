@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeEscapePath } from '../../src/domain/escapePath';
+import { terrainStepFor } from '../../src/domain/glide';
 import type { ElevationGrid } from '../../src/domain/elevation';
 import type { LandingZone } from '../../src/domain/landingZone';
 
@@ -112,5 +113,40 @@ describe('computeEscapePath', () => {
     // arrivalHeight roughly = 1320 - 0 - ~20000/20 = ~320 - ~lz elev; the
     // actual distance is a hair less than 20 km, so accept a wide band.
     expect(['in-local', 'in-local-marginal']).toContain(path.status);
+  });
+});
+
+describe('profile sampling step', () => {
+  /** DEM at `resolutionM` over a 1° box, flat at sea level. */
+  const demAt = (resolutionM: number): ElevationGrid => ({
+    bbox: [5, 44, 6, 45],
+    cols: 64,
+    rows: 64,
+    resolutionM,
+    data: new Float32Array(64 * 64),
+    crs: 'EPSG:4326',
+  });
+
+  // Regression: the step was hardcoded to 100 m, so on the native ~31 m DEM
+  // a local flight keeps, the chart was 2x coarser than the clearance checks
+  // gating routing — it could show a clean margin over a spike the router
+  // rejected the path for.
+  it('is never coarser than the routing clearance step', () => {
+    for (const resolutionM of [31, 62, 124, 247, 494]) {
+      const grid = demAt(resolutionM);
+      const path = computeEscapePath({
+        sourceFixIndex: 0,
+        sourceLat: 44.5,
+        sourceLon: 5.2,
+        sourceAltM: 3000,
+        lz: lz(44.5, 5.4),
+        grid,
+        params: PARAMS,
+      });
+      const spacing =
+        path.profile[1].distFromSourceM - path.profile[0].distFromSourceM;
+      expect(spacing).toBeLessThanOrEqual(terrainStepFor(grid) + 1e-6);
+      expect(spacing).toBeLessThanOrEqual(100 + 1e-6);
+    }
   });
 });

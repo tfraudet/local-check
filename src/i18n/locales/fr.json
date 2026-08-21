@@ -72,6 +72,8 @@
     "toggleHint": "Superposer la zone atteignable en vol plané depuis la position actuelle, selon la finesse et le terrain",
     "gridSize": "Taille de grille",
     "gridSizeHint": "Taille des cellules d'échantillonnage pour la grille de zone atteignable. Plus petite = plus détaillée mais plus lente.",
+    "gridSizeTooFineHint": "Plus fine que les données terrain ({{resolutionM}} m) — échantillonner en dessous ne fait qu'interpoler les mêmes cellules",
+    "demResolution": "Données terrain : {{resolutionM}} m",
     "diameter": "Diamètre (km)",
     "diameterHint": "Diamètre de la zone circulaire échantillonnée autour de la position actuelle",
     "degradedHint": "Grille dégradée pour tenir dans le budget de {{cellCap}} cellules : {{gridSizeM}} m / {{diameterKm}} km"

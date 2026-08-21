@@ -10,7 +10,7 @@ import type { ZonesBySource, ToggleableSource, SourceToggles } from './landingZo
 import type { LocalCheckInput, LocalCheckResult } from '@/domain/localCheck';
 
 import { createWorkerChannel } from './workerChannel';
-import { DEFAULT_REACHABLE_ZONE_PARAMS, type ReachableZoneInputs, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
+import { DEFAULT_REACHABLE_ZONE_PARAMS, recommendedReachableZoneParams, type ReachableZoneInputs, type ReachableZoneParams, type ReachableZoneResult } from '@/domain/reachableZone';
 import { pickAltitude } from '@/domain/units';
 import { applyQnhOffsetToFlight, computeQnhOffset, QNH_DEFAULT_SAMPLES, QNH_MIN_SAMPLES, type QnhCorrectionError } from '@/domain/qnhCorrection';
 import { DEFAULT_ELEVATION_SOURCE, SUPPORTED_ELEVATION_SOURCES, type ElevationSource } from '@/services/elevationApi';
@@ -489,7 +489,33 @@ export const useFlightStore = create<FlightStoreState>()(
         // elevation grid management
         setElevationGrid: (grid) => {
           set({ elevationGrid: grid, elevationLoadError: null });
-          if (grid) reapplyQnhCorrection();
+          if (!grid) return;
+
+          // Match the reachable-zone grid to the DEM this flight actually
+          // got. Backends coarsen their step to a sample budget, so the
+          // resolution depends on the flight's bounding box: ~62 m for a
+          // local flight, ~247 m for a long XC. A fixed default is therefore
+          // either wasteful (sampling below the DEM only interpolates the
+          // same cells) or needlessly coarse.
+          //
+          // Deliberately runs on elevation load, i.e. once per flight, so a
+          // manual choice made afterwards sticks until the next flight.
+          const prevSettings = get().settings;
+          const prevParams = prevSettings.reachableZoneParams;
+          const nextParams = recommendedReachableZoneParams(
+            grid.resolutionM,
+            prevParams.diameterKm,
+          );
+          if (
+            nextParams.gridSizeM !== prevParams.gridSizeM ||
+            nextParams.diameterKm !== prevParams.diameterKm
+          ) {
+            set({
+              settings: { ...prevSettings, reachableZoneParams: nextParams },
+            });
+          }
+
+          reapplyQnhCorrection();
         },
 
         setElevationLoadError: (message) =>

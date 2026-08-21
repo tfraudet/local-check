@@ -72,6 +72,8 @@
     "toggleHint": "Overlay the area reachable in a glide from the current replay position, given L/D and terrain",
     "gridSize": "Grid size",
     "gridSizeHint": "Sampling cell size for the reachable-zone grid. Smaller = more detail but slower.",
+    "gridSizeTooFineHint": "Finer than the {{resolutionM}} m terrain data — sampling below it only interpolates the same cells",
+    "demResolution": "Terrain data: {{resolutionM}} m",
     "diameter": "Diameter (km)",
     "diameterHint": "Diameter of the circular sampled area around the current position",
     "degradedHint": "Grid downgraded to fit the {{cellCap}}-cell budget: {{gridSizeM}} m / {{diameterKm}} km"

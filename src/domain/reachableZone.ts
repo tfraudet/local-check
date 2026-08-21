@@ -39,6 +39,13 @@ export const REACHABLE_ZONE_GRID_SIZES: ReachableZoneGridSizeM[] = [
 export const REACHABLE_ZONE_CELL_CAP = 100_000;
 export const REACHABLE_ZONE_MAX_DIAMETER_KM = 60;
 export const REACHABLE_ZONE_MIN_DIAMETER_KM = 10;
+/**
+ * Granularity of the diameter, in km. `resolveEffectiveParams` shrinks by
+ * this amount per degradation step and the settings panel offers the same
+ * increments, so a diameter picked in the UI always lands on a value the
+ * degradation ladder can represent.
+ */
+export const REACHABLE_ZONE_DIAMETER_STEP_KM = 5;
 
 
 export interface ReachableZoneParams {
@@ -122,7 +129,10 @@ export function resolveEffectiveParams(requested: ReachableZoneParams): {
       continue;
     }
     if (diameterKm > REACHABLE_ZONE_MIN_DIAMETER_KM) {
-      diameterKm = Math.max(REACHABLE_ZONE_MIN_DIAMETER_KM, diameterKm - 5);
+      diameterKm = Math.max(
+        REACHABLE_ZONE_MIN_DIAMETER_KM,
+        diameterKm - REACHABLE_ZONE_DIAMETER_STEP_KM,
+      );
       degraded = true;
       continue;
     }
@@ -136,6 +146,74 @@ export function resolveEffectiveParams(requested: ReachableZoneParams): {
       sizes[sizeIdx] !== requested.gridSizeM ||
       diameterKm !== requested.diameterKm,
   };
+}
+
+/**
+ * Finest grid size that carries real terrain information for a DEM of
+ * `demResolutionM` metres: the smallest offered step not below the DEM's own
+ * cell size.
+ *
+ * Zone cells closer together than one DEM cell are bilinearly interpolated
+ * from the same four DEM corners (see `sampleElevation`), so they add no
+ * terrain detail — only a smoother polygon edge drawn over invented values,
+ * at 4× the compute per halving. Note the en-route clearance check is
+ * unaffected either way: it derives its own step from `terrainStepFor`, not
+ * from the zone grid, so this is a precision/cost trade-off and not a safety
+ * one.
+ *
+ * `demResolutionM` is the DEM's *meridional* step; east-west ground spacing
+ * is `resolutionM × cos(lat)` and therefore finer, which is why we round up
+ * to the next offered step rather than down.
+ */
+export function finestUsefulGridSizeM(
+  demResolutionM: number,
+): ReachableZoneGridSizeM {
+  if (!Number.isFinite(demResolutionM) || demResolutionM <= 0) {
+    return DEFAULT_REACHABLE_ZONE_PARAMS.gridSizeM;
+  }
+  const sizes = REACHABLE_ZONE_GRID_SIZES;
+  return sizes.find((s) => s >= demResolutionM) ?? sizes[sizes.length - 1];
+}
+
+/**
+ * Largest diameter that fits `REACHABLE_ZONE_CELL_CAP` at `gridSizeM`,
+ * snapped down to `REACHABLE_ZONE_DIAMETER_STEP_KM` and clamped to the
+ * offered range. Staying within this bound guarantees that
+ * `resolveEffectiveParams` has nothing left to degrade.
+ */
+export function maxDiameterKmForGridSize(gridSizeM: number): number {
+  // cells = (ceil(d × 1000 / s) + 1)² ≤ cap  ⟹  d ≤ (√cap − 1) × s / 1000
+  const maxCellsPerSide = Math.floor(Math.sqrt(REACHABLE_ZONE_CELL_CAP));
+  const rawKm = ((maxCellsPerSide - 1) * gridSizeM) / 1000;
+  const snappedKm =
+    Math.floor(rawKm / REACHABLE_ZONE_DIAMETER_STEP_KM) *
+    REACHABLE_ZONE_DIAMETER_STEP_KM;
+  return Math.max(
+    REACHABLE_ZONE_MIN_DIAMETER_KM,
+    Math.min(REACHABLE_ZONE_MAX_DIAMETER_KM, snappedKm),
+  );
+}
+
+/**
+ * Zone parameters matched to the DEM that was actually loaded: the finest
+ * grid the terrain data supports, keeping the caller's diameter but clamping
+ * it to what fits the cell budget at that grid size.
+ *
+ * Worth re-deriving per flight because the DEM resolution is not fixed — the
+ * elevation backends coarsen their output step (×2 per step) until the grid
+ * fits a sample budget, so a local flight yields ~62 m while a long XC
+ * yields ~247 m for the same source.
+ */
+export function recommendedReachableZoneParams(
+  demResolutionM: number,
+  requestedDiameterKm: number = DEFAULT_REACHABLE_ZONE_PARAMS.diameterKm,
+): ReachableZoneParams {
+  const gridSizeM = finestUsefulGridSizeM(demResolutionM);
+  const diameterKm = Math.max(
+    REACHABLE_ZONE_MIN_DIAMETER_KM,
+    Math.min(maxDiameterKmForGridSize(gridSizeM), requestedDiameterKm),
+  );
+  return { gridSizeM, diameterKm };
 }
 
 /**
