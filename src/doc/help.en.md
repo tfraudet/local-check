@@ -92,6 +92,24 @@ Key metrics displayed:
 - **Maximum missing height** — Largest deficit recorded
 - **Number of exits** — How many separate out-of-local events occurred
 - **Jump to first breach** — Click to seek the replay to the first out-of-local moment
+- **Lowest margin** — How close the flight came to breaching local even when it never did (cruise only, see below)
+
+### Flight phases and how they are scored
+
+The flight is sampled at the configured **Time Step**, and each sample is tagged with a flight phase before being classified. **Only the cruise phase is scored on glide geometry.** The other phases are always counted as *within local*, whatever their arrival height says:
+
+| Phase | How it is detected | Effect on the statistics |
+|-------|--------------------|--------------------------|
+| **Initial climb** (tow / winch) | Only if the recording starts with the glider stationary. From the takeoff roll, a sustained climb (Vz ≥ 1.5 m/s for 15 s, or 50 m gained) is looked for, then release is detected on the altitude trace — altitude staying 10 m below its running maximum for 5 s — or on the break turn that follows it (> 8 °/s), with a hard cap at 900 m gained. Everything from the first fix to the release point is tagged, ground fixes included. | Counted as within local. Without this, a glider sitting on the runway and the low part of the tow would score out of local. |
+| **Motor** | ENL / MOP value in the IGC file at or above the **ENL Threshold**. | Counted as within local: the engine, not a glide, is keeping the aircraft up. |
+| **Final glide** | Only when **Detect Final Glide** is on. Backwards from the last fix while below 300 m AGL and within 3 km of the landing point (the circuit), then extended further back over the committed descent — no re-climb greater than 50 m — provided that descent totals at least 200 m. | Counted as within local: being below the safety arrival height on the way into the field is the intent, not a breach. |
+| **Cruise** | Everything else. | Scored on arrival height: within local / marginal / out of local. |
+
+Consequences worth knowing:
+
+- **Turning *Detect Final Glide* on raises the percentage within local**, because the last low-level minutes stop being scored against a landing zone they are already landing at. With the option off, that descent is ordinary cruise and will usually be reported as marginal or out of local.
+- **Out of local, marginal, number of exits, min/max missing height, and lowest margin are all cruise-only figures.** A 300 m AGL circuit does not pull the *Lowest margin* down.
+- Each sample accounts for the real time elapsed until the next sample, so the three percentages partition the flight duration and **always total 100 %** — a gap in the logger recording or a fix without a usable altitude no longer silently disappears from the total.
 
 ### Track Colouring
 
@@ -103,6 +121,8 @@ The flight track on the map is colour-coded by phase and safety status:
 - Marginal
 - Out of local
 - Final glide (if detection is enabled)
+
+Phase colours take precedence over the safety status: an initial-climb, motor, or final-glide segment keeps its own colour and is never drawn yellow or red — consistent with the way those phases are counted in the statistics.
 
 ---
 
@@ -169,7 +189,7 @@ All settings are persisted in your browser (localStorage).
 | **Working L/D** | 20 | Glide ratio used for local-check computations |
 | **Safety Arrival Height** | 300 m | Minimum height above the landing zone on arrival |
 | **Ground Clearance** | 150 m | Minimum height above terrain along the glide path. Gates en-route clearance (routing and reachable zone); not the arrival classification |
-| **Detect Final Glide** | On | Automatically detect and mark final glide |
+| **Detect Final Glide** | On | Automatically detect and mark the final glide. Those samples are then counted as within local instead of being scored on arrival height — see *Flight phases and how they are scored* |
 | **Terrain-aware routing** | Off | Route escape path, arrival heights and reachable zone around ridges instead of straight-line only. Slower — leave off in flat terrain (see *Terrain-aware routing* above) |
 | **Time Step** | 20 s | Sampling interval for the local check (minimum 1 s) |
 | **ENL Threshold** | 500 | Engine noise level above which the engine is considered on |

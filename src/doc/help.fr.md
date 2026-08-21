@@ -92,6 +92,24 @@ Métriques affichées :
 - **Hauteur manquante max** — Plus grand déficit enregistré
 - **Nombre de sorties** — Combien d'épisodes hors local distincts se sont produits
 - **Aller à la première sortie** — Cliquer pour positionner le rejeu au premier instant hors local
+- **Marge la plus faible** — À quel point le vol s'est approché de la sortie du local, même s'il n'en est jamais sorti (croisière uniquement, voir ci-dessous)
+
+### Phases de vol et prise en compte dans les statistiques
+
+Le vol est échantillonné selon le **Pas de temps** configuré, et chaque échantillon reçoit une phase de vol avant d'être classé. **Seule la phase de croisière est évaluée sur la géométrie du plané.** Les autres phases sont toujours comptées *dans le local*, quelle que soit leur hauteur d'arrivée :
+
+| Phase | Détection | Effet sur les statistiques |
+|-------|-----------|----------------------------|
+| **Montée initiale** (remorqué / treuil) | Uniquement si l'enregistrement commence planeur à l'arrêt. À partir du roulage, on cherche une montée soutenue (Vz ≥ 1,5 m/s pendant 15 s, ou 50 m gagnés), puis le largage est détecté sur la trace altimétrique — altitude restant 10 m sous son maximum courant pendant 5 s — ou sur le virage de dégagement qui le suit (> 8 °/s), avec une limite haute à 900 m gagnés. Tout ce qui va du premier point au largage est marqué, points au sol inclus. | Compté dans le local. Sans cela, un planeur à l'arrêt sur la piste et le début du remorquage seraient comptés hors local. |
+| **Moteur** | Valeur ENL / MOP du fichier IGC supérieure ou égale au **Seuil ENL**. | Compté dans le local : c'est le moteur, et non un plané, qui maintient l'appareil en l'air. |
+| **Arrivée finale** | Uniquement si **Détecter l'arrivée finale** est activé. En remontant depuis le dernier point tant que l'on est sous 300 m sol et à moins de 3 km du point d'atterrissage (le circuit d'atterrissage), puis prolongée plus en amont sur la descente engagée — sans reprise d'altitude de plus de 50 m — à condition que cette descente totalise au moins 200 m. | Compté dans le local : passer sous la hauteur d'arrivée de sécurité en rejoignant le terrain est l'intention, pas une infraction. |
+| **Croisière** | Tout le reste. | Évalué sur la hauteur d'arrivée : dans le local / marginal / hors local. |
+
+À retenir :
+
+- **Activer *Détecter l'arrivée finale* augmente le pourcentage dans le local**, car les dernières minutes à basse hauteur cessent d'être évaluées par rapport à un terrain sur lequel le planeur est déjà en train de se poser. Option désactivée, cette descente reste de la croisière et sera le plus souvent rapportée marginale ou hors local.
+- **Le hors local, le marginal, le nombre de sorties, les hauteurs manquantes min/max et la marge la plus faible ne portent que sur la croisière.** Un circuit d'atterrissage à 300 m sol ne fait pas baisser la *Marge la plus faible*.
+- Chaque échantillon compte pour le temps réellement écoulé jusqu'au suivant : les trois pourcentages se partagent donc la durée du vol et **totalisent toujours 100 %** — un trou dans l'enregistrement du logger ou un point sans altitude exploitable ne disparaît plus silencieusement du total.
 
 ### Coloration de la trace
 
@@ -103,6 +121,8 @@ La trace sur la carte est colorée selon la phase et le statut de sécurité :
 - Marginal
 - Hors local
 - Arrivée finale (si la détection est activée)
+
+Les couleurs de phase sont prioritaires sur le statut de sécurité : un segment de montée initiale, moteur ou arrivée finale conserve sa propre couleur et n'est jamais tracé en jaune ou en rouge — cohérent avec la façon dont ces phases sont comptées dans les statistiques.
 
 ---
 
@@ -169,7 +189,7 @@ Tous les réglages sont conservés dans votre navigateur (localStorage).
 | **Finesse** | 20 | Finesse utilisée pour le calcul du local |
 | **Hauteur d'arrivée de sécurité** | 300 m | Hauteur minimale au-dessus de la zone d'atterrissage à l'arrivée |
 | **Garde au sol** | 150 m | Hauteur minimale au-dessus du terrain le long du plan. Conditionne la garde en route (routage et zone atteignable), pas la classification d'arrivée |
-| **Détecter l'arrivée finale** | On | Détecter et marquer automatiquement l'arrivée finale |
+| **Détecter l'arrivée finale** | On | Détecter et marquer automatiquement l'arrivée finale. Ces échantillons sont alors comptés dans le local au lieu d'être évalués sur la hauteur d'arrivée — voir *Phases de vol et prise en compte dans les statistiques* |
 | **Routage tenant compte du relief** | Off | Contourne les crêtes pour la trajectoire de dégagement, les hauteurs d'arrivée et la zone atteignable au lieu d'un simple calcul en ligne droite. Plus lent — laisser désactivé en plaine (voir *Routage tenant compte du relief* ci-dessus) |
 | **Pas de temps** | 20 s | Intervalle d'échantillonnage pour le local check (min 1 s) |
 | **Seuil ENL** | 500 | Niveau sonore moteur au-dessus duquel le moteur est considéré en marche |

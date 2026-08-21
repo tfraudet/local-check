@@ -70,6 +70,11 @@ export interface LocalCheckResult {
   computedAt: number;
 }
 
+/**
+ * Time-based summary of one local check. The three percentages partition the
+ * flight duration (first to last fix) and therefore always total 100 % — see
+ * `bandOf` for which phase/status combination feeds which band.
+ */
 export interface LocalCheckStats {
   outOfLocalTimeMs: number;
   outOfLocalPercent: number;
@@ -146,10 +151,13 @@ export function runLocalCheck(input: LocalCheckInput, phases : FlightPhase[]): L
   for (let i = 0; i < fixes.length; i++) {
     const fix = fixes[i];
     if (fix.timeMs - lastSampleMs < stepMs) continue;
-    lastSampleMs = fix.timeMs;
 
     const altM = pickAltitude(fix, altitudeSource, qnhOffsetM);
+    // Advance the cursor only on an emitted sample: a fix without a usable
+    // altitude must not consume the slot, otherwise the sampler skips
+    // forward a full step and leaves an unclassified hole behind it.
     if (altM === null) continue;
+    lastSampleMs = fix.timeMs;
 
     const terrain = sampleElevation(elevationGrid, fix.latitude, fix.longitude);
     const terrainElevM = isNaN(terrain) ? null : terrain;
@@ -179,7 +187,7 @@ export function runLocalCheck(input: LocalCheckInput, phases : FlightPhase[]): L
     });
   }
 
-  const stats = computeStats(samples, stepMs, fixes);
+  const stats = computeStats(samples, fixes);
 
   return {
     params,
@@ -272,9 +280,31 @@ function classifyPosition(
   };
 }
 
+/**
+ * Which of the three reported bands a sample contributes its time to.
+ *
+ * Only cruise is scored on arrival geometry. Every other phase is credited
+ * as in-local whatever its geometry says:
+ *   - initial-climb: on tow / on the winch (and the pre-takeoff ground fixes
+ *     folded into that phase) — the glider is not yet responsible for its
+ *     own glide, and a stationary glider on the runway would otherwise score
+ *     out-of-local.
+ *   - final-glide: the committed descent and circuit into the landing field —
+ *     being below the arrival buffer there is the intent, not a breach.
+ *   - motor: the engine, not a glide, is keeping the aircraft up.
+ *
+ * The mapping is total, so the three bands always add up to the flight
+ * duration; nothing is silently dropped.
+ */
+function bandOf(sample: SampledPoint): 'out' | 'marginal' | 'in' {
+  if (sample.phase !== 'cruise') return 'in';
+  if (sample.status === 'out-of-local') return 'out';
+  if (sample.status === 'in-local-marginal') return 'marginal';
+  return 'in';
+}
+
 function computeStats(
   samples: SampledPoint[],
-  stepMs: number,
   fixes: Fix[],
 ): LocalCheckStats {
   const flightDurationMs =
@@ -286,16 +316,40 @@ function computeStats(
   const cruiseOutSamples = samples.filter(
     (s) => s.status === 'out-of-local' && s.phase === 'cruise',
   );
-  const cruiseMarginalSamples = samples.filter(
-    (s) => s.status === 'in-local-marginal' && s.phase === 'cruise',
-  );
-  const cruiseInLocalSamples = samples.filter(
-    (s) => (s.status === 'in-local' && s.phase === 'cruise') || s.phase === 'initial-climb' || s.phase === 'final-glide' ,
-  );
+  // Each sample stands for the wall-clock interval running up to the next
+  // sample — NOT for a fixed `timeStepS` slice. Sampling lands on the first
+  // fix past the step, samples whose altitude is unusable are dropped, and
+  // logger gaps stretch the spacing, so counting slices under-reports against
+  // the real elapsed time (a clean flight came out at 99.1 % instead of 100).
+  // Anchoring the first interval at the first fix makes the weights sum to
+  // `flightDurationMs` exactly.
+  const weightsMs = new Array<number>(samples.length);
+  let boundaryMs = fixes[0]?.timeMs ?? 0;
+  for (let i = 0; i < samples.length; i++) {
+    const nextBoundaryMs =
+      i + 1 < samples.length
+        ? samples[i + 1].timeMs
+        : (fixes[fixes.length - 1]?.timeMs ?? boundaryMs);
+    weightsMs[i] = Math.max(0, nextBoundaryMs - boundaryMs);
+    boundaryMs = nextBoundaryMs;
+  }
 
-  const outOfLocalTimeMs = cruiseOutSamples.length * stepMs;
-  const inLocalMarginalTimeMs = cruiseMarginalSamples.length * stepMs;
-  const inLocalTimeMs = cruiseInLocalSamples.length * stepMs;
+  let outOfLocalTimeMs = 0;
+  let inLocalMarginalTimeMs = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const band = bandOf(samples[i]);
+    if (band === 'out') outOfLocalTimeMs += weightsMs[i];
+    else if (band === 'marginal') inLocalMarginalTimeMs += weightsMs[i];
+  }
+  // Complement rather than a third sum, so the bands can never fail to total
+  // 100 % because of an unmapped sample.
+  const inLocalTimeMs =
+    samples.length === 0
+      ? 0
+      : Math.max(
+          0,
+          flightDurationMs - outOfLocalTimeMs - inLocalMarginalTimeMs,
+        );
 
   const missingHeights = cruiseOutSamples
     .map((s) => s.missingHeightM)
