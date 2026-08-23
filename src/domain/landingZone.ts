@@ -8,28 +8,28 @@ import { haversineDistanceM } from './units';
 
 /**
  * Raw alpine outlanding difficulty tag as embedded in the .cup description
- * (e.g. `{F}`, `{M}`, `{TD}`). Used internally by the parser; consumers
+ * (e.g. `{facile}`, `{normal}`, `{tres_difficile}`). Used internally by the
+ * parser; consumers
  * work with the simplified `DifficultyLevel` instead.
  */
 export type AlpesDifficultyTag =
-  | 'A' // airfield
-  | 'F' // easy
-  | 'E' // easy (alt)
-  | 'ZA' // group of fields
-  | 'LA' // group of fields (alt)
-  | 'M' // medium
-  | 'D' // difficult
-  | 'TD' // very difficult
-  | 'VD'; // very difficult (alt)
+  | 'aerodrome'
+  | 'terrain'
+  | 'altiport'
+  | 'velisurface'
+  | 'facile'
+  | 'normal'
+  | 'difficile'
+  | 'tres_difficile';
 
 /**
  * Simplified four-level difficulty scale, aligned with alpine airfield
  * outlanding tags (see the .cup convention documented in `parseCup.ts`).
  *
- *   green  ← A, F, E, ZA, LA  (airfield or easy landable field)
- *   orange ← M                (medium)
- *   red    ← D                (difficult)
- *   black  ← TD, VD           (very difficult)
+ *   green  ← aerodrome/terrain/altiport/velisurface/facile
+ *   orange ← normal
+ *   red    ← difficile
+ *   black  ← tres_difficile
  */
 export type DifficultyLevel = 'green' | 'orange' | 'red' | 'black';
 
@@ -48,7 +48,7 @@ export interface LandingZone {
   style: number | null; // SeeYou style code (2-5 = airfield variants)
   difficulty_level: DifficultyLevel;
   description: string | null;
-  isAirfield: boolean; // style ∈ {2,3,4,5} OR tag === 'A'
+  isAirfield: boolean; // style ∈ {2,3,5} OR tag === 'aerodrome'
   /** Primary runway heading in degrees (0–359, true north). If the source
    * provides multiple runways, take the last. Sources without runway
    * information default to 0. */
@@ -65,14 +65,13 @@ export function difficultyLevelFromTag(
   tag: AlpesDifficultyTag | null,
 ): DifficultyLevel {
   switch (tag) {
-    case 'M':
+    case 'normal':
       return 'orange';
-    case 'D':
+    case 'difficile':
       return 'red';
-    case 'TD':
-    case 'VD':
+    case 'tres_difficile':
       return 'black';
-    // A, F, E, ZA, LA, or no explicit tag → green
+    // aerodrome/terrain/altiport/velisurface/facile, or no explicit tag → green
     default:
       return 'green';
   }

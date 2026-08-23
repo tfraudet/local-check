@@ -345,17 +345,19 @@ Chaque champ vachable porte une note de difficulté sur une **échelle simplifi�
 
 ##### Alpes : conversion étiquette → niveau
 
-La base Alpes `.cup` utilise les étiquettes vachables alpines intégrées à la description de chaque point (`{A}`, `{F}`, `{E}`, `{ZA}`, `{LA}`, `{M}`, `{D}`, `{TD}`, `{VD}`). Local Check les fait correspondre à l'échelle 4 couleurs comme suit :
+La base Alpes `.cup` utilise désormais des tags nommés intégrés à la description de chaque point (`{aerodrome}`, `{terrain}`, `{altiport}`, `{velisurface}`, `{facile}`, `{normal}`, `{difficile}`, `{tres_difficile}`). Local Check les fait correspondre à l'échelle 4 couleurs comme suit :
 
-| Étiquette alpine | Signification | Niveau |
+| Tag alpin | Signification | Niveau |
 |------------------|---------------|--------|
-| `A` | Aérodrome | 🟢 Vert |
-| `F` / `E` | Facile | 🟢 Vert |
-| `ZA` / `LA` | Groupe de champs | 🟢 Vert |
+| `aerodrome` | Aérodrome | 🟢 Vert |
+| `terrain` | Terrain balisé (privé) ou piste ULM | 🟢 Vert |
+| `altiport` | Altiport | 🟢 Vert |
+| `velisurface` | Vélisurface | 🟢 Vert |
+| `facile` | Champ sans difficulté particulière | 🟢 Vert |
 | *(sans étiquette)* | Point non tagué | 🟢 Vert |
-| `M` | Moyen | 🟠 Orange |
-| `D` | Difficile | 🔴 Rouge |
-| `TD` / `VD` | Très difficile | ⚫ Noir |
+| `normal` | Moyen | 🟠 Orange |
+| `difficile` | Difficile | 🔴 Rouge |
+| `tres_difficile` | Très difficile | ⚫ Noir |
 
 ##### Auvergne
 

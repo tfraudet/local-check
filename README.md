@@ -30,7 +30,7 @@ It helps flight instructors and pilots answer critical safety questions:
 - **Telemetry & Flight Summary Panels:** Live time, position, altitude (pressure/GNSS), ground speed, and vario, plus overall flight stats (date, pilot, glider, duration, min/max altitude, max speed, total distance).
 - **Derived Metrics:** Ground speed, vario, and cumulative distance computed from raw IGC fixes.
 - **Landing Zone catalog:** Airports pulled from **OpenAIP** per-country JSON exports (24 h `localStorage` cache) plus two curated outlanding databases toggleable from the Settings panel:
-  - **Alpes Outlanding Fields** — SeeYou `.cup` file covering the French / Italian / Swiss Alps, with alpine difficulty tags (`{A}` / `{F}` / `{M}` / `{D}` / `{TD}` …) mapped to a four-colour scale.
+  - **Alpes Outlanding Fields** — SeeYou `.cup` file covering the French / Italian / Swiss Alps, with named alpine tags (`{aerodrome}` / `{facile}` / `{normal}` / `{difficile}` / `{tres_difficile}` …) mapped to a four-colour scale.
   - **ACPH Auvergne Outlanding Fields** — JSON catalog for the Auvergne region, difficulty read directly from the source.
 
   OpenAIP takes precedence: outlanding entries within 400 m of an OpenAIP zone are dropped, and within each source entries closer than 250 m are merged (airfield / tagged entries preferred).

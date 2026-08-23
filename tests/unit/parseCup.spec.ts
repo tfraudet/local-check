@@ -49,9 +49,9 @@ describe('parseCupLongitude', () => {
 // ---------------------------------------------------------------------------
 
 const SAMPLE_CUP = `name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc
-"Vinon Sur Verdon","VINON","FR",4344.150N,00604.020E,270m,2,,,,"Airfield {A}"
-"Riez","RIEZ","FR",4349.500N,00607.170E,520m,5,,,,"Glider site {F}"
-"Banon","BANON","FR",4403.700N,00538.100E,870m,4,,,,"Outlanding {D}"
+"Vinon Sur Verdon","VINON","FR",4344.150N,00604.020E,270m,2,,,,"Airfield {aerodrome}"
+"Riez","RIEZ","FR",4349.500N,00607.170E,520m,5,,,,"Glider site {facile}"
+"Banon","BANON","FR",4403.700N,00538.100E,870m,4,,,,"Outlanding {difficile}"
 `;
 
 describe('parseCup', () => {
@@ -68,12 +68,34 @@ describe('parseCup', () => {
     expect(vinon!.isAirfield).toBe(true);
   });
 
+  it('uses Alpes semantic tags for airfield classification', () => {
+    const cup = `name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc
+"Aero","AERO","FR",4344.150N,00604.020E,270m,2,,,,"Runway {aerodrome}"
+"Field","FIELD","FR",4349.500N,00607.170E,520m,2,,,,"Private strip {terrain}"
+`;
+    const result = parseCup(cup, 'outlanding-alps');
+    const aero = result.zones.find((z) => z.code === 'AERO');
+    const field = result.zones.find((z) => z.code === 'FIELD');
+    expect(aero?.isAirfield).toBe(true);
+    expect(field?.isAirfield).toBe(false);
+  });
+
   it('maps difficulty tags to the simplified 4-level scale', () => {
     const result = parseCup(SAMPLE_CUP);
     const banon = result.zones.find((z) => z.code === 'BANON');
-    expect(banon!.difficulty_level).toBe('red'); // {D}
+    expect(banon!.difficulty_level).toBe('red'); // {difficile}
     const riez = result.zones.find((z) => z.code === 'RIEZ');
-    expect(riez!.difficulty_level).toBe('green'); // {F}
+    expect(riez!.difficulty_level).toBe('green'); // {facile}
+  });
+
+  it('extracts difficulty when description is after an extra frequency column', () => {
+    const cup = `name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc
+"#999 Test",#999,FR,4346.683N,00609.583E,655.0m,4,130,700.0m,,122.5,"Champ etroit, approche delicate. {difficile}",,"Test.jpg"
+`;
+    const result = parseCup(cup);
+    expect(result.zones.length).toBe(1);
+    expect(result.zones[0].difficulty_level).toBe('red'); // {difficile}
+    expect(result.zones[0].description).toContain('{difficile}');
   });
 
   it('parses elevation with meters suffix', () => {
@@ -85,7 +107,7 @@ describe('parseCup', () => {
   it('deduplicates points within 250 m', () => {
     const cup = `name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc
 "Alpha","A","FR",4344.000N,00604.000E,200m,4,,,,""
-"AlphaDupe","AD","FR",4344.001N,00604.001E,200m,4,,,,"Dupe of Alpha {M}"
+"AlphaDupe","AD","FR",4344.001N,00604.001E,200m,4,,,,"Dupe of Alpha {normal}"
 `;
     const result = parseCup(cup);
     // Should keep the entry with an explicit (non-green) difficulty level

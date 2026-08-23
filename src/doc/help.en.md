@@ -345,17 +345,19 @@ Every outlanding field carries a difficulty rating on a simplified **four-colour
 
 ##### Alpes: tag-to-level conversion
 
-The Alpes `.cup` database uses the alpine outlanding tags embedded in each waypoint's description (`{A}`, `{F}`, `{E}`, `{ZA}`, `{LA}`, `{M}`, `{D}`, `{TD}`, `{VD}`). Local Check maps them to the 4-level colour scale as follows:
+The Alpes `.cup` database now uses named tags embedded in each waypoint's description (`{aerodrome}`, `{terrain}`, `{altiport}`, `{velisurface}`, `{facile}`, `{normal}`, `{difficile}`, `{tres_difficile}`). Local Check maps them to the 4-level colour scale as follows:
 
 | Alpine tag | Meaning | Level |
 |------------|---------|-------|
-| `A` | Airfield | 🟢 Green |
-| `F` / `E` | Easy (*facile*) | 🟢 Green |
-| `ZA` / `LA` | Group of fields | 🟢 Green |
+| `aerodrome` | Airfield | 🟢 Green |
+| `terrain` | Marked private strip / ULM runway | 🟢 Green |
+| `altiport` | Altiport | 🟢 Green |
+| `velisurface` | Glider strip (*vélisurface*) | 🟢 Green |
+| `facile` | Easy field | 🟢 Green |
 | *(no tag)* | Untagged waypoint | 🟢 Green |
-| `M` | Medium (*moyen*) | 🟠 Orange |
-| `D` | Difficult (*difficile*) | 🔴 Red |
-| `TD` / `VD` | Very difficult (*très difficile*) | ⚫ Black |
+| `normal` | Medium | 🟠 Orange |
+| `difficile` | Difficult | 🔴 Red |
+| `tres_difficile` | Very difficult | ⚫ Black |
 
 ##### Auvergne
 

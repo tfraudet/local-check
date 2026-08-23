@@ -61,6 +61,8 @@ export function useOutlandingDatabase() {
         .then((text) => {
           const zones = src.parse(text);
           if (zones.length > 0) addLandingZones(zones);
+          console.log(`[outlanding:${src.label}] load complete`, zones );
+
         })
         .catch((err) => {
           failed = true;

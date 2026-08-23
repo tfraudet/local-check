@@ -38,7 +38,19 @@ export interface CupParseError {
 export type CupParseResult = CupParseSuccess | CupParseError;
 
 const LANDABLE_STYLES = new Set([2, 3, 4, 5]);
-const DIFFICULTY_REGEX = /\{(A|F|E|ZA|LA|M|D|TD|VD)\}/i;
+const DIFFICULTY_REGEX = /\{([a-z_]+)\}/gi;
+const FREQUENCY_LIKE_REGEX = /^\d{3}(?:\.\d+)?$/;
+const IMAGE_FILENAME_REGEX = /\.(?:jpg|jpeg|png|gif|webp)$/i;
+const ALPES_TAGS: Record<string, AlpesDifficultyTag> = {
+  aerodrome: 'aerodrome',
+  terrain: 'terrain',
+  altiport: 'altiport',
+  velisurface: 'velisurface',
+  facile: 'facile',
+  normal: 'normal',
+  difficile: 'difficile',
+  tres_difficile: 'tres_difficile',
+};
 
 export function parseCup(
   text: string,
@@ -102,10 +114,10 @@ export function parseCup(
     const elevationM = parseElevation(elevRaw?.trim() ?? '');
     const style = parseStyle(styleRaw?.trim() ?? '');
     const runwayHeading = parseRunwayHeading(rwdirRaw?.trim() ?? '');
-    const description = descRaw?.trim() || null;
-    const tag = extractDifficulty(description);
-    const isAirfield =
-      (style !== null && [2, 3, 5].includes(style)) || tag === 'A';
+    const tailFields = cols.slice(10).map((c) => c.trim()).filter(Boolean);
+    const description = pickDescription(tailFields, descRaw?.trim() || null);
+    const tag = extractDifficulty(tailFields.join(' '));
+    const isAirfield = computeIsAirfield(style, tag, source);
 
     // Only import usable LZs (drop pure waypoints / unknown)
     if (style !== null && !LANDABLE_STYLES.has(style) && style !== 0) continue;
@@ -194,9 +206,41 @@ function parseStyle(s: string): number | null {
 
 function extractDifficulty(desc: string | null): AlpesDifficultyTag | null {
   if (!desc) return null;
-  const m = desc.match(DIFFICULTY_REGEX);
-  if (!m) return null;
-  return m[1].toUpperCase() as AlpesDifficultyTag;
+  for (const m of desc.matchAll(DIFFICULTY_REGEX)) {
+    const normalized = m[1].toLowerCase();
+    const mapped = ALPES_TAGS[normalized];
+    if (mapped) return mapped;
+  }
+  return null;
+}
+
+function computeIsAirfield(
+  style: number | null,
+  tag: AlpesDifficultyTag | null,
+  source: LandingZoneSource,
+): boolean {
+  // The Alpes outlanding dataset now uses explicit semantic tags and no longer
+  // uses style codes consistently to separate aerodromes from outlanding fields.
+  if (source === 'outlanding-alps') {
+    if (tag !== null) return tag === 'aerodrome';
+    return style !== null && [2, 3, 5].includes(style);
+  }
+  return (style !== null && [2, 3, 5].includes(style)) || tag === 'aerodrome';
+}
+
+function pickDescription(
+  tailFields: string[],
+  fallback: string | null,
+): string | null {
+  const tagged = tailFields.find((field) => extractDifficulty(field) !== null);
+  if (tagged) return tagged;
+
+  const text = tailFields.find(
+    (field) =>
+      !FREQUENCY_LIKE_REGEX.test(field) && !IMAGE_FILENAME_REGEX.test(field),
+  );
+  if (text) return text;
+  return fallback;
 }
 
 /**

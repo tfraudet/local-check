@@ -54,7 +54,7 @@ export function LandingZonesPanel() {
               return (
                 <Item className="py-0" size="xs" key={lz.id}>
                   <ItemMedia variant="icon">
-                    {lz.style == 3 ? (
+                    {!lz.isAirfield ? (
                       <Square fill={colorStr} color={colorStr} className="size-3"/>
                     ) : (
                       <Circle fill="var(--primary)" color="var(--primary)" className="size-3"/>
