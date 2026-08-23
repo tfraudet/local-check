@@ -47,11 +47,13 @@ jobs:
           name: dist-folder
           path: dist/
 
-      - name: Déployer via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Déployer via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./dist/
-          server-dir: /clickandbuilds/ACPHv2prod/local-check/
+          port: 22
+          local_path: './dist/*'
+          remote_path: '/clickandbuilds/ACPHv2prod/local-check/'
+          sftp_only: true
