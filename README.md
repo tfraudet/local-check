@@ -1,8 +1,9 @@
 # Local Check
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](<>)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat)](https://opensource.org/licenses/MIT)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](<>)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)](https://github.com/tfraudet/local-check/pulls)
+[![AI Assisted](https://img.shields.io/badge/AI%20Assisted-Copilot%20%2F%20Claude-8A2BE2?style=flat)](https://github.com/tfraudet/local-check)
 
 A specialized safety and post-flight analysis tool for glider pilots and soaring clubs. **Local Check** verifies whether a pilot remained within safe gliding distance (local range) of an airfield or a designated Landing Zone throughout their entire flight.
 
@@ -53,7 +54,6 @@ It helps flight instructors and pilots answer critical safety questions:
 
 ### 🗺️ Planned features
 
-- **Airspace penetration detection & reporting** (imported OpenAir/GeoJSON).
 - **User-uploaded Landing Zone import** — SeeYou `.cup` files provided by the pilot, in addition to the built-in Alpes and Auvergne catalogs.
 - **Wind effect on glide,** manual entry or drift-derived.
 - **Downloadable debrief reports** — flight summary, out-of-local events, screenshots for club compliance.
