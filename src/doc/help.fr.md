@@ -1,6 +1,6 @@
 # Local Check — Guide utilisateur
 
-**Local Check** est un outil d'analyse post-vol destiné aux pilotes de planeur et aux clubs de vol à voile. Il rejoue un fichier IGC en le confrontant à une base de zones d'atterrissage et vérifie que le pilote est resté à portée de plané d'un aérodrome ou d'un champ vachable pendant tout le vol.
+**Local Check** est un outil d'analyse post-vol destiné aux pilotes de planeur et aux clubs de vol à voile. Il rejoue un fichier IGC en le confrontant à une base de zones d'atterrissage et vérifie que le pilote est resté à portée de plané d'un aérodrome ou d'un champ vachable répertorié pendant tout le vol.
 
 ---
 
@@ -35,13 +35,13 @@ La navigation icônes-seulement à gauche est toujours visible :
 - **FR/EN** — Changer de langue
 - **Soleil / Lune** — Basculer entre thème clair et sombre
 
-Cliquer sur une icône déploie un panneau contextuel à côté de la barre latérale.
+Cliquer sur l'icône  ```Avion```ou ```Réglages``` déploie un panneau contextuel à côté de la barre latérale.
 
 ### Disposition principale
 
 - **Carte** (partie haute) — Trace du vol, zones d'atterrissage, trajectoire de dégagement et zone atteignable
 - **Barogramme** (partie basse)
-  - Droite : **Profil de la trajectoire de dégagement** — profil du terrain et plan de vol vers la meilleure zone atteignable
+  - Droite : **Profil de la trajectoire de dégagement** — profil du terrain et plan de vol vers la meilleure zone d'attérissage
   - Gauche : **Barogramme** — altitude en fonction du temps, synchronisé avec le curseur de la carte
 - **Contrôles de rejeu** — Barre temporelle, lecture/pause, sélecteur de vitesse et affichage de l'heure
 
@@ -49,7 +49,7 @@ Cliquer sur une icône déploie un panneau contextuel à côté de la barre lat�
 
 ## Panneau Vol
 
-Une fois un vol chargé, le panneau Vol affiche :
+Une fois un vol chargé, le panneau résumé du vol affiche :
 
 - Nom du pilote, type de planeur, date du vol
 - Durée, distance totale, altitude minimale et maximale
@@ -79,11 +79,11 @@ Une fois un vol chargé, le panneau Vol affiche :
 
 ## Analyse Du Local
 
-Le panneau **Local Statistiques** classe le vol par rapport à vos paramètres de sécurité :
+Le panneau **Résultats** classe le vol par rapport à vos paramètres de sécurité :
 
-- **Toujours dans le local** (vert) — Le vol est toujours resté à portée de plané sûre
+- **Toujours dans le local** (vert) — Le vol est toujours resté à portée de plané d'une zone d'attérissage connue en prennant en compte la hauteur d'arrivée de sécurité 
 - **Marginal** (jaune) — Les marges sont passées sous le seuil de sécurité à un moment donné
-- **Hors local** (rouge) — Le pilote est sorti de la zone de plané sûre au moins une fois
+- **Hors local** (rouge) — Le pilote est sorti au moins une fois du local dune zone d'atterissage connues.
 
 Métriques affichées :
 
@@ -102,8 +102,8 @@ Le vol est échantillonné selon le **Pas de temps** configuré, et chaque écha
 |-------|-----------|----------------------------|
 | **Montée initiale** (remorqué / treuil) | Uniquement si l'enregistrement commence planeur à l'arrêt. À partir du roulage, on cherche une montée soutenue (Vz ≥ 1,5 m/s pendant 15 s, ou 50 m gagnés), puis le largage est détecté sur la trace altimétrique — altitude restant 10 m sous son maximum courant pendant 5 s — ou sur le virage de dégagement qui le suit (> 8 °/s), avec une limite haute à 900 m gagnés. Tout ce qui va du premier point au largage est marqué, points au sol inclus. | Compté dans le local. Sans cela, un planeur à l'arrêt sur la piste et le début du remorquage seraient comptés hors local. |
 | **Moteur** | Valeur ENL / MOP du fichier IGC supérieure ou égale au **Seuil ENL**. | Compté dans le local : c'est le moteur, et non un plané, qui maintient l'appareil en l'air. |
-| **Arrivée finale** | Uniquement si **Détecter l'arrivée finale** est activé. En remontant depuis le dernier point tant que l'on est sous 300 m sol et à moins de 3 km du point d'atterrissage (le circuit d'atterrissage), puis prolongée plus en amont sur la descente engagée — sans reprise d'altitude de plus de 50 m — à condition que cette descente totalise au moins 200 m. | Compté dans le local : passer sous la hauteur d'arrivée de sécurité en rejoignant le terrain est l'intention, pas une infraction. |
-| **Croisière** | Tout le reste. | Évalué sur la hauteur d'arrivée : dans le local / marginal / hors local. |
+| **Arrivée finale** | Uniquement si **Détecter l'arrivée finale** est activé. En remontant depuis le dernier point tant que l'on est sous 300 m sol et à moins de 3 km du point d'atterrissage (le circuit d'atterrissage), puis prolongée plus en amont sur la descente engagée — sans reprise d'altitude de plus de 50 m — à condition que cette descente totalise au moins 200 m. | Compté dans le local : passer sous la hauteur d'arrivée de sécurité en rejoignant le terrain est l'intention, pas une perte de local. |
+| **Croisière** | Tout le reste. | Évalué sur la hauteur d'arrivée de sécurité: dans le local / marginal / hors local. |
 
 À retenir :
 
@@ -140,12 +140,13 @@ Le graphique **Profil de la trajectoire de dégagement** (à droite du barogramm
 
 - L'élévation du terrain le long de la trajectoire de dégagement
 - Le plan de vol depuis la position actuelle
-- Le repère d'arrivée sur la zone d'atterrissage cible
-- La ligne cible d'arrivée sécurisée
+- Le repère d'arrivée sur la zone d'atterrissage cible (un petti carré belu)
+- La ligne cible d'arrivée sécurisée (une ligne horizontale jaune en pontillés)
+- Une ligne violette en pointillés au-dessus du relief qui indique la hauteur par rapport au sol
 
 ### Zone atteignable
 
-Une superposition verte translucide représentant la zone atteignable depuis la position actuelle, compte tenu de la finesse définie dans ```Paramètres``` et du terrain sous-jacent. Configurable via :
+Une superposition verte translucide représentant la zone atteignable depuis la position actuelle, compte tenu de la finesse définie dans ```Réglages``` et du terrain sous-jacent. Configurable via :
 
 - **Taille de grille** — 90 / 180 / 360 / 720 m (plus petit = plus détaillé, plus lent)
 - **Diamètre** — 10 à 60 km autour de la position courante
@@ -164,8 +165,8 @@ Désactivé par défaut. Lorsqu'il est activé depuis les Réglages, Local Check
 
 Sous le capot :
 
-- **Trajectoire de dégagement, étiquettes de hauteur d'arrivée, sélection de la meilleure zone dans le local** — recherche **Theta\*** (A\* à angle libre sur la grille d'élévation) par requête. La visibilité s'appuie sur la même primitive de garde au relief que la vérification en ligne droite : le plan de vol doit rester au-dessus du terrain + garde au sol tout le long du segment détourné.
-- **Zone atteignable** — un seul balayage **Dijkstra** depuis la position pilote marque chaque cellule de la grille avec sa distance détournée minimale en une passe ; exécuter un Theta\* par cellule serait beaucoup trop lent.
+- Pour **Trajectoire de dégagement, étiquettes de hauteur d'arrivée, sélection de la meilleure zone dans le local** — Local Check utilise l’algorithme de recherche de chemin **Theta\*** (une version améliorée de A\* qui peut “couper” quand la ligne de vue est libre, ce qui produit des trajets plus directs et plus fluides). L’algorithme teste rapidement plusieurs options, puis conserve le meilleur plan de vol, en restant au-dessus du terrain avec la garde au sol requise sur tout le segment.
+- Pour **Zone atteignable** — Local Check utilise **Dijkstra**, un algorithme qui calcule la distance minimale depuis un point de départ vers tous les autres points d’une carte découpée en points connectés. En une seule exécution depuis la position pilote, **Dijkstra** attribue à chaque cellule de la grille sa distance  minimale ; lancer Theta* cellule par cellule serait beaucoup trop lent. 
 
 Compromis :
 
@@ -175,6 +176,15 @@ Compromis :
 - **Borne de portée** : aucune route ne peut dépasser `(altitude courante − altitude du terrain) × finesse de travail`, puisque le planeur doit encore arriver au niveau du terrain ou au-dessus. La recherche est bornée par ce budget : un terrain hors d'atteinte derrière une crête est écarté immédiatement au lieu de l'être après un balayage exhaustif.
 - **Trois issues distinctes, trois libellés distincts**. *Vol plané direct* n'est annoncé **que** si le segment direct a été vérifié dégagé du terrain + garde au sol. *Vol plané détourné* signifie qu'un détour a été trouvé et vérifié. Si aucun des deux ne tient, le panneau affiche **Aucune trajectoire sûre** et la ligne droite est tracée en estompé sur la carte : c'est une géométrie de référence, pas une trajectoire — le graphique montre le plan de plané traversant le relief. Ne lisez jamais ce troisième cas comme un plané direct sûr.
 - Laissez l'option désactivée pour les vols en plaine ; activez-la pour le vol en montagne où une ligne droite couperait une crête alors qu'un détour par une vallée ou un col est en pratique réalisable.
+
+Pour aller plus loin (références)
+- [A* (base de nombreux algorithmes de pathfinding)](https://en.wikipedia.org/wiki/A*_search_algorithm)
+- [Theta* (article de référence, PDF) “Theta*: Any-Angle Path Planning on Grids”](https://cdn.aaai.org/AAAI/2007/AAAI07-187.pdf)
+- [Comparaison et vulgarisation des algorithmes de pathfinding Red Blob Games (très pédagogique)](https://www.redblobgames.com/pathfinding/a-star/introduction.html)
+- [Any-angle path planning (famille d’algos incluant Theta*)](https://en.wikipedia.org/wiki/Any-angle_path_planning)
+- [Dijkstra (Wikipedia, vue d’ensemble)](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
+- [Article original (1959) – E. W. Dijkstra A note on two problems in connexion with graphs](https://doi.org/10.1007/BF01386390)
+- [Explication pédagogique (visualisation) VisuAlgo – Dijkstra](https://visualgo.net/en/sssp)   
 
 ---
 
@@ -191,12 +201,12 @@ Tous les réglages sont conservés dans votre navigateur (localStorage).
 | **Garde au sol** | 150 m | Hauteur minimale au-dessus du terrain le long du plan. Conditionne la garde en route (routage et zone atteignable), pas la classification d'arrivée |
 | **Détecter l'arrivée finale** | On | Détecter et marquer automatiquement l'arrivée finale. Ces échantillons sont alors comptés dans le local au lieu d'être évalués sur la hauteur d'arrivée — voir *Phases de vol et prise en compte dans les statistiques* |
 | **Routage tenant compte du relief** | Off | Contourne les crêtes pour la trajectoire de dégagement, les hauteurs d'arrivée et la zone atteignable au lieu d'un simple calcul en ligne droite. Plus lent — laisser désactivé en plaine (voir *Routage tenant compte du relief* ci-dessus) |
-| **Pas de temps** | 20 s | Intervalle d'échantillonnage pour le local check (min 1 s) |
+| **Pas de temps** | 20 s | Intervalle d'échantillonnage pour le calcul du local (min 1 s) |
 | **Seuil ENL** | 500 | Niveau sonore moteur au-dessus duquel le moteur est considéré en marche |
 | **Recalibrer l'altitude sur le QNH local** | Off | Corriger l'altitude pression brute du fichier IGC vers le QNH du jour en s'appuyant sur l'altitude terrain au décollage |
 | **Source d'élévation du terrain** | AWS Terrain | Backend DEM utilisé pour construire la grille d'élévation — AWS Terrain (~25 m DTM en Europe, CDN rapide) ou Microsoft Planetary Computer (~30 m DSM, canopée/bâti inclus, plus lent) |
 
-#### Recalibrer l'altitude sur le QNH local
+### Recalibrer l'altitude sur le QNH local
 
 L'altitude pression IGC est enregistrée par rapport à la pression atmosphérique standard (1013,25 hPa), et non par rapport au QNH du jour ; les altitudes affichées et l'AGL peuvent donc être décalés de plusieurs dizaines de mètres. Lorsque cette option est activée, Local Check :
 
@@ -206,9 +216,9 @@ L'altitude pression IGC est enregistrée par rapport à la pression atmosphériq
 
 Le décalage calculé est affiché sous l'interrupteur (par ex. `+42,3 m`). Si moins de 5 points valides avant décollage sont disponibles, ou si la position de décollage tombe hors grille d'élévation, la correction est désactivée et un avertissement s'affiche ; les points IGC bruts restent toujours la source de vérité.
 
-### Bases de zones d'atterrissage
+### Bases de données de zones d'atterrissage
 
-Activer ou désactiver les bases de champs vachables utilisées pour l'analyse :
+Activer ou désactiver les bases de données de champs vachables utilisées pour l'analyse :
 
 - **Champs vachables des Alpes**
 - **Champs vachables d'Auvergne (ACPH)**
@@ -247,28 +257,29 @@ Utilisez le bouton **FR / EN** de la barre latérale pour basculer l'interface e
 
 ## Sources de données & logique de chargement
 
-Quand vous chargez un fichier IGC, Local Check l'analyse puis récupère en parallèle trois jeux de données externes, tous indexés sur la boîte englobante du vol. La progression de chacun apparaît dans la boîte de dialogue de chargement. Les données OpenAIP sont mises en cache localement (24 h) ; les données d'élévation sont re-téléchargées à chaque import.
+Quand vous chargez un fichier IGC, Local Check l'analyse puis récupère en parallèle deux jeux de données externes, tous indexés sur la boîte englobante du vol; l'elévation du terrain et la liste des aéroports via OpenAIP.  La progression de chacun apparaît dans la boîte de dialogue de chargement. Les données OpenAIP sont mises en cache localement (24 h) ; les données d'élévation sont re-téléchargées à chaque import.
 
 ### 1. Élévation du terrain (DEM)
 
-Une grille régulière des hauteurs de terrain est téléchargée pour la boîte englobante du vol (élargie d'environ 20 km). Cette grille alimente le calcul de l'AGL, les profils de terrain, la garde au plan de vol, l'analyse de la zone atteignable et la recalibration QNH.
+Une grille régulière des hauteurs de terrain est téléchargée pour la boîte englobante du vol (élargie d'environ 20 km). Cette grille alimente le calcul de l'AGL, les profils de terrain, la garde au sol en plané, l'analyse de la zone atteignable et la recalibration QNH.
 
 > **⏱ À noter :** le chargement des données d'élévation est l'une des étapes les plus lentes sur un nouveau vol. La durée dépend de la taille de la zone couverte, du backend choisi et des conditions réseau. La boîte de dialogue affiche la progression et le reste de l'application demeure réactif pendant ce temps.
 
-La source d'élévation se choisit dans le **panneau Paramètres** et est mémorisée par utilisateur.
+La source d'élévation se choisit dans le panneau **Réglages** et est mémorisée par utilisateur.
 
-#### Source par défaut : AWS Terrain Tiles
+#### ➡️ Source par défaut : AWS Terrain Tiles
 
 Local Check récupère le DEM depuis **[AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)** (tuiles PNG Terrarium d'AWS Open Data), servies via CloudFront. Aucune clé API n'est requise.
 
 Stratégie de chargement :
 
-1. Choisir un niveau de zoom Web Mercator dont la taille de pixel native est au plus égale au pas cible (~30 m) à la latitude de la bbox.
-2. Énumérer les tuiles XYZ chevauchant la bbox à ce zoom.
-3. Télécharger les tuiles en parallèle depuis le CDN et décoder PNG → RGBA via `createImageBitmap` + `OffscreenCanvas`.
-4. Assembler les élévations décodées dans une grille de sortie unique (EPSG:4326, pas régulier lat/lon) en appliquant la formule Terrarium `(R × 256 + G + B / 256) − 32768` mètres par pixel.
+1. L’application choisit automatiquement le niveau de détail le plus adapté à votre zone (environ 30 m par pixel).
+2. Elle repère toutes les tuiles de terrain nécessaires pour couvrir la zone demandée.
+3. Elle télécharge ces tuiles en parallèle pour aller plus vite.
+4. Elle lit les images et convertit leurs couleurs en altitudes réelles (format Terrarium).
+5. Elle assemble toutes les altitudes dans une grille unique et continue pour faire les calculs.
 
-Des caches internes à la session (pixels décodés + requêtes en vol) court-circuitent les rechargements. Les URLs des tuiles sont immuables, donc le cache HTTP du navigateur prend le relais entre rechargements de page.
+Des caches internes à la session court-circuitent les rechargements. Les URLs des tuiles sont immuables, donc le cache HTTP du navigateur prend le relais entre rechargements de page.
 
 Sources sous-jacentes selon la région (mosaïque) :
 
@@ -279,7 +290,7 @@ Sources sous-jacentes selon la région (mosaïque) :
 
 La sortie est plafonnée à ~2 millions d'échantillons ; quand la requête dépasse ce budget, la résolution est dégradée par étapes ×2 successives jusqu'à tenir dans le budget.
 
-#### DSM vs DTM
+#### ➡️ DSM vs DTM
 
 Les modèles numériques d'élévation existent en deux grandes variantes :
 
@@ -288,9 +299,9 @@ Les modèles numériques d'élévation existent en deux grandes variantes :
 
 AWS Terrain Tiles sert un **DTM** sur l'Europe (EU-DEM). C'est l'option la plus rapide et largement suffisante pour la plupart des vols. **Compromis :** pour l'analyse de posabilité et de plané, la hauteur qui menace réellement le planeur est celle du sommet de ce qui se dresse au sol (canopée, bâtiments), pas le niveau théorique du sol nu quelques mètres plus bas — sur terrain densément boisé, un DTM est donc légèrement moins conservateur qu'un DSM. Si ce compromis est gênant, bascule sur le backend DSM ci-dessous depuis le panneau Paramètres.
 
-#### Backend alternatif : Microsoft Planetary Computer (DSM)
+#### ➡️ Backend alternatif : Microsoft Planetary Computer (DSM)
 
-La source d'élévation peut être basculée depuis le **panneau Paramètres** vers le **[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)** — le catalogue open-data géospatial de Microsoft exposant des jeux de données d'observation de la Terre à l'échelle pétaoctet sous forme de Cloud-Optimised GeoTIFFs (COGs) via une API STAC publique. Aucune clé API n'est requise.
+La source d'élévation peut être basculée depuis le panneau **Réglages** vers le **[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)** — le catalogue open-data géospatial de Microsoft exposant des jeux de données d'observation de la Terre à l'échelle pétaoctet sous forme de Cloud-Optimised GeoTIFFs (COGs) via une API STAC publique. Aucune clé API n'est requise.
 
 - Sert **Copernicus DEM GLO-30** (collection STAC `cop-dem-glo-30`) — **DSM** WorldDEM mondial ~30 m issu du radar interférométrique TanDEM-X (ESA / Airbus). Hauteurs au-dessus du géoïde EGM2008.
 - Stratégie de chargement : recherche STAC des tuiles 1° × 1° chevauchant la bbox, signature de chaque URL d'asset via `/api/sas/v1/sign`, puis lecture des pixels utiles uniquement via les requêtes de plages d'octets de `geotiff.js`.
@@ -298,17 +309,17 @@ La source d'élévation peut être basculée depuis le **panneau Paramètres** v
 
 ### 2. Aérodromes (OpenAIP)
 
-Les aérodromes sont récupérés depuis **OpenAIP** pour compléter les bases de champs vachables avec les pistes reconnues à l'échelle mondiale.
+Les aérodromes sont récupérés depuis [OpenAIP](https://www.openaip.net/) avec les pistes reconnues à l'échelle mondiale.
 
 - Plutôt que d'interroger l'API REST OpenAIP à chaque changement de vue, Local Check télécharge les exports JSON par pays sur `https://storage.openaip.net/openaip-system-exports/<cc>_apt.json`.
 - Les pays traversés sont détectés hors ligne à partir de la trace du vol via un jeu de polygones-pays 10 km (`@geo-maps/countries-land-10km`), échantillonné à ~30 points sur la trace. On obtient une petite liste de codes pays ISO alpha-2 (par ex. `fr`, `it`, `ch`).
-- Les charges par pays sont **mises en cache dans `localStorage` pendant 24 h** — recharger un vol dans le même pays évite complètement le réseau.
-- Seuls les types d'aérodromes pertinents sont conservés : aérodromes civils, sites vélivoles, aérodromes (civils / IFR), sites ULM, terrains d'aviation et altiports. Héliports, terrains militaires uniquement, terrains fermés, hydroaérodromes et pistes agricoles sont écartés d'emblée.
+- La liste des aérodromes par pays sont **mises en cache dans `localStorage` pendant 24 h** — recharger un vol dans le même pays évite complètement le réseau.
+- Seuls les types d'aérodromes pertinents sont conservés : aérodromes civils, sites vélivoles, aérodromes (civils / IFR), sites ULM, terrains d'aviation et altiports. Héliports, terrains militaires, terrains fermés, hydroaérodromes et pistes agricoles sont écartés.
 - Les aérodromes chargés sont ensuite filtrés à la boîte englobante du vol (élargie de ~60 km) avant d'être fusionnés dans le catalogue des zones d'atterrissage.
 
 ### 3. Bases de champs vachables
 
-Deux bases vélivoles peuvent être activées depuis le panneau Réglages. Chacune est téléchargée la première fois que son interrupteur est activé (pas nécessairement au démarrage) et conservée en mémoire pour le reste de la session — les cycles activation/désactivation ultérieurs ne rechargent pas. Si les deux interrupteurs restent éteints, aucune donnée vachable n'est téléchargée.
+Deux bases vélivoles peuvent être activées depuis le panneau Réglages. Chacune est téléchargée la première fois que son interrupteur est activé (pas nécessairement au démarrage) et conservée en mémoire pour le reste de la session — les cycles activation/désactivation ultérieurs ne rechargent pas. Si les deux interrupteurs restent éteints, aucun champ vachable n'est téléchargée.
 
 | Source | Région | URL | Format |
 |--------|--------|-----|--------|
@@ -373,10 +384,9 @@ La boîte de dialogue de chargement affiche la progression de chaque étape et s
 ## Notes & astuces
 
 - Les zones d'atterrissage sont recherchées uniquement dans les bases configurées — veillez à activer les régions pertinentes.
-- Réduire la taille de grille de la zone atteignable augmente fortement le coût de calcul ; commencez par 360 m et affinez au besoin.
-- Le paramètre Garde au sol n'influe pas sur la classification du local check (seule la hauteur d'arrivée la détermine), mais il conditionne bien la garde au relief **en route** : le plan de plané doit rester au-dessus du terrain + garde au sol sur chaque segment détourné et sur chaque rayon de la zone atteignable. L'augmenter réduit la zone atteignable et rend les détours plus difficiles à trouver.
-- Les données d'élévation sont chargées à la demande ; la boîte de dialogue indique la progression pour l'élévation, la base des zones d'atterrissage et le calcul du local check.
-- Les données OpenAIP par pays sont mises en cache côté client dans `localStorage` (24 h) — vider le stockage du navigateur force une nouvelle récupération au prochain chargement. Les données d'élévation sont re-téléchargées à chaque import.
+- Réduire la taille de grille de la zone atteignable augmente fortement le coût de calcul ; commencez par 720 m et affinez au besoin.
+- Le paramètre Garde au sol n'influe pas sur la classification du local (seule la hauteur d'arrivée la détermine), mais il conditionne bien la garde au relief **en route** : le plan de plané doit rester au-dessus du terrain + garde au sol sur chaque segment détourné et sur chaque rayon de la zone atteignable. L'augmenter réduit la zone atteignable et rend les détours plus difficiles à trouver.
+- Les données OpenAIP par pays sont mises en cache côté client dans `localStorage` (24 h) — vider le stockage du navigateur force une nouvelle récupération au prochain chargement.
 - Des statistiques d'usage anonymes et sans cookies peuvent être collectées via [Umami](https://umami.is) (aucune donnée personnelle, aucun contenu de vol, aucun cookie) afin que le club puisse voir quelles fonctionnalités sont réellement utilisées.
 
 ---
@@ -391,4 +401,4 @@ L'objectif de ce projet est de proposer une alternative **100 % web** :
 - Fonctionne sous **macOS et Linux** aussi bien que sous Windows, tandis que VerifLocal est une application desktop Windows-only.
 - Accessible instantanément depuis n'importe quel appareil disposant d'un navigateur, sans droits administrateur ni installation.
 
-Merci à l'auteur de VerifLocal d'avoir défriché le concept — cette version web vise simplement à rendre le même type d'analyse accessible à un public plus large, quel que soit le système.
+Un grand merci 🙏 à l'auteur de VerifLocal d'avoir défriché le concept — cette version web vise simplement à rendre le même type d'analyse accessible à un public plus large, quel que soit le système.

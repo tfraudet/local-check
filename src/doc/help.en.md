@@ -1,6 +1,6 @@
 # Local Check — User Guide
 
-**Local Check** is a post-flight analysis tool for glider pilots and soaring clubs. It replays an IGC flight log against a database of landing options and verifies whether the pilot stayed within safe gliding distance of an airfield or outlanding field throughout the flight.
+**Local Check** is a post-flight analysis tool for glider pilots and soaring clubs. It replays an IGC flight log against a database of landing options and verifies whether the pilot stayed within safe gliding distance of an airfield or known outlanding field throughout the flight.
 
 ---
 
@@ -35,7 +35,7 @@ The icon-only left navigation is always visible:
 - **FR/EN** Switch language
 - **Sun / Moon** — Toggle between light and dark theme
 
-Clicking an icon expands a contextual panel next to the sidebar.
+Clicking the ```Aircraft``` or ```Settings``` icon opens a contextual panel next to the sidebar.
 
 ### Main Layout
 
@@ -49,7 +49,7 @@ Clicking an icon expands a contextual panel next to the sidebar.
 
 ## Flight Panel
 
-Once a flight is loaded, the Flight panel displays:
+Once a flight is loaded, the Flight Summary panel displays:
 
 - Pilot name, glider type, flight date
 - Duration, total distance, minimum and maximum altitude
@@ -79,11 +79,11 @@ Once a flight is loaded, the Flight panel displays:
 
 ## Local Check Analysis
 
-The **Local Stats** panel classifies the flight against your safety parameters:
+The **Results** panel classifies the flight against your safety parameters:
 
-- **Always in Local** (green) — The flight always remained within safe glide range
+- **Always in Local** (green) — The flight remained always within safe glide range of a known landing area, taking into account the safety margin height.
 - **Marginal** (yellow) — Margins fell below the safety threshold at some point
-- **Out of Local** (red) — The pilot left the safe glide range at least once
+- **Out of Local** (red) — The pilot left the safe glide range of a known landing option at least once
 
 Key metrics displayed:
 
@@ -103,7 +103,7 @@ The flight is sampled at the configured **Time Step**, and each sample is tagged
 | **Initial climb** (tow / winch) | Only if the recording starts with the glider stationary. From the takeoff roll, a sustained climb (Vz ≥ 1.5 m/s for 15 s, or 50 m gained) is looked for, then release is detected on the altitude trace — altitude staying 10 m below its running maximum for 5 s — or on the break turn that follows it (> 8 °/s), with a hard cap at 900 m gained. Everything from the first fix to the release point is tagged, ground fixes included. | Counted as within local. Without this, a glider sitting on the runway and the low part of the tow would score out of local. |
 | **Motor** | ENL / MOP value in the IGC file at or above the **ENL Threshold**. | Counted as within local: the engine, not a glide, is keeping the aircraft up. |
 | **Final glide** | Only when **Detect Final Glide** is on. Backwards from the last fix while below 300 m AGL and within 3 km of the landing point (the circuit), then extended further back over the committed descent — no re-climb greater than 50 m — provided that descent totals at least 200 m. | Counted as within local: being below the safety arrival height on the way into the field is the intent, not a breach. |
-| **Cruise** | Everything else. | Scored on arrival height: within local / marginal / out of local. |
+| **Cruise** | Everything else. | Scored on safety arrival height: within local / marginal / out of local. |
 
 Consequences worth knowing:
 
@@ -140,8 +140,9 @@ The **Escape Path Profile** chart (right of the barogram) shows:
 
 - Terrain elevation along the escape trajectory
 - The glide plane from the current position
-- Arrival marker at the destination landing zone
-- Safety-arrival target line
+- Arrival marker at the destination landing zone (a samll blue square)
+- Safety-arrival target line (An horizontal dashed yellow line)
+- A purple dashed line above the terrain that show the ground cleareance
 
 ### Reachable Zone
 
@@ -164,8 +165,8 @@ Off by default. When enabled from the Settings panel, Local Check finds a path a
 
 Under the hood:
 
-- **Escape path, arrival-height labels, best-LZ picker in the local** — a per-query **Theta\*** search (any-angle A\* on the elevation grid). Line-of-sight uses the same terrain-clearance primitive as the straight-line check, so the glide plane must stay above terrain + ground-clearance along the routed segment.
-- **Reachable zone** — a single **Dijkstra** sweep outward from the pilot on the reachable-zone grid marks every cell with its shortest routed distance in one pass; running Theta\* per cell would be far too slow.
+- **Escape path, arrival-height labels, best-LZ picker in the local** — Local Check uses the **Theta\*** pathfinding algorithm (an enhanced variant of A\* that can cut corners when line of sight is clear, producing more direct and smoother paths). The algorithm rapidly evaluates multiple options, then retains the best flight plan while maintaining the required ground clearance over the terrain across the entire segment.
+- **Reachable zone** — Local Check uses **Dijkstra**, an algorithm that calculates the minimum distance from a single starting point to all other points on a map discretized into connected nodes. In a single pass from the pilot's position, **Dijkstra** assigns to each grid cell its minimal distance; running Theta\*  cell by cell would be far too slow.
 
 Trade-offs:
 
@@ -175,6 +176,15 @@ Trade-offs:
 - **Range bound**: no route can be longer than `(current altitude − field elevation) × working L/D`, since the glider still has to arrive at or above the field. The search is bounded by that budget, so an LZ that is simply out of reach behind a ridge is rejected immediately instead of after an exhaustive sweep.
 - **Three distinct outcomes, three distinct labels**. *Straight glide* is claimed **only** when the direct segment was verified clear of terrain + ground clearance. *Routed glide* means a detour was found and verified. When neither holds, the panel reads **No terrain-safe path** and the straight line is drawn faint on the map: it is reference geometry, not a trajectory — the chart shows the glide plane crossing the terrain. Never read that third case as a safe direct glide.
 - Leave the toggle off for lowland flights; enable it when flying near mountains where a straight line would clip a ridge but a valley/saddle detour is actually feasible.
+
+Further Reading
+- [A* (base for many pathfinding algorithms)](https://en.wikipedia.org/wiki/A*_search_algorithm)
+- [Theta* (reference paper, PDF) “Theta*: Any-Angle Path Planning on Grids”](https://cdn.aaai.org/AAAI/2007/AAAI07-187.pdf)
+- [Red Blob Games pathfinding introduction & comparison (highly educational)](https://www.redblobgames.com/pathfinding/a-star/introduction.html)
+- [Any-angle path planning (family of algorithms including Theta*)](https://en.wikipedia.org/wiki/Any-angle_path_planning)
+- [Dijkstra (Wikipedia overview)](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
+- [Original paper (1959) – E. W. Dijkstra "A note on two problems in connexion with graphs"](https://doi.org/10.1007/BF01386390)
+- [Interactive visualization (VisuAlgo – Dijkstra)](https://visualgo.net/en/sssp)   
 
 ---
 
@@ -196,7 +206,7 @@ All settings are persisted in your browser (localStorage).
 | **Recalibrate altitude on local QNH** | Off | Correct raw IGC pressure altitude to the day's QNH using pre-takeoff terrain elevation |
 | **Terrain elevation source** | AWS Terrain | DEM backend used to build the elevation grid — AWS Terrain (~25 m DTM in Europe, fast CDN) or Microsoft Planetary Computer (~30 m DSM, canopy/buildings included, slower) |
 
-#### Recalibrate altitude on local QNH
+### Recalibrate altitude on local QNH
 
 IGC pressure altitude is recorded against the International Standard Atmosphere reference (1013.25 hPa), not the QNH of the day, so displayed altitudes and AGL can be off by tens of meters. When this toggle is enabled, Local Check:
 
@@ -247,7 +257,7 @@ Use the **FR / EN** button in the sidebar to switch the interface language betwe
 
 ## Data Sources & Loading Logic
 
-When you upload an IGC file, Local Check parses it and then fetches three external data sets in parallel, all keyed off the flight's bounding box. Progress for each is reflected in the loading dialog. OpenAIP payloads are cached locally (24 h); elevation data is re-fetched on every upload.
+When you upload an IGC file, Local Check parses it and then fetches two external datasets in parallel, both based on the flight's bounding box: terrain elevation and the list of airports via OpenAIP. The progress for each is displayed in the loading dialog. OpenAIP payloads are cached locally (24 h); elevation data is re-fetched on every upload.
 
 ### 1. Terrain Elevation (DEM)
 
@@ -255,20 +265,21 @@ A regular grid of terrain heights is downloaded for the flight bounding box (buf
 
 > **⏱ Heads-up:** loading the elevation data is one of the slowest steps on a fresh flight. Duration depends on the size of the area covered, the chosen backend and network conditions. The loading dialog shows the progress and the rest of the app remains responsive in the meantime.
 
-The elevation source is chosen from the **Settings panel** and persisted per user.
+The elevation source is chosen from the **Settings** panel and persisted per user.
 
-#### Default source: AWS Terrain Tiles
+#### ➡️ Default source: AWS Terrain Tiles
 
 Local Check fetches the DEM from **[AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)** (Terrarium PNG tiles from AWS Open Data), served through CloudFront. No API key required.
 
 Loading strategy:
 
-1. Pick a Web Mercator zoom whose native pixel size is at most the target step (~30 m) given the bbox latitude.
-2. Enumerate the XYZ tiles overlapping the flight bbox at that zoom.
-3. Fetch tiles in parallel from the CDN and decode PNG → RGBA via `createImageBitmap` + `OffscreenCanvas`.
-4. Blit each tile's decoded elevations into a single output grid (EPSG:4326, uniform lat/lon), decoding the Terrarium formula `(R × 256 + G + B / 256) − 32768` metres per pixel.
+1. The app automatically selects the resolution best suited to your area (around 30 m per pixel).
+2. It identifies all the terrain tiles needed to cover the requested area.
+3. It downloads these tiles in parallel to speed things up.
+4. It reads the images and converts their color values into real-world elevations (Terrarium format).
+5. It merges all elevations into a single continuous grid to perform calculations.
 
-Session-scoped caches of decoded pixels and in-flight requests short-circuit repeat loads. Tile URLs are immutable so the browser HTTP cache also kicks in across page reloads.
+Session-scoped caches of decoded pixels short-circuit repeat loads. Tile URLs are immutable so the browser HTTP cache also kicks in across page reloads.
 
 Underlying sources vary by region (mosaic):
 
@@ -279,7 +290,7 @@ Underlying sources vary by region (mosaic):
 
 The output is capped at ~2 million samples; when the request exceeds that budget, the resolution is coarsened by successive ×2 steps until it fits.
 
-#### DSM vs DTM
+#### ➡️ DSM vs DTM
 
 Digital elevation models come in two main flavours:
 
@@ -288,9 +299,9 @@ Digital elevation models come in two main flavours:
 
 AWS Terrain Tiles serves a **DTM** over Europe (EU-DEM). This is the fastest option and more than accurate enough for most flights. **Trade-off:** for landability/glide analysis the height that actually threatens the glider is the top of what stands on the ground (canopy, buildings), not the bare-earth level a few metres below — so on densely-forested terrain the DTM is slightly less conservative than a DSM. If that trade-off matters, switch to the DSM backend below from the Settings panel.
 
-#### Alternative backend: Microsoft Planetary Computer (DSM)
+#### ➡️ Alternative backend: Microsoft Planetary Computer (DSM)
 
-The elevation source can be switched from the **Settings panel** to the **[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)** — Microsoft's open geospatial data catalog exposing petabyte-scale Earth-observation datasets as Cloud-Optimised GeoTIFFs (COGs) via a public STAC API. No API key required.
+The elevation source can be switched from the **Settings** panel to the **[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/)** — Microsoft's open geospatial data catalog exposing petabyte-scale Earth-observation datasets as Cloud-Optimised GeoTIFFs (COGs) via a public STAC API. No API key required.
 
 - Serves **Copernicus DEM GLO-30** (STAC collection `cop-dem-glo-30`) — global ~30 m WorldDEM **DSM** derived from TanDEM-X interferometric SAR data (ESA / Airbus). Heights above the EGM2008 geoid.
 - Loading strategy: STAC-search the 1° × 1° tiles overlapping the bbox, sign each asset href via `/api/sas/v1/sign`, then read only the required pixels via `geotiff.js` byte-range requests.
@@ -298,7 +309,7 @@ The elevation source can be switched from the **Settings panel** to the **[Micro
 
 ### 2. Airports (OpenAIP)
 
-Airports are pulled from **OpenAIP** to complement the outlanding databases with recognised runways worldwide.
+Airports are pulled from [OpenAIP](https://www.openaip.net/) with recognised runways worldwide.
 
 - Instead of hitting the OpenAIP REST API on every viewport change, Local Check fetches the per-country JSON exports at `https://storage.openaip.net/openaip-system-exports/<cc>_apt.json`.
 - The countries traversed are detected offline from the flight track using a 10 km world-polygons dataset (`@geo-maps/countries-land-10km`), sampled at ~30 points across the track. This produces a small list of ISO alpha-2 country codes (e.g. `fr`, `it`, `ch`).
@@ -373,10 +384,9 @@ The loading dialog reports the progress of each step and closes on its own when 
 ## Notes & Tips
 
 - Landing zones are matched using the configured databases only — make sure the relevant regions are enabled.
-- Reducing the reachable-zone grid size dramatically increases computation cost; start with 360 m and refine if needed.
+- Reducing the reachable-zone grid size dramatically increases computation cost; start with 720 m and refine if needed.
 - The Ground Clearance parameter does not affect the local-check classification (arrival height alone decides that), but it *does* gate **en-route** terrain clearance: the glide plane must stay above terrain + ground clearance along every routed segment and along every reachable-zone ray. Raising it shrinks the reachable-zone overlay and makes detours harder to find.
-- Elevation data is loaded on demand; the loading dialog reports progress across elevation, landing-zone database, and local-check computation.
-- OpenAIP country payloads are cached client-side in `localStorage` (24 h) — clearing your browser storage forces a fresh fetch on the next upload. Elevation data is re-fetched on every upload.
+- OpenAIP country payloads are cached client-side in `localStorage` (24 h) — clearing your browser storage forces a fresh fetch on the next upload.
 - Anonymous, cookieless usage statistics may be collected via [Umami](https://umami.is) (no personal data, no flight content, no cookies) so the club can see which features are actually used.
 
 ---
@@ -391,4 +401,4 @@ The goal of this project is to offer a **pure web** alternative:
 - Works on **macOS and Linux** as well as Windows, whereas VerifLocal is a Windows-only desktop application.
 - Instantly accessible from any device with a browser, without administrator rights or setup.
 
-Many thanks to the author of VerifLocal for pioneering the concept — this web version simply aims to make the same kind of analysis available to a wider audience across all platforms.
+Many thanks 🙏 to the author of VerifLocal for pioneering the concept — this web version simply aims to make the same kind of analysis available to a wider audience across all platforms.

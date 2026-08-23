@@ -140,6 +140,10 @@ Neither elevation backend needs a proxy — their endpoints send permissive CORS
 
 React, TypeScript, Vite, Tailwind CSS, shadcn/ui, Zustand, react-i18next, MapLibre GL (OpenFreeMap tiles), uPlot, and igc-parser.
 
+## AI disclosure
+
+This project was developed with the assistance of AI tools (GitHub Copilot & Claude Code) for code generation, refactoring, writing tests, writting documentation. All output has been reviewed, tested, and validated by the maintainer.
+
 ## 🙏 Credits
 
 Local Check was inspired by **[VerifLocal](https://condorutill.fr/index_fr.php)**, the well-known desktop application widely used in the French soaring community for post-flight local-verification analysis — notably adopted by the **FFVP** (Fédération Française de Vol en Planeur).

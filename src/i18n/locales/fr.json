@@ -12,7 +12,7 @@
     "computing": "Calcul…"
   },
   "settings": {
-    "title": "Paramètres",
+    "title": "Réglages",
     "subTitle": "Paramètres",
     "workingLD": "Finesse",
     "workingLDHint": "Finesse utilisée pour le calcul du local (défaut 20)",
