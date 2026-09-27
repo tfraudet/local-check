@@ -28,6 +28,9 @@ jobs:
 
       - name: Builder l'application
         run: npm run build
+        env:
+          VITE_UMAMI_SRC: ${{ vars.VITE_UMAMI_SRC }}
+          VITE_UMAMI_WEBSITE_ID: ${{ vars.VITE_UMAMI_WEBSITE_ID }}
 
       - name: Conserver l'artefact de build
         uses: actions/upload-artifact@v4
