@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "npm" # ou pip, maven, etc.
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
