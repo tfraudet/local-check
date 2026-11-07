@@ -180,10 +180,11 @@ async function resolveMapStyle(
         throw new Error(`Map source did not provide tile URLs (${source.url})`);
       }
 
-      const { url: _url, ...sourceWithoutUrl } = source as typeof source & {
+      const { url, ...sourceWithoutUrl } = source as typeof source & {
         url: string;
         attribution?: string;
       };
+      void url;
       Object.assign(sourceWithoutUrl, {
         tiles: tileJson.tiles,
         ...(tileJson.minzoom === undefined ? {} : { minzoom: tileJson.minzoom }),
@@ -964,4 +965,3 @@ export function MapView({ escapePath }: MapViewProps) {
     </>
   )
 }
-
